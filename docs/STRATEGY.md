@@ -1,0 +1,101 @@
+# Towerline: revenue, growth and engagement plan
+
+## The diagnosis
+
+Claim Avenue sells a $5 to $1,000 building and the buyer gets a link and a vanity rank.
+The chat says the rest: "wtf is this? I bought two buildings but I don't understand how this
+goes", "is this dying? 8 online is quite low", and link spam. The founder's own question in
+September ("have those visits generated sales, registrations, leads?") is the one his
+product cannot answer. The roadmap since then is interiors, driving, boats, avatars and an
+arcade with one player on the leaderboard: more things for visitors to do, nothing for
+buyers to get.
+
+Three structural problems:
+
+1. **One-shot revenue.** Claims and takeover premiums. Revenue dies when the hype or the
+   plots run out.
+2. **No value loop for owners.** Owners can't see what they got, so they don't come back,
+   don't upgrade, and tell people it's pointless.
+3. **No reason to return.** A visitor sees the skyline once. There's no daily hook, no
+   season, no progression.
+
+## What Towerline does instead
+
+### Revenue: five streams, two of them recurring
+
+| Stream | Mechanic | Why it works |
+| --- | --- | --- |
+| Claims | floors × $5, zoned minimums on premium addresses | "How tall do I want to be" is a better purchase decision than "how much do I spend". People pick 50 floors, not $5. |
+| Takeover premium | buyer pays 1.25×, seller gets value + 60% of premium, platform keeps 40% of premium | Sellers *profit* from being bought, so takeovers are drama they want. Platform earns on every flip forever. |
+| Boosts & coin packs | add value to grow taller / defend; buy coins | Status spend. Coin packs are the arcade's cash register. |
+| **Plans (MRR)** | Pro $9/mo, Landmark $49/mo | Analytics depth, height bonus, featured placement, takeover shield. Monthly, not once. |
+| **Billboards** | block boards $20/wk, airship $49/wk, self-serve, live stats | The first real buyer on Claim Avenue was a billboard sponsor. Make it a product. |
+
+Target mix at 1,000 owners: ~25% on Pro/Landmark → $4–6k MRR before any claims or ads.
+
+### The owner value loop
+
+Owner gets something measurable, every day:
+
+- **Impressions** (seen on the skyline), **uniques**, **views**, **clicks**, **CTR**, deltas vs
+  the previous period, referrers (skyline / rankings / directory / embed / X).
+- **Conversions**: a one-line pixel on their thank-you page reports signups or sales (with
+  value). This is the metric that justifies the Pro plan and the next boost.
+- Outbound links carry UTMs so their Google Analytics agrees with ours.
+- Email the moment a takeover happens ("you earned $X"), weekly digest for Pro.
+- A first-run checklist (logo, link, tagline, first click, 50 views) so nobody buys and
+  then asks "what do I do".
+
+### Engagement: reasons to come back
+
+- **Daily coins + streaks**: show up, get coins. Explore buildings, get coins.
+- **Arcade with stakes**: three original machines (no licensing problems), coin entry,
+  coin prizes, daily and all-time boards. Beat the daily record → you're in the live feed.
+- **Coins become height**: 100 coins = $1 of value. Play → grow your tower → rank higher.
+  Players and owners become the same people.
+- **Skyline Coaster**: a 48-second camera ride over the whole avenue. Costs coins, shows
+  off every building (impressions for owners), and is the thing people screen-record.
+- **Weekly seasons**: trending leaderboard resets Monday; top 3 get featured all week.
+- **Takeover drama**: public ownership history on every plot; sellers profit so nobody
+  rage-quits.
+- **Districts**: Crypto Row vs Startup Alley vs Creator Corner give communities a home and
+  a rivalry.
+
+### Growth loops
+
+- **Referrals**: both sides get $2 credit + 25 coins when a friend claims.
+- **Share cards**: every building has an OG image (1200×630) that renders a mini skyline;
+  one-click "Share on X".
+- **Embed badge**: an SVG badge for owners' sites that links back (and counts as a
+  referrer). Every owner becomes a distribution channel.
+- **SEO**: a server-rendered public page per building and a directory. "Harbor Coffee Co.
+  on Towerline" is indexable; Claim Avenue's plot pages are thin.
+- **Billboard advertisers** bring their own audience to check their numbers.
+
+### Trust (because "is this a scam" is the top objection)
+
+- Public, live city statistics (online, visits, building views, website clicks).
+- Rules page: takeover math with a worked example, refund window (24h, no interactions),
+  content policy.
+- Chat anti-spam: only owners can post links; rate limits; dedupe.
+- Stripe receipts; sandbox mode for demos.
+
+## What to measure (built into /admin)
+
+- Revenue/day and by product, MRR from plans, ARPPU.
+- Visit → checkout start → paid funnel.
+- Signups/day, owners, paying users.
+- **Outbound clicks delivered** (the value we create for owners; if this stalls, churn follows).
+- Per-owner: CTR and conversions (the numbers that sell the Pro plan).
+
+## Roadmap after v1
+
+1. Stripe Connect cash-out for seller credit; subscription billing for plans (today they're
+   30-day purchases).
+2. Weekly email digest with rank movement and a "someone viewed your takeover page" nudge.
+3. Theme park district: more rides (coins), a Ferris wheel vantage point with billboard
+   slots, seasonal events (block parties: claims 50% off for 2 hours, announced in the feed).
+4. Building guestbooks (per-plot chat rooms) for Pro+.
+5. Coinbase Commerce as a second checkout for the crypto crowd.
+6. Mobile: touch controls are in; add a 2D minimap mode for low-end phones.
+7. Multi-instance realtime (Redis) when a single box isn't enough.
