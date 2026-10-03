@@ -45,6 +45,14 @@ export interface CityBillboard {
   plotId: number | null;
 }
 
+export interface Featured {
+  id: number;
+  name: string | null;
+  tagline: string | null;
+  reason: "winner" | "landmark";
+  valueCents: number;
+}
+
 export interface CityStats {
   totalSalesCents: number;
   claimed: number;
@@ -73,6 +81,7 @@ interface CityState {
   plots: Map<number, CityPlot>;
   events: CityEvent[];
   billboards: CityBillboard[];
+  featured: Featured[];
   stats: CityStats | null;
   me: Me | null;
   myPlots: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }>;
@@ -99,12 +108,14 @@ interface CityState {
   setToast: (t: string | null) => void;
   setPreview: (d: CityState["previewDraft"]) => void;
   setBillboards: (b: CityBillboard[]) => void;
+  setFeatured: (f: Featured[]) => void;
 }
 
 export const useCity = create<CityState>((set) => ({
   plots: new Map(),
   events: [],
   billboards: [],
+  featured: [],
   stats: null,
   me: null,
   myPlots: [],
@@ -137,6 +148,7 @@ export const useCity = create<CityState>((set) => ({
   setToast: (toast) => set({ toast }),
   setPreview: (previewDraft) => set({ previewDraft }),
   setBillboards: (billboards) => set({ billboards }),
+  setFeatured: (featured) => set({ featured }),
 }));
 
 function emptyPlot(id: number): CityPlot {

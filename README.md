@@ -18,10 +18,12 @@ recurring revenue, and there are reasons to come back every day.
 | **Pay per floor** | Claim price is floors × $5. Height is value, value is the leaderboard. Zoning gives premium addresses minimum heights. The designer shows the leaderboard position you'd land at before you pay. 10-minute holds while someone checks out. |
 | **Takeovers nobody loses on** | Any building sells for 1.25× value. The seller gets their value back plus 60% of the premium as instant credit, with a notification. Boosting raises both the price and the payout. |
 | **Owner analytics** | Daily impressions (seen on skyline), uniques, views, clicks, CTR, period-over-period deltas, referrer breakdown, 7/30/90-day ranges, UTM-tagged outbound links, and a one-line **conversion pixel** so owners can see sales next to clicks. |
-| **Plans (MRR)** | Owner (free), Pro $9/mo, Landmark $49/mo: longer history, referrers, height bonus, rooftop sign, takeover shield, featured placement. |
+| **Plans (MRR)** | Owner (free), Pro $9, Landmark $49, billed every 30 days as real Stripe subscriptions (renewals, failed payments and cancellations handled by webhook; a sandbox subscription lifecycle for local dev). Longer history, referrers, height bonus, rooftop sign, takeover shield, featured placement. |
 | **Billboards** | Self-serve block billboards ($20/wk) and an airship banner ($49/wk) with live seen / opens / clicks. |
 | **Arcade & coins** | Soft currency earned by showing up (daily + streaks), exploring and referring; bought in packs; spent on three original games (Snake, Breakout, Runner) with daily and all-time leaderboards, and on the Skyline Coaster ride. 100 coins = $1 of building height, so playing grows your tower. |
-| **Growth loops** | Referral links (both sides get credit + coins), X share intents, OG share cards per building, an embeddable SVG badge, public plot pages for SEO, weekly trending seasons. |
+| **Seasons** | Every week closes Monday 00:00 UTC: top 3 trending win coins and a featured spot on the home page, every rank is snapshotted so dashboards show "▲ 7 since last week", full history at `/seasons`. |
+| **Emails** | Welcome with a 3-step checklist, "you were bought out" with the payout, "someone is eyeing your building" nudge, season results, and a Monday weekly report (views, clicks, CTR, rank movement; referrers for Pro). |
+| **Growth loops** | Referral links (both sides get credit + coins), X share intents, OG share cards per building, an embeddable SVG badge, public plot pages for SEO. |
 | **Community** | Avenue chat with anti-spam: only owners can post links, rate limits, duplicate suppression. Live feed over SSE: claims, takeovers, boosts, arcade records, billboards. |
 | **Operator dashboard** | `/admin`: revenue by day and by product, MRR, ARPPU, visit→checkout→paid funnel, signups, outbound clicks delivered. |
 | **Trust** | Transparent public stats, published rules and refund policy, instant edits, email receipts via Stripe, sandbox mode for demos. |
@@ -51,6 +53,11 @@ Admin: put your email in `ADMIN_EMAILS` before signing in the first time.
 - **Email**: set `RESEND_API_KEY` and `EMAIL_FROM`.
 - **Realtime**: SSE from an in-process bus. Fine on one instance (Fly, Railway, a VPS). For
   multi-instance, swap `src/lib/realtime.ts` for Redis pub/sub.
+- **Cron**: two endpoints keep the economy honest. `/api/cron/daily` renews sandbox plans, expires
+  lapsed ones, closes seasons and prunes dedupe rows; `/api/cron/weekly` (Monday) closes the season
+  and sends digests. Protect them with `CRON_SECRET` (`?secret=` or a Bearer token). `vercel.json`
+  schedules both on Vercel; anywhere else, hit them from any scheduler. Seasons also close lazily
+  on the first request after the boundary, so nothing breaks without cron.
 - Deploy on anything that runs Node 20+ (`npm run build && npm start`).
 
 ## Layout
@@ -59,6 +66,9 @@ Admin: put your email in `ADMIN_EMAILS` before signing in the first time.
 src/lib/config.ts        prices, tiers, zoning, districts (all tunable)
 src/lib/economy.ts       claims, takeovers, boosts, tiers, billboards, settle()
 src/lib/arcade.ts        coins, games, prizes, coaster, coin→height conversion
+src/lib/subscriptions.ts plan lifecycle: activate, renew, cancel, expire, MRR
+src/lib/seasons.ts       weekly close, prizes, featured winners, rank snapshots
+src/lib/emails.ts        welcome, sold, nudge, weekly digest
 src/lib/analytics.ts     per-plot daily rollups, referrers, site KPIs
 src/lib/auth.ts          magic links, sessions, referrals
 src/lib/city/layout.ts   where every plot sits, height from value

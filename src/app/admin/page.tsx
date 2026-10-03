@@ -8,6 +8,7 @@ import { siteStats } from "@/lib/economy";
 import { formatCount, formatMoney } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
+import { currentMrrCents } from "@/lib/subscriptions";
 
 export const metadata = { title: "Operator dashboard" };
 export const dynamic = "force-dynamic";
@@ -26,14 +27,14 @@ export default async function Admin() {
   const byKind = await db.select({ kind: schema.transactions.kind, n: sql<number>`count(*)`, rev: sql<number>`sum(amount_cents)` }).from(schema.transactions).where(sql`status = 'paid'`).groupBy(schema.transactions.kind);
   const rev7 = sum("revenueCents", 7), rev30 = sum("revenueCents");
   const visits7 = sum("visits", 7), checkout7 = sum("checkoutStarts", 7), claims7 = sum("claims", 7) + sum("takeovers", 7);
-  const mrr = Number(tiers?.pro ?? 0) * 900 + Number(tiers?.lm ?? 0) * 4900;
+  const mrr = await currentMrrCents();
   return (
     <Shell wide>
       <h1 className="text-3xl font-bold">Operator dashboard</h1>
       <p className="text-sm text-slate-400">Revenue, growth and engagement. If a number here isn't moving, that's the week's job.</p>
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
         <K label="Revenue 7d" v={formatMoney(rev7)} sub={`${formatMoney(rev30)} / 30d`} accent />
-        <K label="MRR (plans)" v={formatMoney(mrr)} sub={`${tiers?.pro ?? 0} pro · ${tiers?.lm ?? 0} landmark`} />
+        <K label="MRR (active plans)" v={formatMoney(mrr)} sub={`${tiers?.pro ?? 0} pro · ${tiers?.lm ?? 0} landmark`} />
         <K label="ARPPU" v={formatMoney(Number(paid?.n) ? Math.round(stats.totalSalesCents / Number(paid.n)) : 0)} sub={`${paid?.n ?? 0} paying users`} />
         <K label="Visits 7d" v={formatCount(visits7)} sub={`${formatCount(sum("uniques", 7))} uniques`} />
         <K label="Visit → checkout" v={`${visits7 ? ((checkout7 / visits7) * 100).toFixed(2) : "0"}%`} sub={`${checkout7} checkouts`} />

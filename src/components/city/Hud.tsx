@@ -36,8 +36,8 @@ export function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
-      {/* top center: live numbers */}
-      <div className="absolute left-1/2 top-3 -translate-x-1/2 fade-up">
+      {/* top center: live numbers + featured strip */}
+      <div className="absolute left-1/2 top-3 flex -translate-x-1/2 flex-col items-center gap-2 fade-up">
         <button onClick={() => setPanel(panel === "stats" ? "none" : "stats")} className="pointer-events-auto panel flex items-center gap-4 rounded-full px-4 py-2 text-sm hover:border-white/20">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />{stats?.online ?? 1} online</span>
           <span className="text-slate-400">|</span>
@@ -45,6 +45,7 @@ export function Hud() {
           <span className="text-slate-400">|</span>
           <span>{stats?.claimed ?? 0}/{stats?.totalPlots ?? 0} plots</span>
         </button>
+        <FeaturedStrip />
       </div>
 
       {/* top-left brand + sales + CTA */}
@@ -117,6 +118,26 @@ export function Hud() {
         <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg)]/70 text-sm text-slate-300">Building the city…</div>
       )}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">drag to orbit · scroll to zoom · WASD/arrows to pan · click a building</div>
+    </div>
+  );
+}
+
+function FeaturedStrip() {
+  const featured = useCity((s) => s.featured);
+  const select = useCity((s) => s.select);
+  const setFlyTo = useCity((s) => s.setFlyTo);
+  if (!featured.length) return null;
+  return (
+    <div className="pointer-events-auto hidden items-center gap-1 rounded-full panel px-2 py-1 md:flex">
+      <span className="px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">Featured</span>
+      {featured.slice(0, 5).map((f) => (
+        <button key={f.id} onClick={() => { select(f.id); setFlyTo(f.id); }} title={f.reason === "winner" ? "This week's trending winner" : "Landmark"} className="flex items-center gap-1.5 rounded-full px-2 py-1 text-xs hover:bg-white/10">
+          <img src={`/api/logo/${f.id}`} alt="" className="h-5 w-5 rounded-md object-cover" />
+          <span className="max-w-[120px] truncate">{f.name}</span>
+          <span>{f.reason === "winner" ? "🏆" : "★"}</span>
+        </button>
+      ))}
+      <Link href="/seasons" className="px-2 text-[11px] text-slate-400 hover:text-white">seasons →</Link>
     </div>
   );
 }

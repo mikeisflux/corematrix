@@ -12,6 +12,7 @@ export async function Shell({ children, wide }: { children: React.ReactNode; wid
           <nav className="ml-4 hidden items-center gap-1 text-sm text-slate-300 md:flex">
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/">City</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/rankings">Rankings</Link>
+            <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/seasons">Seasons</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/directory">Directory</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/arcade">Arcade</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/how-it-works">How it works</Link>

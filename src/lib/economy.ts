@@ -26,6 +26,9 @@ import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { BILLBOARD_SLOTS } from "@/lib/config";
 import { floorsForValue } from "@/lib/city/layout";
+import { activatePlan, planEmailCopy } from "@/lib/subscriptions";
+import { sendSold, sendWelcome } from "@/lib/emails";
+import { sendMail } from "@/lib/mailer";
 
 export type Plot = typeof schema.plots.$inferSelect;
 
@@ -360,6 +363,11 @@ export async function settle(txId: string, provider: "sandbox" | "stripe", provi
       });
     await addEvent("claim", tx.plotId, `${d.name} joined the avenue`, `Plot #${tx.plotId} · ${DISTRICTS[d.district ?? "downtown"].name}`, tx.valueAfter);
     await bumpSiteDaily({ claims: 1, revenueCents: tx.amountCents });
+    if (tx.buyerId) {
+      await db.update(schema.users).set({ coins: sql`${schema.users.coins} + 50` }).where(eq(schema.users.id, tx.buyerId));
+      await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: 50, reason: "claim", ref: `plot:${tx.plotId}`, createdAt: t });
+      await sendWelcome(tx.buyerId, tx.plotId, d.name);
+    }
   } else if (tx.kind === "takeover" && meta.draft) {
     const d = sanitizeDraft(meta.draft);
     const prev = await getPlot(tx.plotId);
@@ -373,6 +381,9 @@ export async function settle(txId: string, provider: "sandbox" | "stripe", provi
         lastSoldAt: t,
         tier: "free",
         tierUntil: null,
+        subscriptionId: null,
+        subscriptionStatus: null,
+        featuredUntil: null,
         notForSaleUntil: null,
         salesCount: sql`${schema.plots.salesCount} + 1`,
       })
@@ -391,6 +402,7 @@ export async function settle(txId: string, provider: "sandbox" | "stripe", provi
         plotId: tx.plotId,
         createdAt: t,
       });
+      await sendSold(tx.sellerId, tx.plotId, prev?.name ?? "Your building", tx.valueAfter, tx.sellerPayoutCents, tx.valueBefore);
     }
     await addEvent("takeover", tx.plotId, `${d.name} took over Plot #${tx.plotId}`, `Bought ${meta.previousName ?? "the building"} for ${formatMoney(tx.valueAfter)}`, tx.valueAfter);
     await bumpSiteDaily({ takeovers: 1, revenueCents: tx.amountCents });
@@ -403,19 +415,17 @@ export async function settle(txId: string, provider: "sandbox" | "stripe", provi
     await addEvent("boost", tx.plotId, `${p?.name ?? "A building"} grew taller`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
-    const until = t + 30 * 86_400_000;
-    const [p] = await db
-      .update(schema.plots)
-      .set({
-        tier: meta.tier,
-        tierUntil: until,
-        notForSaleUntil: meta.tier === "landmark" ? t + 7 * 86_400_000 : null,
-        updatedAt: t,
-      })
-      .where(eq(schema.plots.id, tx.plotId))
-      .returning();
-    await addEvent("tier", tx.plotId, `${p?.name ?? "A building"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured on the skyline for 30 days" : "Unlocked full analytics", tx.amountCents);
+    const subId = providerRef?.startsWith("sub_") ? providerRef : null;
+    const p = await activatePlan(tx.plotId, meta.tier, subId, provider);
+    await addEvent("tier", tx.plotId, `${p?.name ?? "A building"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured on the skyline, takeover shield on" : "Unlocked full analytics", tx.amountCents);
     await bumpSiteDaily({ revenueCents: tx.amountCents });
+    if (tx.buyerId) {
+      const [u] = await db.select({ email: schema.users.email, notify: schema.users.notifyEmail }).from(schema.users).where(eq(schema.users.id, tx.buyerId));
+      if (u?.notify) {
+        const copy = planEmailCopy(meta.tier, p?.name ?? `Plot #${tx.plotId}`);
+        await sendMail(u.email, copy.subject, copy.html);
+      }
+    }
   }
 
   else if (tx.kind === "coins" && meta.coins && tx.buyerId) {

@@ -8,6 +8,13 @@
       "when": 1790980571854,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790985618102,
+      "tag": "0001_subscriptions_seasons",
+      "breakpoints": true
     }
   ]
 }

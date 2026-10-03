@@ -109,7 +109,7 @@ export function PlotPanel() {
           </div>
         ) : (
           <div className="space-y-2">
-            <button className="btn-primary w-full" onClick={() => setMode("takeover")}>Take over for {formatMoney(price)} →</button>
+            <button className="btn-primary w-full" onClick={() => { track({ kind: "takeover_view", plotId: id }); setMode("takeover"); }}>Take over for {formatMoney(price)} →</button>
             <p className="text-center text-[11px] text-slate-400">Current owner would receive {formatMoney(sellerPayout)} ({formatMoney(sellerPayout - plot.valueCents)} profit).</p>
           </div>
         )}

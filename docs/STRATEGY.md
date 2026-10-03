@@ -88,14 +88,20 @@ Owner gets something measurable, every day:
 - **Outbound clicks delivered** (the value we create for owners; if this stalls, churn follows).
 - Per-owner: CTR and conversions (the numbers that sell the Pro plan).
 
+## Status
+
+Everything above is implemented: subscriptions with renewals and cancellation, weekly
+seasons with prizes, featured winners and rank snapshots, the conversion pixel, referrers,
+billboards with live stats, the arcade and coaster, referrals, share cards, badges, the
+weekly digest, the sold email and the takeover nudge, chat anti-spam, and the operator
+dashboard.
+
 ## Roadmap after v1
 
-1. Stripe Connect cash-out for seller credit; subscription billing for plans (today they're
-   30-day purchases).
-2. Weekly email digest with rank movement and a "someone viewed your takeover page" nudge.
-3. Theme park district: more rides (coins), a Ferris wheel vantage point with billboard
+1. Stripe Connect cash-out for seller credit.
+2. Theme park district: more rides (coins), a Ferris wheel vantage point with billboard
    slots, seasonal events (block parties: claims 50% off for 2 hours, announced in the feed).
-4. Building guestbooks (per-plot chat rooms) for Pro+.
-5. Coinbase Commerce as a second checkout for the crypto crowd.
-6. Mobile: touch controls are in; add a 2D minimap mode for low-end phones.
-7. Multi-instance realtime (Redis) when a single box isn't enough.
+3. Building guestbooks (per-plot chat rooms) for Pro+.
+4. Coinbase Commerce as a second checkout for the crypto crowd.
+5. Mobile: touch controls are in; add a 2D minimap mode for low-end phones.
+6. Multi-instance realtime (Redis) when a single box isn't enough.

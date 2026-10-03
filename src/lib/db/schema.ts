@@ -14,6 +14,7 @@ export const users = sqliteTable("users", {
   lastDailyCoinsAt: integer("last_daily_coins_at"),
   streak: integer("streak").notNull().default(0),
   notifyEmail: integer("notify_email", { mode: "boolean" }).notNull().default(true),
+  stripeCustomerId: text("stripe_customer_id"),
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),
@@ -56,6 +57,10 @@ export const plots = sqliteTable(
     district: text("district").notNull().default("downtown"),
     tier: text("tier").notNull().default("free"), // free | pro | landmark
     tierUntil: integer("tier_until"),
+    subscriptionId: text("subscription_id"), // stripe sub id, or "sandbox:<txid>"
+    subscriptionStatus: text("subscription_status"), // active | canceling | canceled | past_due
+    featuredUntil: integer("featured_until"), // season winners get a week on the home page
+    lastTakeoverNudgeAt: integer("last_takeover_nudge_at"),
     valueCents: integer("value_cents").notNull().default(0),
     claimedAt: integer("claimed_at"),
     updatedAt: integer("updated_at"),
@@ -184,7 +189,8 @@ export const seasons = sqliteTable("seasons", {
   id: text("id").primaryKey(), // e.g. 2026-W40
   startsAt: integer("starts_at").notNull(),
   endsAt: integer("ends_at").notNull(),
-  resultsJson: text("results_json"), // computed at close
+  closedAt: integer("closed_at"),
+  resultsJson: text("results_json"), // SeasonResults, computed at close
 });
 
 /** Billboard slots (airship banner, rooftop signs) sold by the week. */

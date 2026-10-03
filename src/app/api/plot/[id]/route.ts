@@ -3,6 +3,8 @@ import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { getPlot, plotHistory, updateBuilding } from "@/lib/economy";
 import { plotReferrerRows, plotSeries, sumSeries } from "@/lib/analytics";
+import { lastWeekRank } from "@/lib/seasons";
+import { claimedPlots } from "@/lib/economy";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const series = await plotSeries(plotId, days);
   const history = await plotHistory(plotId);
   const referrers = isOwner ? await plotReferrerRows(plotId) : [];
-  return NextResponse.json({ plot: { ...p, isOwner }, series, totals: sumSeries(series), history, referrers });
+  const all = await claimedPlots();
+  const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
+  const prevRank = await lastWeekRank(plotId);
+  return NextResponse.json({ plot: { ...p, isOwner }, series, totals: sumSeries(series), history, referrers, rank, prevRank });
 }
 
 const Patch = z.object({

@@ -6,10 +6,12 @@ import { BUILDING_SHAPES, BUILDING_STYLES, DISTRICTS, formatCount, formatMoney, 
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
-interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean }
+interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyPlot { id: number; name: string | null; valueCents: number; tier: string; color: string }
 interface Detail {
-  plot: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; shape: string; roof: string; district: string; tier: string; tierUntil: number | null; valueCents: number; floors: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  plot: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; shape: string; roof: string; district: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; floors: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  rank: number;
+  prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
   totals: { impressions: number; views: number; clicks: number; uniques: number };
   referrers: Array<{ source: string; views: number; clicks: number }>;
@@ -98,7 +100,13 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
             <img src={`/api/logo/${p.id}`} alt="" className="h-14 w-14 rounded-xl bg-white/10 object-cover" />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-2xl font-bold">{p.name}</h1>
-              <div className="text-xs text-slate-400">Plot #{p.id} · {DISTRICTS[p.district]?.name} · {p.floors} floors · {p.tier !== "free" ? `${TIERS[p.tier as keyof typeof TIERS].name} until ${new Date(p.tierUntil ?? 0).toLocaleDateString()}` : "Owner plan"}</div>
+              <div className="text-xs text-slate-400">
+                Plot #{p.id} · {DISTRICTS[p.district]?.name} · {p.floors} floors · rank <b className="text-white">#{detail.rank}</b>
+                {detail.prevRank != null && detail.prevRank !== detail.rank && (
+                  <span className={detail.prevRank > detail.rank ? "text-emerald-400" : "text-rose-400"}> {detail.prevRank > detail.rank ? "▲" : "▼"} {Math.abs(detail.prevRank - detail.rank)} since last week (#{detail.prevRank})</span>
+                )}
+                {p.featuredUntil && p.featuredUntil > Date.now() && <span className="ml-2 rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">🏆 featured this week</span>}
+              </div>
             </div>
             <Link href={`/plot/${p.id}`} className="btn-ghost text-xs">Public page</Link>
             <Link href={`/?plot=${p.id}`} className="btn-ghost text-xs">View on skyline</Link>
@@ -144,6 +152,11 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
           <div className="grid gap-4 md:grid-cols-2">
             <Grow p={p} me={me} onDone={() => { void load(); api<Detail>(`/api/plot/${p.id}`).then(setDetail); }} setMsg={setMsg} />
             <Protect p={p} takeover={takeover!} setMsg={setMsg} />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Plan p={p} setMsg={setMsg} onChanged={() => api<Detail>(`/api/plot/${p.id}`).then(setDetail)} />
+            <Emails me={me} onChanged={() => void load()} />
           </div>
 
           <Edit p={p} onSaved={(d) => { setDetail({ ...detail, plot: { ...detail.plot, ...d } }); setMsg("Saved. The skyline updates instantly."); }} setMsg={setMsg} />
@@ -250,6 +263,60 @@ function Grow({ p, me, onDone, setMsg }: { p: Detail["plot"]; me: Me; onDone: ()
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function Plan({ p, setMsg, onChanged }: { p: Detail["plot"]; setMsg: (s: string) => void; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const t = p.tier as keyof typeof TIERS;
+  const cancel = async () => {
+    if (!confirm("Cancel this plan? You keep the perks until the paid period ends.")) return;
+    setBusy(true);
+    try {
+      await api("/api/plan", { method: "POST", body: JSON.stringify({ plotId: p.id, action: "cancel" }) });
+      setMsg("Plan will end at the close of the current period.");
+      onChanged();
+    } catch (e) { setMsg((e as Error).message); }
+    setBusy(false);
+  };
+  const until = p.tierUntil ? new Date(p.tierUntil).toLocaleDateString() : null;
+  return (
+    <div className="rounded-2xl border border-white/10 p-4">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Plan</div>
+      <div className="mt-1 flex items-baseline justify-between"><span className="text-xl font-bold">{TIERS[t]?.name ?? "Owner"}</span>{t !== "free" && <span className="mono text-amber-300">{formatMoney(TIERS[t].priceCents)} / 30 days</span>}</div>
+      {t === "free" ? (
+        <p className="mt-1 text-xs text-slate-400">Included with every building. Upgrade in the Grow panel for 90-day history, referrers, a rooftop sign, height bonus and more.</p>
+      ) : (
+        <>
+          <p className="mt-1 text-xs text-slate-300">
+            {p.subscriptionStatus === "active" && <>Renews automatically on <b>{until}</b>.</>}
+            {p.subscriptionStatus === "canceling" && <>Canceled. Perks continue until <b>{until}</b>, then the building returns to the Owner plan.</>}
+            {p.subscriptionStatus === "past_due" && <span className="text-rose-400">Last payment failed. Update your card via the Stripe receipt email, or perks end on {until}.</span>}
+            {p.subscriptionStatus === "canceled" && <>Subscription ended. Perks continue until <b>{until}</b>.</>}
+            {!p.subscriptionStatus && <>Active until <b>{until}</b>.</>}
+          </p>
+          <ul className="mt-2 text-[11px] text-slate-400">{TIERS[t].perks.map((x) => <li key={x}>· {x}</li>)}</ul>
+          {p.subscriptionStatus === "active" && <button className="mt-3 text-xs text-slate-400 hover:text-white" disabled={busy} onClick={cancel}>Cancel plan</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Emails({ me, onChanged }: { me: Me; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    await api("/api/me", { method: "PATCH", body: JSON.stringify({ notifyEmail: !me.notifyEmail }) });
+    onChanged();
+    setBusy(false);
+  };
+  return (
+    <div className="rounded-2xl border border-white/10 p-4">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Emails</div>
+      <p className="mt-1 text-xs text-slate-300">A weekly report every Monday (views, clicks, CTR, rank movement), an email the moment you're bought out with your payout, a heads-up when someone opens your takeover page, and season results.</p>
+      <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={me.notifyEmail} onChange={toggle} disabled={busy} /> Send me these</label>
     </div>
   );
 }

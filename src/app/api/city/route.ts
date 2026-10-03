@@ -3,11 +3,12 @@ import { activeBillboards, claimedPlots, recentEvents, siteStats } from "@/lib/e
 import { onlineCount } from "@/lib/realtime";
 import { TOTAL_PLOTS } from "@/lib/config";
 import { trendingScores } from "@/lib/analytics";
+import { featuredPlots } from "@/lib/seasons";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [plots, stats, events, billboards, trend] = await Promise.all([claimedPlots(), siteStats(), recentEvents(40), activeBillboards(), trendingScores(7)]);
+  const [plots, stats, events, billboards, trend, featured] = await Promise.all([claimedPlots(), siteStats(), recentEvents(40), activeBillboards(), trendingScores(7), featuredPlots(6)]);
   return NextResponse.json(
     {
       plots: plots.map((p) => ({
@@ -34,6 +35,7 @@ export async function GET() {
       })),
       stats: { ...stats, online: onlineCount(), totalPlots: TOTAL_PLOTS },
       events,
+      featured,
       billboards: billboards.map((b) => ({ id: b.id, slot: b.slot, headline: b.headline, body: b.body, website: b.website, imageUrl: b.imageUrl, color: b.color, plotId: b.plotId })),
     },
     { headers: { "Cache-Control": "no-store" } },

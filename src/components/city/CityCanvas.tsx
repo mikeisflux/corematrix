@@ -2,7 +2,7 @@
 import { Suspense, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Scene } from "./Scene";
-import { useCity, api, type CityPlot, type CityEvent, type CityStats, type Me, type CityBillboard } from "@/lib/city/store";
+import { useCity, api, type CityPlot, type CityEvent, type CityStats, type Me, type CityBillboard, type Featured } from "@/lib/city/store";
 import type { LiveMessage } from "@/lib/realtime";
 
 export function CityCanvas() {
@@ -12,11 +12,12 @@ export function CityCanvas() {
   const setStats = useCity((s) => s.setStats);
   const setMe = useCity((s) => s.setMe);
   const setBillboards = useCity((s) => s.setBillboards);
+  const setFeatured = useCity((s) => s.setFeatured);
   const setToast = useCity((s) => s.setToast);
 
   useEffect(() => {
     let alive = true;
-    api<{ plots: CityPlot[]; stats: CityStats; events: CityEvent[]; billboards: CityBillboard[] }>("/api/city").then((d) => {
+    api<{ plots: CityPlot[]; stats: CityStats; events: CityEvent[]; billboards: CityBillboard[]; featured: Featured[] }>("/api/city").then((d) => {
       if (!alive) return;
       setPlots(d.plots);
       setStats(d.stats);
@@ -25,6 +26,7 @@ export function CityCanvas() {
         .reverse()
         .forEach((e) => pushEvent(e));
       setBillboards(d.billboards);
+      setFeatured(d.featured);
     });
     api<{ user: Me | null; plots: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => {
       if (!alive) return;
@@ -43,7 +45,7 @@ export function CityCanvas() {
       alive = false;
       es.close();
     };
-  }, [setPlots, upsertPlot, pushEvent, setStats, setMe, setBillboards, setToast]);
+  }, [setPlots, upsertPlot, pushEvent, setStats, setMe, setBillboards, setFeatured, setToast]);
 
   return (
     <Canvas

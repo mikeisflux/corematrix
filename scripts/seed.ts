@@ -10,6 +10,8 @@ import { claimPriceCents } from "../src/lib/economy";
 import { newCode, newId, seeded, dayKey } from "../src/lib/util";
 import { splitTakeover, zoneFor } from "../src/lib/config";
 import { floorsForValue } from "../src/lib/city/layout";
+import { closeSeason } from "../src/lib/seasons";
+import { weekBounds } from "../src/lib/util";
 
 const force = process.argv.includes("--force");
 
@@ -71,7 +73,7 @@ async function main() {
     return;
   }
   if (force) {
-    for (const t of [schema.plots, schema.users, schema.sessions, schema.transactions, schema.events, schema.plotDaily, schema.plotReferrers, schema.visitorSeen, schema.siteDaily, schema.messages, schema.notifications, schema.billboards]) {
+    for (const t of [schema.plots, schema.users, schema.sessions, schema.transactions, schema.events, schema.plotDaily, schema.plotReferrers, schema.visitorSeen, schema.siteDaily, schema.messages, schema.notifications, schema.billboards, schema.seasons, schema.coinLedger, schema.gameScores, schema.gamePlays]) {
       await db.delete(t);
     }
   }
@@ -133,8 +135,8 @@ async function main() {
     let t = claimedAt;
     let currentOwner = owner;
     for (let r = 0; r < rounds; r++) {
-      t += Math.floor(rnd() * 6 + 1) * DAY;
-      if (t > nowTs) break;
+      t += Math.floor(rnd() * 6 + 1) * DAY + Math.floor(rnd() * 20) * 3600_000;
+      if (t > nowTs - 2 * 3600_000) break;
       if (rnd() < 0.5) {
         const { price, sellerPayout, platform } = splitTakeover(value);
         const buyer = pick(owners);
@@ -171,6 +173,8 @@ async function main() {
       district,
       tier,
       tierUntil: tier !== "free" ? nowTs + 20 * DAY : null,
+      subscriptionId: tier !== "free" ? `sandbox:${newId()}` : null,
+      subscriptionStatus: tier !== "free" ? (rnd() < 0.85 ? "active" : "canceling") : null,
       valueCents: value,
       claimedAt,
       updatedAt: t,
@@ -223,6 +227,9 @@ async function main() {
       checkoutStarts: Math.floor(rnd() * 14 + 4),
     });
   }
+
+  // Close last week's season so featured winners and rank movement are demoable.
+  await closeSeason(weekBounds(nowTs).startsAt - 7 * DAY);
 
   feed.sort((a, b) => a.createdAt - b.createdAt);
   await db.insert(schema.events).values(feed.slice(-200));
