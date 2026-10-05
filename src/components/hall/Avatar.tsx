@@ -11,7 +11,14 @@ import { Suspense } from "react";
 export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
 const keys = new Set<string>();
 if (typeof window !== "undefined") {
-  window.addEventListener("keydown", (e) => { const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable) return; keys.add(e.key.toLowerCase()); });
+  const GAME_KEYS = new Set(["w", "a", "s", "d", "q", "e", "v", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "'", "/"]);
+  window.addEventListener("keydown", (e) => {
+    const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.tagName === "SELECT" || t?.isContentEditable) return;
+    const k = e.key.toLowerCase();
+    // claim the game keys so the browser doesn't treat them as typing (Firefox find-as-you-type, page scroll on arrows)
+    if (GAME_KEYS.has(k) && !e.ctrlKey && !e.metaKey && !e.altKey && useHall.getState().mode === "walk") e.preventDefault();
+    keys.add(k);
+  });
   window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
   window.addEventListener("blur", () => keys.clear());
 }
