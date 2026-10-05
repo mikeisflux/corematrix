@@ -82,7 +82,10 @@ Admin: put your email in `ADMIN_EMAILS` before signing in the first time, then m
   and sends digests. Protect them with `CRON_SECRET` (`?secret=` or a Bearer token). `vercel.json`
   schedules both on Vercel; anywhere else, hit them from any scheduler. Seasons also close lazily
   on the first request after the boundary, so nothing breaks without cron.
-- Deploy on anything that runs Node 20+ (`npm run build && npm start`).
+- Deploy on anything that runs Node 20+ (`npm run build && npm start`). For a single VPS there is a
+  pm2 setup: `ecosystem.config.cjs` and `scripts/deploy.sh` (git pull → npm ci → build → pm2 reload →
+  health check). One-time: `npm i -g pm2 && pm2 startup systemd -u fcc --hp /srv/fcc`; then every
+  release is `sudo -u fcc /srv/fcc/app/scripts/deploy.sh`.
 
 ## Models
 
