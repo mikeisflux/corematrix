@@ -45,7 +45,7 @@ export default function AdminSidebar({ adminName, adminEmail, siteName }: { admi
       </nav>
       <div className="admSide__ft">
         <div className="admLabel" title={adminEmail}>{adminName}</div>
-        <Link href="/" className="admNav__a">View site</Link>
+        <Link href="/app" className="admNav__a">View site</Link>
         <button className="admNav__a admNav__btn" onClick={signOut}>Sign out</button>
       </div>
     </aside>

@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   if (tx.sessionId && tx.sessionId !== sessionId) return NextResponse.json({ error: "Session mismatch." }, { status: 400 });
   try {
     const r = await confirmCheckoutSession(txId, sessionId);
-    if (r.ok) return NextResponse.json({ ok: true, status: r.status, redirect: `/checkout/done?tx=${txId}` });
+    if (r.ok) return NextResponse.json({ ok: true, status: r.status, redirect: `/app/checkout/done?tx=${txId}` });
     return NextResponse.json({ ok: false, status: r.status, message: r.message }, { status: r.status === "pending" ? 202 : 400 });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not verify the payment." }, { status: 502 });

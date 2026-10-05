@@ -100,11 +100,11 @@ export function Hud() {
 
       <div className="absolute bottom-3 left-3 flex items-center gap-2 pointer-events-auto">
         <nav className="panel flex items-center gap-1 rounded-full px-2 py-1 text-xs">
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/directory">Exhibitors</Link>
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/rankings">Rankings</Link>
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/arcade">Arcade</Link>
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/how-it-works">How it works</Link>
-          {me && <Link className="rounded-full px-3 py-1.5 text-amber-300 hover:bg-white/10" href="/dashboard">Dashboard</Link>}
+          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/directory">Exhibitors</Link>
+          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/rankings">Rankings</Link>
+          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/arcade">Arcade</Link>
+          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/how-it-works">How it works</Link>
+          {me && <Link className="rounded-full px-3 py-1.5 text-amber-300 hover:bg-white/10" href="/app/dashboard">Dashboard</Link>}
         </nav>
         {me && <button onClick={() => setPanel("arcade")} className="panel rounded-full px-3 py-1.5 text-xs mono"><span className="text-amber-300">●</span> {me.coins} coins</button>}
       </div>
@@ -163,7 +163,7 @@ function FeaturedStrip() {
           <span>{f.reason === "winner" ? "🏆" : "★"}</span>
         </button>
       ))}
-      <Link href="/seasons" className="px-2 text-[11px] text-slate-400 hover:text-white">seasons →</Link>
+      <Link href="/app/seasons" className="px-2 text-[11px] text-slate-400 hover:text-white">seasons →</Link>
     </div>
   );
 }

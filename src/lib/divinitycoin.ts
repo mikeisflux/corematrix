@@ -132,7 +132,7 @@ class DivinityCoinClient {
     const c = await config();
     if (c.testMode) {
       const q = new URLSearchParams({ reference: input.reference, amount: String(input.amountCents / 100), success: input.returnUrl, cancel: input.cancelUrl, kind: "payment" });
-      return { success: true, checkoutUrl: `${c.site}/checkout/simulate?${q}`, sessionId: `cs_test_${input.reference}` };
+      return { success: true, checkoutUrl: `${c.site}/app/checkout/simulate?${q}`, sessionId: `cs_test_${input.reference}` };
     }
     try {
       const d = await this.call<{ success: boolean; sessionId: string; checkoutUrl: string; expiresAt: string }>("create-checkout-session", {
@@ -154,7 +154,7 @@ class DivinityCoinClient {
     const c = await config();
     if (c.testMode) {
       const q = new URLSearchParams({ reference: input.reference, success: input.returnUrl, cancel: input.cancelUrl, kind: "setup" });
-      return { success: true, checkoutUrl: `${c.site}/checkout/simulate?${q}`, sessionId: `cs_test_setup_${input.reference}` };
+      return { success: true, checkoutUrl: `${c.site}/app/checkout/simulate?${q}`, sessionId: `cs_test_setup_${input.reference}` };
     }
     try {
       const d = await this.call<{ success: boolean; sessionId: string; checkoutUrl: string; expiresAt: string }>("create-checkout-session", {

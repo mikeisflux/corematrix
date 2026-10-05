@@ -1,0 +1,80 @@
+/* Public site: glows, grain, display type. Scoped under .mk so the app's HUD styles stay untouched. */
+.mk {
+  --mk-bg: #07070f;
+  --mk-ink: #f5f3ff;
+  --mk-muted: #a3a7c4;
+  --mk-gold: #ffcf5c;
+  --mk-pink: #ff2bd6;
+  --mk-cyan: #00f5ff;
+  --mk-violet: #8338ec;
+  --mk-mint: #5ee6c3;
+  background: var(--mk-bg);
+  color: var(--mk-ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  overflow-x: clip;
+  position: relative;
+}
+.mk .display { font-family: var(--font-display), var(--font-geist-sans), sans-serif; letter-spacing: -0.02em; }
+.mk::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='0.9'/></svg>");
+}
+.mk-glow { position: absolute; border-radius: 9999px; filter: blur(90px); pointer-events: none; opacity: 0.55; will-change: transform; }
+.mk-glow--pink { background: radial-gradient(closest-side, var(--mk-pink), transparent 70%); }
+.mk-glow--cyan { background: radial-gradient(closest-side, var(--mk-cyan), transparent 70%); }
+.mk-glow--violet { background: radial-gradient(closest-side, var(--mk-violet), transparent 70%); }
+.mk-glow--gold { background: radial-gradient(closest-side, var(--mk-gold), transparent 70%); }
+.mk-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 80%);
+}
+.mk-card {
+  position: relative; border-radius: 24px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.mk-card--glow::after {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(135deg, var(--mk-pink), var(--mk-violet), var(--mk-cyan)); opacity: 0;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; transition: opacity 0.4s;
+}
+.mk-card--glow:hover::after { opacity: 1; }
+.mk-frame {
+  position: relative; border-radius: 28px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 60px 120px -40px rgba(131, 56, 236, 0.55), 0 0 140px -30px rgba(255, 43, 214, 0.45);
+}
+.mk-frame img { display: block; width: 100%; height: auto; }
+.mk-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 60%, rgba(7, 7, 15, 0.9)); pointer-events: none; }
+.mk-btn {
+  display: inline-flex; align-items: center; gap: 10px; border-radius: 999px; padding: 14px 24px; font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+  transition: transform 0.2s, box-shadow 0.3s, background 0.3s; will-change: transform;
+}
+.mk-btn:active { transform: scale(0.98); }
+.mk-btn--primary { color: #140b00; background: linear-gradient(135deg, #ffe08a, var(--mk-gold) 50%, #ffb347); box-shadow: 0 10px 40px -10px rgba(255, 207, 92, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+.mk-btn--primary:hover { transform: translateY(-2px); box-shadow: 0 18px 50px -10px rgba(255, 207, 92, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+.mk-btn--ghost { color: var(--mk-ink); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); backdrop-filter: blur(8px); }
+.mk-btn--ghost:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
+.mk-eyebrow { font-family: var(--font-geist-mono), monospace; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--mk-gold); }
+.mk-gradient-text { background: linear-gradient(90deg, #fff 0%, #ffe9b0 30%, #ff9ad5 60%, #9fe9ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mk-reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.9s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.mk-reveal.on { opacity: 1; transform: none; }
+.mk-reveal[data-delay="1"] { transition-delay: 0.1s; } .mk-reveal[data-delay="2"] { transition-delay: 0.2s; } .mk-reveal[data-delay="3"] { transition-delay: 0.3s; } .mk-reveal[data-delay="4"] { transition-delay: 0.4s; }
+@keyframes mkFloat { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-14px) rotate(var(--r, 0deg)); } }
+.mk-float { animation: mkFloat 7s ease-in-out infinite; }
+@keyframes mkMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.mk-marquee { display: flex; width: max-content; animation: mkMarquee 40s linear infinite; }
+.mk-marquee:hover { animation-play-state: paused; }
+@keyframes mkPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(94, 230, 195, 0.6); } 70% { box-shadow: 0 0 0 10px rgba(94, 230, 195, 0); } }
+.mk-live { animation: mkPulse 2.2s infinite; }
+.mk-hairline { height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent); }
+.mk-neon { text-shadow: 0 0 12px rgba(255, 43, 214, 0.9), 0 0 40px rgba(255, 43, 214, 0.5); }
+.mk-tilt { transform-style: preserve-3d; transition: transform 0.25s ease; }
+.mk-faq details { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.mk-faq summary { cursor: pointer; list-style: none; padding: 20px 0; font-weight: 600; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+.mk-faq summary::-webkit-details-marker { display: none; }
+.mk-faq summary::after { content: "+"; color: var(--mk-gold); font-size: 22px; transition: transform 0.3s; }
+.mk-faq details[open] summary::after { transform: rotate(45deg); }
+.mk-faq p { color: var(--mk-muted); padding-bottom: 20px; line-height: 1.65; }
+@media (prefers-reduced-motion: reduce) { .mk-reveal { opacity: 1; transform: none; transition: none; } .mk-float, .mk-marquee, .mk-live { animation: none; } }

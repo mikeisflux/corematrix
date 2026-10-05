@@ -9,6 +9,8 @@ export function UrlActions() {
     if (!loaded) return;
     const sp = new URLSearchParams(window.location.search);
     const st = useHall.getState();
+    if (sp.get("night") === "1" && !st.night) st.toggleNight();
+    if (sp.get("mode") === "walk") st.setMode("walk");
     const booth = Number(sp.get("booth"));
     if (booth) {
       st.select(booth);

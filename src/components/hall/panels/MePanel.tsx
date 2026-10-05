@@ -47,14 +47,14 @@ export function MePanel() {
               <li key={p.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] p-2">
                 <button onClick={() => { select(p.id); setFlyTo(p.id); }} className="h-8 w-8 rounded-lg" style={{ background: p.color }} />
                 <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{p.name}</div><div className="text-[11px] text-slate-400">Booth #{p.id} · {formatMoney(p.valueCents)}</div></div>
-                <Link href={`/dashboard?booth=${p.id}`} className="btn-ghost text-xs">Manage</Link>
+                <Link href={`/app/dashboard?booth=${p.id}`} className="btn-ghost text-xs">Manage</Link>
               </li>
             ))}
           </ul>
         ) : (
           <button onClick={() => useHall.getState().setPanel("claim")} className="btn-primary w-full">Claim your first booth →</button>
         )}
-        <Link href="/dashboard" className="btn-ghost w-full">Open dashboard</Link>
+        <Link href="/app/dashboard" className="btn-ghost w-full">Open dashboard</Link>
         {notes.length > 0 && (
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Notifications</div>

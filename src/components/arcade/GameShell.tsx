@@ -58,8 +58,8 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div>
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <div><Link href="/arcade" className="text-xs text-slate-400 hover:text-white">← Arcade</Link><h1 className="text-2xl font-bold">{name}</h1><p className="text-sm text-slate-400">{blurb}</p></div>
-          <div className="mono text-sm">{coins == null ? <Link className="text-amber-300 underline" href={`/login?next=/arcade/${gameId}`}>Sign in to play</Link> : <>{coins} coins</>}</div>
+          <div><Link href="/app/arcade" className="text-xs text-slate-400 hover:text-white">← Arcade</Link><h1 className="text-2xl font-bold">{name}</h1><p className="text-sm text-slate-400">{blurb}</p></div>
+          <div className="mono text-sm">{coins == null ? <Link className="text-amber-300 underline" href={`/app/login?next=/arcade/${gameId}`}>Sign in to play</Link> : <>{coins} coins</>}</div>
         </div>
         <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#070a16]">
           <canvas ref={canvas} width={640} height={480} className="block w-full" tabIndex={0} />
@@ -81,7 +81,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
           {board.rows.map((r) => (
             <li key={r.userId} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${r.userId === board.me ? "bg-amber-300/15" : ""}`}>
               <span className={`mono w-6 ${r.rank <= 3 ? "text-amber-300 font-bold" : "text-slate-500"}`}>{r.rank}</span>
-              <span className="min-w-0 flex-1 truncate">{r.boothId ? <Link className="hover:underline" href={`/booth/${r.boothId}`}>{r.playerName}</Link> : r.playerName}</span>
+              <span className="min-w-0 flex-1 truncate">{r.boothId ? <Link className="hover:underline" href={`/app/booth/${r.boothId}`}>{r.playerName}</Link> : r.playerName}</span>
               <span className="mono">{r.score.toLocaleString()}</span>
             </li>
           ))}

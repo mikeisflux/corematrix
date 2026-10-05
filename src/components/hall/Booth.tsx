@@ -14,7 +14,7 @@ interface Props { booth: HallBooth; night: boolean; hovered: boolean; selected: 
 export function openSite(id: number, website: string | null | undefined, src: string) {
   if (!website) return false;
   track({ kind: "clicks", boothId: id, source: src });
-  window.open(`/go/${id}?src=${src}`, "_blank", "noopener");
+  window.open(`/app/go/${id}?src=${src}`, "_blank", "noopener");
   return true;
 }
 

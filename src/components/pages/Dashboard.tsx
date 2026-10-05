@@ -55,7 +55,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
       <div className="mx-auto max-w-xl text-center">
         <h1 className="text-3xl font-bold">You don't have a booth yet</h1>
         <p className="mt-2 text-slate-300">Get a booth from $5. You'll get a permanent booth number, your banner on the show floor, and daily numbers on who saw it and who clicked.</p>
-        <Link href="/?claim=1" className="btn-primary mt-6">Claim a booth →</Link>
+        <Link href="/app?claim=1" className="btn-primary mt-6">Claim a booth →</Link>
         <div className="mt-8 rounded-2xl border border-white/10 p-4 text-left text-sm">
           <div className="font-bold">Your balances</div>
           <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover)</div>
@@ -85,7 +85,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
               <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{b.name}</span><span className="block text-[11px] text-slate-400">#{b.id} · {formatMoney(b.valueCents)} · {b.tier}</span></span>
             </button>
           ))}
-          <Link href="/?claim=1" className="btn-ghost mt-1 w-full text-xs">+ Claim another booth</Link>
+          <Link href="/app?claim=1" className="btn-ghost mt-1 w-full text-xs">+ Claim another booth</Link>
         </div>
         <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-xs">
           <b>Refer a friend.</b> You both get $2 credit and 25 coins when they claim.
@@ -108,8 +108,8 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
                 {p.featuredUntil && p.featuredUntil > Date.now() && <span className="ml-2 rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">🏆 featured this week</span>}
               </div>
             </div>
-            <Link href={`/booth/${p.id}`} className="btn-ghost text-xs">Public page</Link>
-            <Link href={`/?booth=${p.id}`} className="btn-ghost text-xs">Walk to it</Link>
+            <Link href={`/app/booth/${p.id}`} className="btn-ghost text-xs">Public page</Link>
+            <Link href={`/app?booth=${p.id}`} className="btn-ghost text-xs">Walk to it</Link>
             <div className="flex rounded-xl bg-white/5 p-0.5">{([7, 30, 90] as const).map((r) => <button key={r} onClick={() => setRange(r)} className={`rounded-lg px-3 py-1 text-xs ${range === r ? "bg-amber-300 text-slate-950 font-semibold" : ""}`}>{r}d</button>)}</div>
           </div>
 
@@ -163,7 +163,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <Code title="Conversion pixel" blurb="Put this on your thank-you / signup success page. Pass the order value in cents with ?v= to see revenue next to clicks." code={`<img src="${origin}/api/px/${p.id}?v=0" width="1" height="1" alt="" />`} />
-            <Code title="Badge for your site" blurb="Links back to your booth. Clicks count as referrals and raise your trending score." code={`<a href="${origin}/booth/${p.id}?src=embed"><img src="${origin}/embed/${p.id}" alt="${p.name} on the skyline" width="320" height="64" /></a>`} />
+            <Code title="Badge for your site" blurb="Links back to your booth. Clicks count as referrals and raise your trending score." code={`<a href="${origin}/app/booth/${p.id}?src=embed"><img src="${origin}/app/embed/${p.id}" alt="${p.name} on the skyline" width="320" height="64" /></a>`} />
           </div>
 
           {detail.history.length > 0 && (

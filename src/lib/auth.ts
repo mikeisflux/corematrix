@@ -84,7 +84,7 @@ export async function requestMagicLink(emailRaw: string, next?: string, ref?: st
   const params = new URLSearchParams({ token });
   if (next) params.set("next", next);
   if (ref) params.set("ref", ref);
-  const link = `${SITE_URL}/login/verify?${params.toString()}`;
+  const link = `${SITE_URL}/app/login/verify?${params.toString()}`;
   await sendTemplate("magic_link", email, {
     subject: `Your ${SITE_NAME} sign-in link`,
     fallbackText: `Sign in to ${SITE_NAME}: ${link}\n\nThis link expires in 20 minutes.`,

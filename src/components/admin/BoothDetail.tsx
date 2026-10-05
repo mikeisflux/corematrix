@@ -19,7 +19,7 @@ export default function BoothDetail({ id }: { id: string }) {
     <>
       {toast.node}
       <PageHead title={`Booth #${p.id}${p.name ? ` — ${p.name}` : ""}`} sub={`${p.size} · Hall ${p.hall} · booth ${p.label} · owner ${d.data!.owner?.email ?? "none"}`}>
-        <Link className="admBtn" href={`/booth/${p.id}`} target="_blank">View public page</Link>
+        <Link className="admBtn" href={`/app/booth/${p.id}`} target="_blank">View public page</Link>
         {d.data!.owner && <Link className="admBtn" href={`/admin/emails?compose=1&to=${encodeURIComponent(d.data!.owner.email)}&subject=${encodeURIComponent(`About your booth #${p.id}`)}`}>Email owner</Link>}
         {p.ownerId && <ConfirmButton className="admBtn admBtn--danger" message="Release this booth? The owner loses it, any plan is canceled, and the space becomes available again." onConfirm={() => act({ action: "release", reason: "released by admin" }, "Released")}>Release</ConfirmButton>}
       </PageHead>

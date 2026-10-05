@@ -101,7 +101,7 @@ export function BoothPanel() {
         )}
         {isOwner ? (
           <div className="space-y-2">
-            <Link href={`/dashboard?booth=${id}`} className="btn-primary w-full">Manage · analytics, edit, boost →</Link>
+            <Link href={`/app/dashboard?booth=${id}`} className="btn-primary w-full">Manage · analytics, edit, boost →</Link>
             <p className="text-center text-[11px] text-slate-400">This is your booth. Takeover price for others: {formatMoney(price)}.</p>
           </div>
         ) : (
@@ -112,9 +112,9 @@ export function BoothPanel() {
         )}
         <div className="flex gap-2">
           <button className="btn-ghost flex-1 text-xs" onClick={() => { if (mode !== "walk") setMode("walk"); setFlyTo(id); useHall.getState().setPanel("none"); }}>🚶 Walk here</button>
-          <Link href={`/booth/${id}`} className="btn-ghost flex-1 text-xs">Public page</Link>
-          <button className="btn-ghost flex-1 text-xs" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/booth/${id}`); useHall.getState().setToast("Link copied"); }}>Copy link</button>
-          <a className="btn-ghost flex-1 text-xs" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${booth.name} is exhibiting at ForeverComicCon, booth ${space.label}`)}&url=${encodeURIComponent(`${typeof window !== "undefined" ? window.location.origin : ""}/booth/${id}`)}`}>Share</a>
+          <Link href={`/app/booth/${id}`} className="btn-ghost flex-1 text-xs">Public page</Link>
+          <button className="btn-ghost flex-1 text-xs" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/app/booth/${id}`); useHall.getState().setToast("Link copied"); }}>Copy link</button>
+          <a className="btn-ghost flex-1 text-xs" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${booth.name} is exhibiting at ForeverComicCon, booth ${space.label}`)}&url=${encodeURIComponent(`${typeof window !== "undefined" ? window.location.origin : ""}/app/booth/${id}`)}`}>Share</a>
         </div>
         {detail && detail.history.length > 0 && (
           <div>

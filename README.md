@@ -25,12 +25,23 @@ recurring revenue, and there are reasons to come back every day.
 | **Plans (MRR)** | Owner (free), Pro $9, Landmark $49, billed every 30 days by charging the card saved with DivinityCoin (setup-mode checkout, renewals from the daily cron, failed charges mark the plan past due; a local simulator in test mode). Longer history, referrers, bigger signage, hanging sign, takeover shield, featured placement. |
 | **Hanging banners** | It's indoors: self-serve cross-aisle banners per hall ($20/wk) and the entrance banner ($49/wk) with live seen / opens / clicks. |
 | **Arcade & coins** | Soft currency earned by showing up (daily + streaks), exploring and referring; bought in packs; spent on three original games (Snake, Breakout, Runner) with daily and all-time leaderboards, and on the Hall Flyover drone ride. 100 coins = $1 of booth value, so playing grows your booth. |
-| **Seasons** | Every week closes Monday 00:00 UTC: top 3 trending win coins and a featured spot on the home page, every rank is snapshotted so dashboards show "▲ 7 since last week", full history at `/seasons`. |
+| **Seasons** | Every week closes Monday 00:00 UTC: top 3 trending win coins and a featured spot on the home page, every rank is snapshotted so dashboards show "▲ 7 since last week", full history at `/app/seasons`. |
 | **Emails** | Welcome with a 3-step checklist, "you were bought out" with the payout, "someone is eyeing your booth" nudge, season results, and a Monday weekly report (views, clicks, CTR, rank movement; referrers for Pro). |
 | **Growth loops** | Referral links (both sides get credit + coins), X share intents, OG share cards per booth, an embeddable SVG badge, public booth pages for SEO. |
 | **Community** | Hall chat with anti-spam: only exhibitors can post links, rate limits, duplicate suppression. Live feed over SSE: claims, takeovers, boosts, arcade records, billboards. |
 | **Admin panel** | `/admin`: dashboard (revenue, MRR, pending checkouts, disputes, system checks), transactions with refunds and notes, booths (edit, hide, shield, feature, transfer, release), users (credit, coins, admin, sign-in links), plans (run renewals, charge, extend, comp, cancel), billboards moderation, a three-pane **mail inbox** (SendGrid Inbound Parse in, replies and drafts out, attachments, threads, keyboard shortcuts), versioned email templates with preview and test sends, email delivery logs, webhook deliveries with reprocess, an audit log, and a settings page for every API key. |
 | **Trust** | Transparent public stats, published rules and refund policy, instant edits, email receipts, a DivinityCoin test mode for demos. |
+
+## Where things live
+
+- `/` is the public site (landing page, pricing, FAQ) in `src/components/marketing/`.
+- `/app` is the product: the hall at `/app`, booths at `/app/booth/<id>`, plus `/app/dashboard`,
+  `/app/rankings`, `/app/directory`, `/app/arcade`, `/app/seasons`, `/app/login`,
+  `/app/how-it-works`, `/app/checkout/…`, `/app/go/<id>` (tracked outbound redirect) and
+  `/app/embed/<id>` (badge). `/admin` and `/api` are unchanged.
+- Hall deep links: `/app?booth=406`, `/app?claim=1`, `/app?mode=walk`, `/app?night=1`,
+  `/app?cam=x,y,z,tx,ty,tz` pins the map camera, `/app?clean=1` hides the HUD (used by
+  `scripts/shot-marketing.mjs` to render the landing-page imagery in `public/marketing/`).
 
 ## Run it
 

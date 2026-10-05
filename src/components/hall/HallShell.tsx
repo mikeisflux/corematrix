@@ -5,11 +5,12 @@ import { UrlActions } from "./UrlActions";
 
 const HallCanvas = dynamic(() => import("./HallCanvas").then((m) => m.HallCanvas), { ssr: false, loading: () => null });
 
-export function HallShell() {
+/** ?clean=1 hides the HUD (marketing captures, embeds). */
+export function HallShell({ clean }: { clean?: boolean }) {
   return (
     <>
       <HallCanvas />
-      <Hud />
+      {!clean && <Hud />}
       <UrlActions />
     </>
   );

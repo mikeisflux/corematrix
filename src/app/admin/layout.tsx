@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
-  if (!admin) redirect("/login?next=/admin");
+  if (!admin) redirect("/app/login?next=/admin");
   const allow = (await getSetting("ADMIN_ALLOWED_IPS")).split(",").map((s) => s.trim()).filter(Boolean);
   if (allow.length) {
     const ip = await clientIp();

@@ -23,9 +23,9 @@ export async function nextStepUrl(tx: Tx): Promise<string> {
   const site = (await getSettings(["SITE_URL"])).SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   if (tx.amountCents <= 0) {
     await settle(tx.id, "comp", "credit");
-    return `${site}/checkout/done?tx=${tx.id}`;
+    return `${site}/app/checkout/done?tx=${tx.id}`;
   }
-  return `${site}/checkout/${tx.id}`;
+  return `${site}/app/checkout/${tx.id}`;
 }
 
 export function describeTx(tx: Tx): string {
@@ -60,7 +60,7 @@ export async function startCheckout(txId: string, opts: { embed?: boolean; origi
   const base = (s.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
   const siteName = s.SITE_NAME || process.env.NEXT_PUBLIC_SITE_NAME || "ForeverComicCon";
   const description = `${siteName} — ${describeTx(tx)}`.slice(0, 200);
-  const common = { reference: tx.id, email: buyer.email, customerId: buyer.id, description, returnUrl: `${base}/checkout/done?tx=${tx.id}`, cancelUrl: `${base}/checkout/${tx.id}?cancelled=1`, embed: opts.embed, origin: opts.origin };
+  const common = { reference: tx.id, email: buyer.email, customerId: buyer.id, description, returnUrl: `${base}/app/checkout/done?tx=${tx.id}`, cancelUrl: `${base}/app/checkout/${tx.id}?cancelled=1`, embed: opts.embed, origin: opts.origin };
   const res = tx.kind === "tier" ? await divinitycoin.createSetupCheckout(common) : await divinitycoin.createCheckout({ ...common, amountCents: tx.amountCents, currency: "usd" });
   if (!res.success || !res.checkoutUrl) throw new Error(res.error || "Could not start DivinityCoin checkout.");
   const origin = cleanOrigin(opts.origin);
