@@ -11,8 +11,7 @@ import { db, ensureMigrated, schema } from "@/lib/db";
 import { dayKey, newId, now, weekBounds, weekId } from "@/lib/util";
 import { addCoins } from "@/lib/arcade";
 import { addEvent } from "@/lib/economy";
-import { sendMail } from "@/lib/mailer";
-import { SITE_NAME, SITE_URL } from "@/lib/config";
+import { sendSeasonResult } from "@/lib/emails";
 
 export const SEASON_PRIZES = [300, 150, 75] as const;
 export const FEATURED_DAYS = 7;
@@ -107,14 +106,7 @@ export async function closeSeason(weekStartTs: number): Promise<SeasonResults> {
         plotId: w.plotId,
         createdAt: now(),
       });
-      const [owner] = await db.select({ email: schema.users.email, notify: schema.users.notifyEmail }).from(schema.users).where(eq(schema.users.id, w.ownerId));
-      if (owner?.notify) {
-        await sendMail(
-          owner.email,
-          `${w.name} finished #${i + 1} on ${SITE_NAME} this week`,
-          `<p><b>${w.name}</b> was the #${i + 1} trending building in season ${id}: ${w.views.toLocaleString()} views, ${w.clicks.toLocaleString()} clicks.</p><p>You won <b>${SEASON_PRIZES[i]} coins</b> and your building is featured on the home page for the next 7 days.</p><p><a href="${SITE_URL}/dashboard?plot=${w.plotId}">Open your dashboard</a></p>`,
-        );
-      }
+      await sendSeasonResult(w.ownerId, w.plotId, w.name, i + 1, w.views, w.clicks, id, SEASON_PRIZES[i]);
     }
   }
   if (trending[0]?.views) {

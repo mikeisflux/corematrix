@@ -1,4 +1,4 @@
-# Towerline: revenue, growth and engagement plan
+# AlwaysOnCon: revenue, growth and engagement plan
 
 ## The diagnosis
 
@@ -19,7 +19,7 @@ Three structural problems:
 3. **No reason to return.** A visitor sees the skyline once. There's no daily hook, no
    season, no progression.
 
-## What Towerline does instead
+## What AlwaysOnCon does instead
 
 ### Revenue: five streams, two of them recurring
 
@@ -69,7 +69,7 @@ Owner gets something measurable, every day:
 - **Embed badge**: an SVG badge for owners' sites that links back (and counts as a
   referrer). Every owner becomes a distribution channel.
 - **SEO**: a server-rendered public page per building and a directory. "Harbor Coffee Co.
-  on Towerline" is indexable; Claim Avenue's plot pages are thin.
+  on AlwaysOnCon" is indexable; Claim Avenue's plot pages are thin.
 - **Billboard advertisers** bring their own audience to check their numbers.
 
 ### Trust (because "is this a scam" is the top objection)
@@ -78,7 +78,7 @@ Owner gets something measurable, every day:
 - Rules page: takeover math with a worked example, refund window (24h, no interactions),
   content policy.
 - Chat anti-spam: only owners can post links; rate limits; dedupe.
-- Stripe receipts; sandbox mode for demos.
+- Email receipts; DivinityCoin test mode for demos.
 
 ## What to measure (built into /admin)
 
@@ -98,7 +98,7 @@ dashboard.
 
 ## Roadmap after v1
 
-1. Stripe Connect cash-out for seller credit.
+1. Cash-out of seller credit through DivinityCoin payouts.
 2. Theme park district: more rides (coins), a Ferris wheel vantage point with billboard
    slots, seasonal events (block parties: claims 50% off for 2 hours, announced in the feed).
 3. Building guestbooks (per-plot chat rooms) for Pro+.

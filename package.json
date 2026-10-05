@@ -1,5 +1,5 @@
 {
-  "name": "towerline",
+  "name": "alwaysoncon",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -23,7 +23,6 @@
     "postprocessing": "^6.39.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "stripe": "^23.0.0",
     "three": "^0.186.1",
     "zod": "^4.6.5",
     "zustand": "^5.0.15"

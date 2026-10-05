@@ -2,11 +2,12 @@ import { cookies, headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newCode, newId, newToken, now } from "@/lib/util";
-import { sendMail } from "@/lib/mailer";
+import { sendTemplate } from "@/lib/sendgrid";
 import { SITE_NAME, SITE_URL, REFERRAL_CREDIT_CENTS } from "@/lib/config";
 import { bumpSiteDaily } from "@/lib/analytics";
+import { getSetting } from "@/lib/settings";
 
-const SESSION_COOKIE = "tl_session";
+const SESSION_COOKIE = "aoc_session";
 const SESSION_TTL = 90 * 86_400_000;
 const LOGIN_TTL = 20 * 60_000;
 
@@ -34,6 +35,46 @@ export function isAdminEmail(email: string): boolean {
   return list.includes(email.toLowerCase());
 }
 
+/** Admin = users.isAdmin, or an email on the ADMIN_EMAILS setting (bootstrap). */
+export async function requireAdmin(): Promise<User | null> {
+  const u = await currentUser();
+  if (!u) return null;
+  if (u.isAdmin) return u;
+  const list = ((await getSetting("ADMIN_EMAILS")) || process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (list.includes(u.email.toLowerCase())) {
+    await db.update(schema.users).set({ isAdmin: true }).where(eq(schema.users.id, u.id));
+    return { ...u, isAdmin: true };
+  }
+  return null;
+}
+
+export async function clientIp(): Promise<string> {
+  try {
+    const h = await headers();
+    return (h.get("x-forwarded-for") || h.get("x-real-ip") || "").split(",")[0].trim() || "0.0.0.0";
+  } catch { return "0.0.0.0"; }
+}
+
+export async function userAgent(): Promise<string> {
+  try { return (await headers()).get("user-agent") || ""; } catch { return ""; }
+}
+
+/** The buyer's browser, for DivinityCoin fraud evidence. Never the server's own address. */
+export async function requestOrigin(): Promise<{ ip: string | null; userAgent: string | null }> {
+  const ip = await clientIp();
+  return { ip: ip === "0.0.0.0" ? null : ip, userAgent: (await userAgent()) || null };
+}
+
+export async function audit(adminId: string, action: string, resource: string, resourceId?: string | null, before?: unknown, after?: unknown, adminEmail?: string) {
+  try {
+    await db.insert(schema.adminAuditLog).values({
+      id: newId(), adminId, adminEmail: adminEmail ?? null, action, resource, resourceId: resourceId ?? null,
+      before: before === undefined ? null : JSON.stringify(before), after: after === undefined ? null : JSON.stringify(after),
+      ip: await clientIp(), createdAt: now(),
+    });
+  } catch (err) { console.error("audit", err); }
+}
+
 export async function requestMagicLink(emailRaw: string, next?: string, ref?: string): Promise<{ devLink?: string }> {
   await ensureMigrated();
   const email = emailRaw.trim().toLowerCase();
@@ -44,13 +85,14 @@ export async function requestMagicLink(emailRaw: string, next?: string, ref?: st
   if (next) params.set("next", next);
   if (ref) params.set("ref", ref);
   const link = `${SITE_URL}/login/verify?${params.toString()}`;
-  await sendMail(
-    email,
-    `Your ${SITE_NAME} sign-in link`,
-    `<p>Click to sign in to ${SITE_NAME}:</p><p><a href="${link}">${link}</a></p><p>This link expires in 20 minutes.</p>`,
-    `Sign in to ${SITE_NAME}: ${link}\n\nThis link expires in 20 minutes.`,
-  );
-  return process.env.RESEND_API_KEY ? {} : { devLink: link };
+  await sendTemplate("magic_link", email, {
+    subject: `Your ${SITE_NAME} sign-in link`,
+    fallbackText: `Sign in to ${SITE_NAME}: ${link}\n\nThis link expires in 20 minutes.`,
+    fallbackHtml: `<p>Click to sign in to ${SITE_NAME}:</p><p><a href="${link}">${link}</a></p><p>This link expires in 20 minutes.</p>`,
+    link,
+  }, { channel: "system" });
+  const configured = !!(await getSetting("SENDGRID_API_KEY"));
+  return configured ? {} : { devLink: link };
 }
 
 export async function consumeMagicLink(token: string, ref?: string): Promise<User | null> {
@@ -129,7 +171,7 @@ export async function signOut(): Promise<void> {
 /** Stable, privacy-preserving visitor id derived from a first-party cookie. */
 export async function visitorId(): Promise<string> {
   const jar = await cookies();
-  const existing = jar.get("tl_vid")?.value;
+  const existing = jar.get("aoc_vid")?.value;
   if (existing) return existing;
   const h = await headers();
   // Can't set cookies from a server component render; the client sets it. Fall back to a hash of UA+IP.

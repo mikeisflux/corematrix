@@ -11,8 +11,8 @@ export type LiveMessage =
 
 type Listener = (m: LiveMessage) => void;
 
-const g = globalThis as unknown as { __towerlineBus?: Set<Listener> };
-const listeners = (g.__towerlineBus ??= new Set<Listener>());
+const g = globalThis as unknown as { __alwaysonconBus?: Set<Listener> };
+const listeners = (g.__alwaysonconBus ??= new Set<Listener>());
 
 export function publish(m: LiveMessage) {
   for (const l of listeners) {

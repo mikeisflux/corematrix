@@ -1,4 +1,4 @@
-export const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "Towerline";
+export const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "AlwaysOnCon";
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 /** Total addressable plots. The avenue grows in blocks as they sell out. */

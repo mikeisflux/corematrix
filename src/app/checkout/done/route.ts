@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { SITE_URL } from "@/lib/config";
 
-/** Stripe success URL lands here; we route the buyer to the right place. */
+/** DivinityCoin return URL lands here; we route the buyer to the right place. */
 export async function GET(req: Request) {
   await ensureMigrated();
   const txId = new URL(req.url).searchParams.get("tx") ?? "";

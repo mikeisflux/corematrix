@@ -1,0 +1,18 @@
+import { chromium } from "playwright";
+const S = process.argv[2]; const base = "http://localhost:3000";
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+const errors = []; page.on("pageerror", (e) => errors.push(e.message)); page.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 200)); });
+const r = await page.request.post(`${base}/api/auth/request`, { data: { email: "admin@example.com" } }); await page.goto((await r.json()).devLink, { waitUntil: "networkidle" });
+const list = await (await page.request.get(`${base}/api/admin/emails?folder=all`)).json();
+const id = list.rows.find((x) => x.subject.includes("Receipt"))?.id;
+await page.goto(`${base}/admin/emails?folder=all&id=${id}`, { waitUntil: "networkidle" }); await page.waitForTimeout(3000);
+console.log((await page.locator(".admMail__read").innerText()).slice(0, 300).replace(/\n/g, " | "));
+await page.screenshot({ path: `${S}/adm_reader.png` });
+await page.keyboard.press("c"); await page.waitForTimeout(800);
+await page.fill("#cmp-to", "friend@example.com"); await page.fill("#cmp-subj", "Draft smoke"); await page.waitForTimeout(3800);
+console.log("drafts after autosave:", (await (await page.request.get(`${base}/api/admin/emails?folder=drafts`)).json()).total);
+await page.screenshot({ path: `${S}/adm_compose.png` });
+await page.goto(`${base}/admin/emails/templates`, { waitUntil: "networkidle" }); await page.click("text=Sign-in link"); await page.waitForTimeout(1500); await page.click("button:has-text('Preview')"); await page.waitForTimeout(1500);
+await page.screenshot({ path: `${S}/adm_tpl.png` });
+console.log(errors.join("\n") || "no errors"); await browser.close();

@@ -75,7 +75,7 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
           <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your balances</div>
           <div className="mt-1 flex items-baseline gap-3"><span className="mono text-2xl font-bold text-amber-300">{me.coins}</span><span className="text-xs text-slate-400">coins · {me.streak}-day streak</span></div>
           <div className="mono text-lg">{formatMoney(me.creditCents)} <span className="text-xs text-slate-400">credit</span></div>
-          <p className="mt-1 text-[11px] text-slate-500">Credit comes from takeover payouts and referrals. Spend it on any claim, takeover, boost or billboard. Payouts to your bank: email us (Stripe Connect coming).</p>
+          <p className="mt-1 text-[11px] text-slate-500">Credit comes from takeover payouts and referrals. Spend it on any claim, takeover, boost or billboard. Payouts to your bank: email us.</p>
         </div>
         <div className="rounded-2xl border border-white/10 p-2">
           <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Your buildings</div>
@@ -292,7 +292,7 @@ function Plan({ p, setMsg, onChanged }: { p: Detail["plot"]; setMsg: (s: string)
           <p className="mt-1 text-xs text-slate-300">
             {p.subscriptionStatus === "active" && <>Renews automatically on <b>{until}</b>.</>}
             {p.subscriptionStatus === "canceling" && <>Canceled. Perks continue until <b>{until}</b>, then the building returns to the Owner plan.</>}
-            {p.subscriptionStatus === "past_due" && <span className="text-rose-400">Last payment failed. Update your card via the Stripe receipt email, or perks end on {until}.</span>}
+            {p.subscriptionStatus === "past_due" && <span className="text-rose-400">Last payment failed. Renew the plan to save a new card, or perks end on {until}.</span>}
             {p.subscriptionStatus === "canceled" && <>Subscription ended. Perks continue until <b>{until}</b>.</>}
             {!p.subscriptionStatus && <>Active until <b>{until}</b>.</>}
           </p>

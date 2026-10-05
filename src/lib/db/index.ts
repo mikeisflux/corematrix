@@ -5,12 +5,12 @@ import path from "node:path";
 import fs from "node:fs";
 import * as schema from "./schema";
 
-const url = process.env.DATABASE_URL ?? "file:./data/towerline.db";
+const url = process.env.DATABASE_URL ?? "file:./data/alwaysoncon.db";
 const authToken = process.env.DATABASE_AUTH_TOKEN;
 
 const globalForDb = globalThis as unknown as {
-  __towerlineClient?: Client;
-  __towerlineMigrated?: Promise<void>;
+  __alwaysonconClient?: Client;
+  __alwaysonconMigrated?: Promise<void>;
 };
 
 if (url.startsWith("file:")) {
@@ -19,21 +19,21 @@ if (url.startsWith("file:")) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-const client = globalForDb.__towerlineClient ?? createClient({ url, authToken });
-globalForDb.__towerlineClient = client;
+const client = globalForDb.__alwaysonconClient ?? createClient({ url, authToken });
+globalForDb.__alwaysonconClient = client;
 
 export const db = drizzle(client, { schema });
 export { schema };
 
 /** Idempotent: applies pending migrations once per process. */
 export function ensureMigrated(): Promise<void> {
-  if (!globalForDb.__towerlineMigrated) {
-    globalForDb.__towerlineMigrated = migrate(db, {
+  if (!globalForDb.__alwaysonconMigrated) {
+    globalForDb.__alwaysonconMigrated = migrate(db, {
       migrationsFolder: path.join(process.cwd(), "drizzle"),
     }).catch((e) => {
-      globalForDb.__towerlineMigrated = undefined;
+      globalForDb.__alwaysonconMigrated = undefined;
       throw e;
     });
   }
-  return globalForDb.__towerlineMigrated;
+  return globalForDb.__alwaysonconMigrated;
 }

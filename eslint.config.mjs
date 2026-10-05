@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "warn",
       "react-hooks/purity": "warn",
       "react-hooks/preserve-manual-memoization": "warn",
+      "react-hooks/refs": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },

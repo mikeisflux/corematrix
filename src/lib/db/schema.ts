@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /** Registered owners. Login is passwordless (magic link). */
 export const users = sqliteTable("users", {
@@ -14,7 +14,10 @@ export const users = sqliteTable("users", {
   lastDailyCoinsAt: integer("last_daily_coins_at"),
   streak: integer("streak").notNull().default(0),
   notifyEmail: integer("notify_email", { mode: "boolean" }).notNull().default(true),
-  stripeCustomerId: text("stripe_customer_id"),
+  stripeCustomerId: text("stripe_customer_id"), // legacy, unused
+  dcPaymentMethodId: text("dc_payment_method_id"), // DivinityCoin saved card for plan renewals
+  cardIp: text("card_ip"),
+  cardUserAgent: text("card_user_agent"),
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),
@@ -90,13 +93,18 @@ export const transactions = sqliteTable(
     valueBefore: integer("value_before").notNull().default(0),
     valueAfter: integer("value_after").notNull().default(0),
     status: text("status").notNull().default("pending"), // pending | paid | refunded | failed
-    provider: text("provider").notNull().default("sandbox"), // sandbox | stripe
-    providerRef: text("provider_ref"),
+    provider: text("provider").notNull().default("divinitycoin"), // divinitycoin | sandbox | comp
+    providerRef: text("provider_ref"), // DivinityCoin paymentIntentId (pi_…) once paid
+    sessionId: text("session_id"), // DivinityCoin checkout session (cs_…)
+    customerIp: text("customer_ip"),
+    customerUserAgent: text("customer_user_agent"),
+    refundedCents: integer("refunded_cents").notNull().default(0),
+    notes: text("notes"),
     meta: text("meta"), // JSON: pending building draft, tier, etc.
     createdAt: integer("created_at").notNull(),
     paidAt: integer("paid_at"),
   },
-  (t) => [index("tx_plot_idx").on(t.plotId), index("tx_buyer_idx").on(t.buyerId)],
+  (t) => [index("tx_plot_idx").on(t.plotId), index("tx_buyer_idx").on(t.buyerId), index("tx_session_idx").on(t.sessionId), index("tx_status_idx").on(t.status, t.createdAt)],
 );
 
 /** Public activity feed. */
@@ -276,3 +284,117 @@ export const gamePlays = sqliteTable("game_plays", {
   startedAt: integer("started_at").notNull(),
   finishedAt: integer("finished_at"),
 });
+
+/* ───────── Admin: mail, templates, webhooks, audit (ported from the Play Time admin) ───────── */
+
+/** Every email in or out. direction "in" = Inbound Parse; "out" = SendGrid sends (and drafts, status "draft"). */
+export const mailMessages = sqliteTable(
+  "mail_messages",
+  {
+    id: text("id").primaryKey(),
+    direction: text("direction").notNull(), // in | out
+    channel: text("channel").notNull().default("email"), // email | reply | system | contact
+    fromEmail: text("from_email").notNull(),
+    fromName: text("from_name"),
+    toEmail: text("to_email"),
+    cc: text("cc"),
+    subject: text("subject").notNull(),
+    text: text("text"),
+    html: text("html"),
+    read: integer("read", { mode: "boolean" }).notNull().default(false),
+    starred: integer("starred", { mode: "boolean" }).notNull().default(false),
+    archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    threadId: text("thread_id"),
+    status: text("status"), // queued | sent | delivered | opened | clicked | bounced | spam | failed | draft | received
+    statusMessage: text("status_message"),
+    sendgridMessageId: text("sendgrid_message_id"),
+    templateSlug: text("template_slug"),
+    userId: text("user_id"),
+    txId: text("tx_id"),
+    plotId: integer("plot_id"),
+    headers: text("headers"), // JSON
+    events: text("events"), // JSON array of SendGrid events
+    createdAt: integer("created_at").notNull(),
+    sentAt: integer("sent_at"),
+  },
+  (t) => [index("mail_dir_idx").on(t.direction, t.archived, t.createdAt), index("mail_thread_idx").on(t.threadId), index("mail_to_idx").on(t.toEmail), uniqueIndex("mail_sg_idx").on(t.sendgridMessageId)],
+);
+
+export const mailAttachments = sqliteTable(
+  "mail_attachments",
+  {
+    id: text("id").primaryKey(),
+    messageId: text("message_id").notNull(),
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    data: blob("data", { mode: "buffer" }).notNull(),
+    inline: integer("inline", { mode: "boolean" }).notNull().default(false),
+    contentId: text("content_id"),
+  },
+  (t) => [index("mail_att_msg_idx").on(t.messageId)],
+);
+
+export const emailTemplates = sqliteTable("email_templates", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  subject: text("subject").notNull(),
+  html: text("html").notNull(),
+  text: text("text"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  version: integer("version").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const emailTemplateVersions = sqliteTable(
+  "email_template_versions",
+  {
+    id: text("id").primaryKey(),
+    templateId: text("template_id").notNull(),
+    version: integer("version").notNull(),
+    subject: text("subject").notNull(),
+    html: text("html").notNull(),
+    text: text("text"),
+    changedBy: text("changed_by"),
+    changeNote: text("change_note"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("tpl_ver_idx").on(t.templateId, t.version)],
+);
+
+/** Every webhook delivery (DivinityCoin, SendGrid) with outcome; failed DivinityCoin events can be re-run from /admin/webhooks. */
+export const webhookEvents = sqliteTable(
+  "webhook_events",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(), // divinitycoin | sendgrid
+    eventId: text("event_id").notNull(),
+    type: text("type").notNull(),
+    payload: text("payload").notNull(), // JSON
+    status: text("status").notNull().default("received"), // received | processed | ignored | failed
+    error: text("error"),
+    receivedAt: integer("received_at").notNull(),
+    processedAt: integer("processed_at"),
+  },
+  (t) => [uniqueIndex("wh_provider_event_idx").on(t.provider, t.eventId), index("wh_received_idx").on(t.provider, t.receivedAt)],
+);
+
+export const adminAuditLog = sqliteTable(
+  "admin_audit_log",
+  {
+    id: text("id").primaryKey(),
+    adminId: text("admin_id").notNull(),
+    adminEmail: text("admin_email"),
+    action: text("action").notNull(),
+    resource: text("resource").notNull(),
+    resourceId: text("resource_id"),
+    before: text("before"), // JSON
+    after: text("after"), // JSON
+    ip: text("ip"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("audit_admin_idx").on(t.adminId), index("audit_created_idx").on(t.createdAt)],
+);

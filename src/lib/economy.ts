@@ -1,7 +1,7 @@
 /**
  * The economy: claiming, takeovers, boosts and tiers. Every path creates a
  * transaction row first (pending), then `settle()` applies it once payment
- * is confirmed (sandbox: immediately; Stripe: from the webhook).
+ * is confirmed (comp/credit: immediately; DivinityCoin: from the webhook).
  */
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
@@ -26,9 +26,9 @@ import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { BILLBOARD_SLOTS } from "@/lib/config";
 import { floorsForValue } from "@/lib/city/layout";
-import { activatePlan, planEmailCopy } from "@/lib/subscriptions";
-import { sendSold, sendWelcome } from "@/lib/emails";
-import { sendMail } from "@/lib/mailer";
+import { activatePlan } from "@/lib/subscriptions";
+import { sendReceipt, sendSold, sendWelcome } from "@/lib/emails";
+import { sendTemplate } from "@/lib/sendgrid";
 
 export type Plot = typeof schema.plots.$inferSelect;
 
@@ -311,11 +311,14 @@ export async function startBillboard(buyerId: string, d: BillboardDraft) {
 }
 
 /** Apply a paid transaction. Safe to call twice (second call is a no-op). */
-export async function settle(txId: string, provider: "sandbox" | "stripe", providerRef?: string): Promise<Tx | null> {
+export type PayProvider = "divinitycoin" | "comp" | "sandbox";
+
+export async function settle(txId: string, provider: PayProvider, providerRef?: string): Promise<Tx | null> {
   await ensureMigrated();
   const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
   if (!tx) return null;
   if (tx.status === "paid") return tx;
+  if (tx.status !== "pending") return tx;
   const meta = tx.meta
     ? (JSON.parse(tx.meta) as {
         draft?: BuildingDraft;
@@ -415,47 +418,24 @@ export async function settle(txId: string, provider: "sandbox" | "stripe", provi
     await addEvent("boost", tx.plotId, `${p?.name ?? "A building"} grew taller`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
-    const subId = providerRef?.startsWith("sub_") ? providerRef : null;
-    const p = await activatePlan(tx.plotId, meta.tier, subId, provider);
-    await addEvent("tier", tx.plotId, `${p?.name ?? "A building"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured on the skyline, takeover shield on" : "Unlocked full analytics", tx.amountCents);
+    const pm = (meta as { paymentMethodId?: string }).paymentMethodId ?? null;
+    const p = await activatePlan(tx.plotId, meta.tier, provider === "comp" ? null : pm);
+    await addEvent("tier", tx.plotId, `${p?.name ?? "A booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall, takeover shield on" : "Unlocked full analytics", tx.amountCents);
     await bumpSiteDaily({ revenueCents: tx.amountCents });
     if (tx.buyerId) {
-      const [u] = await db.select({ email: schema.users.email, notify: schema.users.notifyEmail }).from(schema.users).where(eq(schema.users.id, tx.buyerId));
+      const [u] = await db.select({ email: schema.users.email, notify: schema.users.notifyEmail, name: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, tx.buyerId));
       if (u?.notify) {
-        const copy = planEmailCopy(meta.tier, p?.name ?? `Plot #${tx.plotId}`);
-        await sendMail(u.email, copy.subject, copy.html);
+        await sendTemplate("plan_started", u.email, { subject: `${p?.name ?? `#${tx.plotId}`} is now a ${TIERS[meta.tier].name}`, fallbackText: `Your ${TIERS[meta.tier].name} plan is active. Renews every 30 days; cancel any time from the dashboard.`, name: u.name ?? u.email, plotName: p?.name ?? `#${tx.plotId}`, planName: TIERS[meta.tier].name, amount: formatMoney(tx.amountCents), perks: TIERS[meta.tier].perks.join(" · "), plotId: tx.plotId }, { userId: tx.buyerId, plotId: tx.plotId, txId: tx.id, channel: "system" });
       }
     }
   }
 
-  else if (tx.kind === "coins" && meta.coins && tx.buyerId) {
-    await db.update(schema.users).set({ coins: sql`${schema.users.coins} + ${meta.coins}` }).where(eq(schema.users.id, tx.buyerId));
-    await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: meta.coins, reason: "purchase", ref: tx.id, createdAt: t });
-    await bumpSiteDaily({ revenueCents: tx.amountCents });
-  } else if (tx.kind === "billboard" && meta.billboard && tx.buyerId) {
-    const b = meta.billboard;
-    await db.insert(schema.billboards).values({
-      id: newId(),
-      slot: b.slot,
-      ownerId: tx.buyerId,
-      plotId: b.plotId,
-      headline: b.headline,
-      body: b.body ?? null,
-      website: b.website ?? null,
-      imageUrl: b.imageUrl ?? null,
-      color: b.color,
-      startsAt: b.startsAt,
-      endsAt: b.endsAt,
-      amountCents: tx.amountCents,
-      status: "active",
-      createdAt: t,
-    });
-    await addEvent("billboard", b.plotId, `${b.headline} is now on a billboard`, b.slot === "airship" ? "Airship banner over the avenue" : "Roadside billboard", tx.amountCents);
-    await bumpSiteDaily({ revenueCents: tx.amountCents });
-  }
-
   if (tx.plotId) {
     await db.update(schema.plots).set({ floors: sql`max(${schema.plots.floors}, ${floorsForValue(tx.valueAfter)})` }).where(eq(schema.plots.id, tx.plotId));
+  }
+  if (tx.buyerId && tx.amountCents > 0 && provider !== "comp") {
+    const { describeTx } = await import("@/lib/payments");
+    await sendReceipt(tx.buyerId, describeTx(tx), tx.amountCents, tx.id, tx.plotId || undefined).catch(() => {});
   }
   const plot = tx.plotId ? await getPlot(tx.plotId) : null;
   if (plot) {

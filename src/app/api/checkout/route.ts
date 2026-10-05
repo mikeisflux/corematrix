@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BuildingDraft } from "@/lib/economy";
-import { checkoutUrl } from "@/lib/payments";
+import { nextStepUrl } from "@/lib/payments";
 import { COIN_RULES } from "@/lib/arcade";
-import { formatMoney, TIERS } from "@/lib/config";
 
 const Draft = z.object({
   name: z.string().max(60),
@@ -50,27 +49,27 @@ export async function POST(req: Request) {
   try {
     if (b.kind === "claim") {
       const tx = await startClaim(b.plotId, u.id, b.draft as BuildingDraft, b.useCredit === false ? 0 : u.creditCents);
-      return NextResponse.json({ url: await checkoutUrl(tx, u.email, `Claim Plot #${b.plotId}`) });
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "takeover") {
       const tx = await startTakeover(b.plotId, u.id, b.draft as BuildingDraft, b.useCredit === false ? 0 : u.creditCents);
-      return NextResponse.json({ url: await checkoutUrl(tx, u.email, `Take over Plot #${b.plotId}`) });
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "boost") {
       const tx = await startBoost(b.plotId, u.id, b.amountCents);
-      return NextResponse.json({ url: await checkoutUrl(tx, u.email, `Boost Plot #${b.plotId} by ${formatMoney(b.amountCents)}`) });
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "tier") {
       const tx = await startTier(b.plotId, u.id, b.tier);
-      return NextResponse.json({ url: await checkoutUrl(tx, u.email, `${TIERS[b.tier].name} for Plot #${b.plotId} (30 days)`) });
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "coins") {
       const tx = await startCoinPack(u.id, b.packId, COIN_RULES.packs);
-      return NextResponse.json({ url: await checkoutUrl(tx, u.email, `Arcade coins`) });
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "billboard") {
       const { tx } = await startBillboard(u.id, b);
-      return NextResponse.json({ url: await checkoutUrl(tx, u.email, `Billboard · ${b.weeks} week${b.weeks > 1 ? "s" : ""}`) });
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     return NextResponse.json({ error: "Unknown" }, { status: 400 });
   } catch (e) {
