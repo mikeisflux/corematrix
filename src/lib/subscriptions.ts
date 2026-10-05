@@ -10,33 +10,33 @@ import { TIERS, type Tier, formatMoney } from "@/lib/config";
 import { newId, now } from "@/lib/util";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { divinitycoin, type DivinityWebhookEvent } from "@/lib/divinitycoin";
-import { addEvent, getPlot, settle, type Tx } from "@/lib/economy";
+import { addEvent, getBooth, settle, type Tx } from "@/lib/economy";
 import { sendTemplate } from "@/lib/sendgrid";
 import { getSettings } from "@/lib/settings";
 
 const PERIOD = 30 * 86_400_000;
 export const SUB_REF_PREFIX = "sub:";
 export function isPlanReference(ref: string): boolean { return ref.startsWith(SUB_REF_PREFIX); }
-function periodReference(plotId: number, periodStart: number): string { return `${SUB_REF_PREFIX}${plotId}:${new Date(periodStart).toISOString().slice(0, 10)}`; }
-function parseReference(ref: string): { plotId: number; period: string } | null {
+function periodReference(boothId: number, periodStart: number): string { return `${SUB_REF_PREFIX}${boothId}:${new Date(periodStart).toISOString().slice(0, 10)}`; }
+function parseReference(ref: string): { boothId: number; period: string } | null {
   const m = /^sub:(\d+):(\d{4}-\d{2}-\d{2})$/.exec(ref);
-  return m ? { plotId: Number(m[1]), period: m[2] } : null;
+  return m ? { boothId: Number(m[1]), period: m[2] } : null;
 }
 
-async function ownerOf(plotId: number) {
-  const p = await getPlot(plotId);
+async function ownerOf(boothId: number) {
+  const p = await getBooth(boothId);
   if (!p?.ownerId) return null;
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, p.ownerId)).limit(1);
-  return u ? { plot: p, user: u } : null;
+  return u ? { booth: p, user: u } : null;
 }
 
-/** Called when a tier purchase settles (first charge paid). Marks the plot as subscribed. */
-export async function activatePlan(plotId: number, tier: Tier, paymentMethodId: string | null) {
+/** Called when a tier purchase settles (first charge paid). Marks the booth as subscribed. */
+export async function activatePlan(boothId: number, tier: Tier, paymentMethodId: string | null) {
   const t = now();
   const [p] = await db
-    .update(schema.plots)
+    .update(schema.booths)
     .set({ tier, tierUntil: t + PERIOD, subscriptionId: paymentMethodId ? `pm:${paymentMethodId}` : `comp:${newId()}`, subscriptionStatus: "active", notForSaleUntil: tier === "landmark" ? t + 7 * 86_400_000 : null, updatedAt: t })
-    .where(eq(schema.plots.id, plotId))
+    .where(eq(schema.booths.id, boothId))
     .returning();
   return p;
 }
@@ -76,10 +76,10 @@ async function chargeFirstPeriod(tx: Tx, paymentMethodId: string): Promise<{ ok:
   const tier = meta.tier ?? "pro";
   const [buyer] = tx.buyerId ? await db.select().from(schema.users).where(eq(schema.users.id, tx.buyerId)).limit(1) : [];
   if (!buyer) return { ok: false, error: "buyer missing" };
-  const ref = periodReference(tx.plotId, now());
+  const ref = periodReference(tx.boothId, now());
   const s = await getSettings(["SITE_NAME"]);
   const charge = await divinitycoin.chargeSavedCard({
-    customerId: buyer.id, paymentMethodId, amountCents: tx.amountCents, reference: ref, description: `${s.SITE_NAME || "AlwaysOnCon"} — ${TIERS[tier].name} plan, #${tx.plotId}`, idempotencyKey: `${ref}:${tx.id}`,
+    customerId: buyer.id, paymentMethodId, amountCents: tx.amountCents, reference: ref, description: `${s.SITE_NAME || "AlwaysOnCon"} — ${TIERS[tier].name} plan, #${tx.boothId}`, idempotencyKey: `${ref}:${tx.id}`,
     origin: { ip: buyer.cardIp, userAgent: buyer.cardUserAgent },
   });
   if (!charge.success) {
@@ -92,62 +92,62 @@ async function chargeFirstPeriod(tx: Tx, paymentMethodId: string): Promise<{ ok:
   return { ok: true };
 }
 
-/** Charge one renewal period with the saved card. Idempotent per (plot, period start). */
-export async function chargeRenewal(plotId: number, periodStart: number): Promise<{ ok: boolean; error?: string; declined?: boolean }> {
+/** Charge one renewal period with the saved card. Idempotent per (booth, period start). */
+export async function chargeRenewal(boothId: number, periodStart: number): Promise<{ ok: boolean; error?: string; declined?: boolean }> {
   await ensureMigrated();
-  const o = await ownerOf(plotId);
+  const o = await ownerOf(boothId);
   if (!o) return { ok: false, error: "no owner" };
-  const { plot, user } = o;
-  const tier = plot.tier as Tier;
+  const { booth, user } = o;
+  const tier = booth.tier as Tier;
   if (tier === "free") return { ok: false, error: "no plan" };
-  const pm = plot.subscriptionId?.startsWith("pm:") ? plot.subscriptionId.slice(3) : user.dcPaymentMethodId;
-  const ref = periodReference(plotId, periodStart);
-  if (plot.subscriptionId?.startsWith("comp:")) { await renewPlan(plotId, 0, "comp", ref); return { ok: true }; }
-  const [already] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.plotId, plotId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
+  const pm = booth.subscriptionId?.startsWith("pm:") ? booth.subscriptionId.slice(3) : user.dcPaymentMethodId;
+  const ref = periodReference(boothId, periodStart);
+  if (booth.subscriptionId?.startsWith("comp:")) { await renewPlan(boothId, 0, "comp", ref); return { ok: true }; }
+  const [already] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, boothId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
   if (already) return { ok: true };
-  if (!pm) { await recordFailedPeriod(plotId, "no saved card on file"); return { ok: false, error: "no saved card" }; }
+  if (!pm) { await recordFailedPeriod(boothId, "no saved card on file"); return { ok: false, error: "no saved card" }; }
   const s = await getSettings(["SITE_NAME"]);
   const charge = await divinitycoin.chargeSavedCard({
-    customerId: user.id, paymentMethodId: pm, amountCents: TIERS[tier].priceCents, reference: ref, description: `${s.SITE_NAME || "AlwaysOnCon"} — ${TIERS[tier].name} plan renewal, #${plotId}`, idempotencyKey: ref,
+    customerId: user.id, paymentMethodId: pm, amountCents: TIERS[tier].priceCents, reference: ref, description: `${s.SITE_NAME || "AlwaysOnCon"} — ${TIERS[tier].name} plan renewal, #${boothId}`, idempotencyKey: ref,
     origin: { ip: user.cardIp, userAgent: user.cardUserAgent },
   });
   if (!charge.success) {
-    await recordFailedPeriod(plotId, charge.error || charge.status || "charge failed");
+    await recordFailedPeriod(boothId, charge.error || charge.status || "charge failed");
     return { ok: false, error: charge.error, declined: charge.httpStatus === 402 };
   }
   try { await divinitycoin.captureHold(ref); } catch (err) { console.error(`[divinitycoin] capture failed for ${ref}:`, err); }
-  await renewPlan(plotId, TIERS[tier].priceCents, "divinitycoin", `${ref}|${charge.paymentIntentId ?? ""}`);
+  await renewPlan(boothId, TIERS[tier].priceCents, "divinitycoin", `${ref}|${charge.paymentIntentId ?? ""}`);
   return { ok: true };
 }
 
-async function recordFailedPeriod(plotId: number, reason: string) {
-  const o = await ownerOf(plotId);
+async function recordFailedPeriod(boothId: number, reason: string) {
+  const o = await ownerOf(boothId);
   if (!o) return;
-  const tierName = TIERS[o.plot.tier as Tier]?.name ?? "plan";
-  await db.update(schema.plots).set({ subscriptionStatus: "past_due", updatedAt: now() }).where(eq(schema.plots.id, plotId));
-  await db.insert(schema.transactions).values({ id: newId(), plotId, kind: "tier", buyerId: o.user.id, amountCents: TIERS[o.plot.tier as Tier]?.priceCents ?? 0, status: "failed", provider: "divinitycoin", notes: reason.slice(0, 300), meta: JSON.stringify({ tier: o.plot.tier, renewal: true }), createdAt: now() });
+  const tierName = TIERS[o.booth.tier as Tier]?.name ?? "plan";
+  await db.update(schema.booths).set({ subscriptionStatus: "past_due", updatedAt: now() }).where(eq(schema.booths.id, boothId));
+  await db.insert(schema.transactions).values({ id: newId(), boothId, kind: "tier", buyerId: o.user.id, amountCents: TIERS[o.booth.tier as Tier]?.priceCents ?? 0, status: "failed", provider: "divinitycoin", notes: reason.slice(0, 300), meta: JSON.stringify({ tier: o.booth.tier, renewal: true }), createdAt: now() });
   await sendTemplate("plan_payment_failed", o.user.email, {
-    subject: `We couldn’t renew the ${tierName} on ${o.plot.name}`,
+    subject: `We couldn’t renew the ${tierName} on ${o.booth.name}`,
     fallbackText: `The card on file was declined (${reason}). Perks continue for 7 days while we retry; update your card from the dashboard.`,
-    name: o.user.displayName ?? o.user.email, plotName: o.plot.name, planName: tierName, reason, plotId,
-  }, { userId: o.user.id, plotId, channel: "system" }).catch(() => {});
+    name: o.user.displayName ?? o.user.email, boothName: o.booth.name, planName: tierName, reason, boothId,
+  }, { userId: o.user.id, boothId, channel: "system" }).catch(() => {});
 }
 
 /** A renewal payment arrived (our charge, or a late payment.succeeded webhook). Extends the period and books revenue. */
-export async function renewPlan(plotId: number, amountCents: number, provider: "divinitycoin" | "comp", ref?: string) {
+export async function renewPlan(boothId: number, amountCents: number, provider: "divinitycoin" | "comp", ref?: string) {
   await ensureMigrated();
-  const o = await ownerOf(plotId);
-  if (!o || o.plot.tier === "free") return;
-  const tierName = TIERS[o.plot.tier as Tier].name;
-  const base = Math.max(now(), o.plot.tierUntil ?? 0);
-  await db.update(schema.plots).set({ tierUntil: base + PERIOD, subscriptionStatus: "active", updatedAt: now() }).where(eq(schema.plots.id, plotId));
-  await db.insert(schema.transactions).values({ id: newId(), plotId, kind: "tier", buyerId: o.user.id, amountCents, platformCents: amountCents, valueBefore: o.plot.valueCents, valueAfter: o.plot.valueCents, status: "paid", provider, providerRef: ref ?? null, meta: JSON.stringify({ tier: o.plot.tier, renewal: true }), createdAt: now(), paidAt: now() });
+  const o = await ownerOf(boothId);
+  if (!o || o.booth.tier === "free") return;
+  const tierName = TIERS[o.booth.tier as Tier].name;
+  const base = Math.max(now(), o.booth.tierUntil ?? 0);
+  await db.update(schema.booths).set({ tierUntil: base + PERIOD, subscriptionStatus: "active", updatedAt: now() }).where(eq(schema.booths.id, boothId));
+  await db.insert(schema.transactions).values({ id: newId(), boothId, kind: "tier", buyerId: o.user.id, amountCents, platformCents: amountCents, valueBefore: o.booth.valueCents, valueAfter: o.booth.valueCents, status: "paid", provider, providerRef: ref ?? null, meta: JSON.stringify({ tier: o.booth.tier, renewal: true }), createdAt: now(), paidAt: now() });
   await bumpSiteDaily({ revenueCents: amountCents });
   await sendTemplate("plan_renewed", o.user.email, {
-    subject: `${tierName} renewed on ${o.plot.name}`,
+    subject: `${tierName} renewed on ${o.booth.name}`,
     fallbackText: `Your ${tierName} plan renewed for ${formatMoney(amountCents)}. It runs through ${new Date(base + PERIOD).toLocaleDateString()}.`,
-    name: o.user.displayName ?? o.user.email, plotName: o.plot.name, planName: tierName, amount: formatMoney(amountCents), periodEnd: new Date(base + PERIOD).toLocaleDateString("en-US", { dateStyle: "long" }), plotId,
-  }, { userId: o.user.id, plotId, channel: "system" }).catch(() => {});
+    name: o.user.displayName ?? o.user.email, boothName: o.booth.name, planName: tierName, amount: formatMoney(amountCents), periodEnd: new Date(base + PERIOD).toLocaleDateString("en-US", { dateStyle: "long" }), boothId,
+  }, { userId: o.user.id, boothId, channel: "system" }).catch(() => {});
 }
 
 /** payment.succeeded / payment.failed for a "sub:…" reference (covers a timed-out charge call). */
@@ -155,28 +155,28 @@ export async function onPlanChargeEvent(type: string, ref: string, d: DivinityWe
   const parsed = parseReference(ref);
   if (!parsed) return { status: "ignored", note: "bad plan reference" };
   if (type === "payment.succeeded") {
-    const [paid] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.plotId, parsed.plotId), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
+    const [paid] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
     if (paid) return { status: "ignored", note: "period already recorded" };
-    const [pendingFirst] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.plotId, parsed.plotId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "pending"))).orderBy(desc(schema.transactions.createdAt)).limit(1);
+    const [pendingFirst] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "pending"))).orderBy(desc(schema.transactions.createdAt)).limit(1);
     if (pendingFirst) { await settle(pendingFirst.id, "divinitycoin", d.paymentIntentId ?? ref); return { status: "processed", note: "plan started (webhook)" }; }
     try { await divinitycoin.captureHold(ref); } catch { /* retry from Admin → Webhooks */ }
-    await renewPlan(parsed.plotId, typeof d.amount === "number" ? Math.round(d.amount) : 0, "divinitycoin", `${ref}|${d.paymentIntentId ?? ""}`);
+    await renewPlan(parsed.boothId, typeof d.amount === "number" ? Math.round(d.amount) : 0, "divinitycoin", `${ref}|${d.paymentIntentId ?? ""}`);
     return { status: "processed", note: "plan period paid (webhook)" };
   }
   if (type === "payment.failed") {
-    await recordFailedPeriod(parsed.plotId, String(d.error || d.declineCode || d.code || "declined"));
+    await recordFailedPeriod(parsed.boothId, String(d.error || d.declineCode || d.code || "declined"));
     return { status: "processed" };
   }
   return { status: "ignored", note: `unhandled ${type} for plan` };
 }
 
 /** Owner asked to stop. Keeps perks until the paid period ends; no DivinityCoin call needed. */
-export async function cancelPlan(plotId: number, ownerId: string | null): Promise<{ until: number | null }> {
+export async function cancelPlan(boothId: number, ownerId: string | null): Promise<{ until: number | null }> {
   await ensureMigrated();
-  const p = await getPlot(plotId);
+  const p = await getBooth(boothId);
   if (!p || (ownerId && p.ownerId !== ownerId)) throw new Error("Not yours");
   if (p.tier === "free") throw new Error("No active plan");
-  await db.update(schema.plots).set({ subscriptionStatus: "canceling", updatedAt: now() }).where(eq(schema.plots.id, plotId));
+  await db.update(schema.booths).set({ subscriptionStatus: "canceling", updatedAt: now() }).where(eq(schema.booths.id, boothId));
   return { until: p.tierUntil };
 }
 
@@ -185,11 +185,11 @@ export async function runRenewals(): Promise<{ charged: number; failed: number; 
   await ensureMigrated();
   const t = now();
   const out = { charged: 0, failed: 0, ended: 0, renewed: 0, expired: 0 };
-  const due = await db.select().from(schema.plots).where(and(sql`${schema.plots.tier} != 'free'`, lt(schema.plots.tierUntil, t))).limit(200);
+  const due = await db.select().from(schema.booths).where(and(sql`${schema.booths.tier} != 'free'`, lt(schema.booths.tierUntil, t))).limit(200);
   for (const p of due) {
     const periodStart = p.tierUntil ?? t;
     if (p.subscriptionStatus === "canceling" || p.subscriptionStatus === "canceled" || !p.ownerId) { await dropPlan(p.id, "ended"); out.ended++; continue; }
-    const [lastFail] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.plotId, p.id), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "failed"))).orderBy(desc(schema.transactions.createdAt)).limit(1);
+    const [lastFail] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.boothId, p.id), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "failed"))).orderBy(desc(schema.transactions.createdAt)).limit(1);
     if (lastFail && t - lastFail.createdAt < 86_400_000 && lastFail.createdAt > periodStart) continue;
     if (t - periodStart > 7 * 86_400_000) { await dropPlan(p.id, "payment failed for 7 days"); out.expired++; continue; }
     const r = await chargeRenewal(p.id, periodStart);
@@ -198,12 +198,12 @@ export async function runRenewals(): Promise<{ charged: number; failed: number; 
   return out;
 }
 
-async function dropPlan(plotId: number, why: string) {
-  const o = await ownerOf(plotId);
-  await db.update(schema.plots).set({ tier: "free", tierUntil: null, subscriptionId: null, subscriptionStatus: null, updatedAt: now() }).where(eq(schema.plots.id, plotId));
-  await addEvent("tier", plotId, `${o?.plot.name ?? "A booth"} is back on the free plan`, null, null);
+async function dropPlan(boothId: number, why: string) {
+  const o = await ownerOf(boothId);
+  await db.update(schema.booths).set({ tier: "free", tierUntil: null, subscriptionId: null, subscriptionStatus: null, updatedAt: now() }).where(eq(schema.booths.id, boothId));
+  await addEvent("tier", boothId, `${o?.booth.name ?? "A booth"} is back on the free plan`, null, null);
   if (o && why !== "ended") {
-    await sendTemplate("plan_cancelled", o.user.email, { subject: `The plan on ${o.plot.name} ended`, fallbackText: `We couldn’t collect payment for a week, so the plan ended (${why}). Upgrade again any time from the dashboard.`, name: o.user.displayName ?? o.user.email, plotName: o.plot.name, plotId }, { userId: o.user.id, plotId, channel: "system" }).catch(() => {});
+    await sendTemplate("plan_cancelled", o.user.email, { subject: `The plan on ${o.booth.name} ended`, fallbackText: `We couldn’t collect payment for a week, so the plan ended (${why}). Upgrade again any time from the dashboard.`, name: o.user.displayName ?? o.user.email, boothName: o.booth.name, boothId }, { userId: o.user.id, boothId, channel: "system" }).catch(() => {});
   }
 }
 
@@ -213,7 +213,7 @@ export async function currentMrrCents(): Promise<number> {
   const [r] = await db.select({
     pro: sql<number>`sum(case when tier='pro' and subscription_status='active' then 1 else 0 end)`,
     lm: sql<number>`sum(case when tier='landmark' and subscription_status='active' then 1 else 0 end)`,
-  }).from(schema.plots);
+  }).from(schema.booths);
   return Number(r?.pro ?? 0) * TIERS.pro.priceCents + Number(r?.lm ?? 0) * TIERS.landmark.priceCents;
 }
 

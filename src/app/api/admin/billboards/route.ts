@@ -9,7 +9,7 @@ export async function GET() {
   const g = await guard(); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const bb = schema.billboards, u = schema.users;
-  const rows = await db.select({ id: bb.id, slot: bb.slot, headline: bb.headline, body: bb.body, website: bb.website, imageUrl: bb.imageUrl, color: bb.color, startsAt: bb.startsAt, endsAt: bb.endsAt, amountCents: bb.amountCents, seen: bb.seen, opens: bb.opens, clicks: bb.clicks, status: bb.status, createdAt: bb.createdAt, ownerId: bb.ownerId, ownerEmail: u.email, plotId: bb.plotId }).from(bb).leftJoin(u, eq(u.id, bb.ownerId)).orderBy(desc(bb.createdAt)).limit(300);
+  const rows = await db.select({ id: bb.id, slot: bb.slot, headline: bb.headline, body: bb.body, website: bb.website, imageUrl: bb.imageUrl, color: bb.color, startsAt: bb.startsAt, endsAt: bb.endsAt, amountCents: bb.amountCents, seen: bb.seen, opens: bb.opens, clicks: bb.clicks, status: bb.status, createdAt: bb.createdAt, ownerId: bb.ownerId, ownerEmail: u.email, boothId: bb.boothId }).from(bb).leftJoin(u, eq(u.id, bb.ownerId)).orderBy(desc(bb.createdAt)).limit(300);
   return NextResponse.json({ rows });
 }
 /* POST { id, action: "end" | "reject" | "activate" | "extend", days? } */

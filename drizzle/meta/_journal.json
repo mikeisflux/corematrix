@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1790980571854,
+      "when": 1791162231173,
       "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1790985618102,
-      "tag": "0001_subscriptions_seasons",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1791159314227,
-      "tag": "0002_admin_mail_divinity",
       "breakpoints": true
     }
   ]

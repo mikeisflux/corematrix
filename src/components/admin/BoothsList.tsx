@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useJson, Pager, PageHead, Badge, Money, DateTime, Select, SearchBox, qs, Empty } from "./shared";
-interface Row { id: number; name: string | null; website: string | null; tier: string; subscriptionStatus: string | null; district: string; floors: number; valueCents: number; claimedAt: number | null; hidden: boolean; notForSaleUntil: number | null; totalViews: number; totalClicks: number; salesCount: number; ownerEmail: string | null }
+interface Row { id: number; name: string | null; website: string | null; tier: string; subscriptionStatus: string | null; label: string; size: string; kind: string; hall: string; aisle: number; valueCents: number; claimedAt: number | null; hidden: boolean; notForSaleUntil: number | null; totalViews: number; totalClicks: number; salesCount: number; ownerEmail: string | null }
 export default function BoothsList() {
   const [q, setQ] = useState(""); const [tier, setTier] = useState(""); const [state, setState] = useState("claimed"); const [sort, setSort] = useState("value"); const [page, setPage] = useState(1);
   const list = useJson<{ rows: Row[]; total: number; pages: number }>(`/api/admin/booths?${qs({ q, tier, state, sort, page })}`);

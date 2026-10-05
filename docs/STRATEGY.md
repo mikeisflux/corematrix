@@ -1,5 +1,13 @@
 # AlwaysOnCon: revenue, growth and engagement plan
 
+## The pivot: AlwaysOnCon
+
+The city became a comic convention hall. Same economy (claim, takeover, boost, plans, coins),
+but the thing people buy is a booth on a floor plan they already understand: 10×10 inline,
+20×10 corner, 20×20 island, 6×10 Artists' Alley table. Position is the status game
+(Headliner Row around the arcade, front of house), signage grows with value, and the
+walkthrough with avatars gives visitors a reason to come back: a con that never closes.
+
 ## The diagnosis
 
 Claim Avenue sells a $5 to $1,000 building and the buyer gets a link and a vanity rank.
@@ -13,10 +21,10 @@ buyers to get.
 Three structural problems:
 
 1. **One-shot revenue.** Claims and takeover premiums. Revenue dies when the hype or the
-   plots run out.
+   booths run out.
 2. **No value loop for owners.** Owners can't see what they got, so they don't come back,
    don't upgrade, and tell people it's pointless.
-3. **No reason to return.** A visitor sees the skyline once. There's no daily hook, no
+3. **No reason to return.** A visitor sees the hall once. There's no daily hook, no
    season, no progression.
 
 ## What AlwaysOnCon does instead
@@ -37,8 +45,8 @@ Target mix at 1,000 owners: ~25% on Pro/Landmark → $4–6k MRR before any clai
 
 Owner gets something measurable, every day:
 
-- **Impressions** (seen on the skyline), **uniques**, **views**, **clicks**, **CTR**, deltas vs
-  the previous period, referrers (skyline / rankings / directory / embed / X).
+- **Impressions** (seen on the floor), **uniques**, **views**, **clicks**, **CTR**, deltas vs
+  the previous period, referrers (banner / walk-up / map / rankings / directory / embed / X).
 - **Conversions**: a one-line pixel on their thank-you page reports signups or sales (with
   value). This is the metric that justifies the Pro plan and the next boost.
 - Outbound links carry UTMs so their Google Analytics agrees with ours.
@@ -48,15 +56,15 @@ Owner gets something measurable, every day:
 
 ### Engagement: reasons to come back
 
-- **Daily coins + streaks**: show up, get coins. Explore buildings, get coins.
+- **Daily coins + streaks**: show up, get coins. Explore booths, get coins.
 - **Arcade with stakes**: three original machines (no licensing problems), coin entry,
   coin prizes, daily and all-time boards. Beat the daily record → you're in the live feed.
 - **Coins become height**: 100 coins = $1 of value. Play → grow your tower → rank higher.
   Players and owners become the same people.
-- **Skyline Coaster**: a 48-second camera ride over the whole avenue. Costs coins, shows
-  off every building (impressions for owners), and is the thing people screen-record.
+- **Hall Flyover**: a 60-second drone ride over the whole exhibit hall. Costs coins, shows
+  off every booth (impressions for exhibitors), and is the thing people screen-record.
 - **Weekly seasons**: trending leaderboard resets Monday; top 3 get featured all week.
-- **Takeover drama**: public ownership history on every plot; sellers profit so nobody
+- **Takeover drama**: public ownership history on every booth; sellers profit so nobody
   rage-quits.
 - **Districts**: Crypto Row vs Startup Alley vs Creator Corner give communities a home and
   a rivalry.
@@ -64,17 +72,17 @@ Owner gets something measurable, every day:
 ### Growth loops
 
 - **Referrals**: both sides get $2 credit + 25 coins when a friend claims.
-- **Share cards**: every building has an OG image (1200×630) that renders a mini skyline;
+- **Share cards**: every booth has an OG image (1200×630) that renders a mini floor plan;
   one-click "Share on X".
 - **Embed badge**: an SVG badge for owners' sites that links back (and counts as a
   referrer). Every owner becomes a distribution channel.
-- **SEO**: a server-rendered public page per building and a directory. "Harbor Coffee Co.
-  on AlwaysOnCon" is indexable; Claim Avenue's plot pages are thin.
+- **SEO**: a server-rendered public page per booth and a directory. "Harbor Coffee Co.
+  on AlwaysOnCon" is indexable; Claim Avenue's booth pages are thin.
 - **Billboard advertisers** bring their own audience to check their numbers.
 
 ### Trust (because "is this a scam" is the top objection)
 
-- Public, live city statistics (online, visits, building views, website clicks).
+- Public, live show statistics (on the floor, visits, booth visits, website clicks).
 - Rules page: takeover math with a worked example, refund window (24h, no interactions),
   content policy.
 - Chat anti-spam: only owners can post links; rate limits; dedupe.
@@ -92,16 +100,16 @@ Owner gets something measurable, every day:
 
 Everything above is implemented: subscriptions with renewals and cancellation, weekly
 seasons with prizes, featured winners and rank snapshots, the conversion pixel, referrers,
-billboards with live stats, the arcade and coaster, referrals, share cards, badges, the
+hanging banners with live stats, the arcade and flyover, referrals, share cards, badges, the
 weekly digest, the sold email and the takeover nudge, chat anti-spam, and the operator
 dashboard.
 
 ## Roadmap after v1
 
 1. Cash-out of seller credit through DivinityCoin payouts.
-2. Theme park district: more rides (coins), a Ferris wheel vantage point with billboard
+2. Panel rooms: scheduled live events in the hall (coins), a stage with sponsor banners
    slots, seasonal events (block parties: claims 50% off for 2 hours, announced in the feed).
-3. Building guestbooks (per-plot chat rooms) for Pro+.
+3. Building guestbooks (per-booth chat rooms) for Pro+.
 4. Coinbase Commerce as a second checkout for the crypto crowd.
 5. Mobile: touch controls are in; add a 2D minimap mode for low-end phones.
 6. Multi-instance realtime (Redis) when a single box isn't enough.

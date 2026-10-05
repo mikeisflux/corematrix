@@ -12,7 +12,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   const [user] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!user) return notFound();
   const [booths, txs, coins, mail, [sessions]] = await Promise.all([
-    db.select({ id: schema.plots.id, name: schema.plots.name, tier: schema.plots.tier, valueCents: schema.plots.valueCents, floors: schema.plots.floors, hidden: schema.plots.hidden, claimedAt: schema.plots.claimedAt, subscriptionStatus: schema.plots.subscriptionStatus }).from(schema.plots).where(eq(schema.plots.ownerId, id)).orderBy(desc(schema.plots.valueCents)),
+    db.select({ id: schema.booths.id, name: schema.booths.name, tier: schema.booths.tier, valueCents: schema.booths.valueCents, label: schema.booths.label, size: schema.booths.size, hidden: schema.booths.hidden, claimedAt: schema.booths.claimedAt, subscriptionStatus: schema.booths.subscriptionStatus }).from(schema.booths).where(eq(schema.booths.ownerId, id)).orderBy(desc(schema.booths.valueCents)),
     db.select().from(schema.transactions).where(sql`buyer_id = ${id} OR seller_id = ${id}`).orderBy(desc(schema.transactions.createdAt)).limit(50),
     db.select().from(schema.coinLedger).where(eq(schema.coinLedger.userId, id)).orderBy(desc(schema.coinLedger.createdAt)).limit(30),
     db.select({ id: schema.mailMessages.id, direction: schema.mailMessages.direction, subject: schema.mailMessages.subject, status: schema.mailMessages.status, createdAt: schema.mailMessages.createdAt }).from(schema.mailMessages).where(sql`user_id = ${id} OR to_email = ${user.email} OR from_email = ${user.email}`).orderBy(desc(schema.mailMessages.createdAt)).limit(20),
@@ -50,7 +50,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   if (id === g.id) return bad("You cannot delete yourself.");
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!u) return notFound();
-  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(schema.plots).where(eq(schema.plots.ownerId, id));
+  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(schema.booths).where(eq(schema.booths.ownerId, id));
   if (Number(n) > 0) return bad("User still owns booths. Release or transfer them first.");
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, id));
   await db.delete(schema.notifications).where(eq(schema.notifications.userId, id));

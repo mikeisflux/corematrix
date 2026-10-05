@@ -11,7 +11,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   return (
     <Shell wide>
-      <Dashboard initialPlot={sp.plot ? Number(sp.plot) : null} />
+      <Dashboard initialBooth={sp.booth ? Number(sp.booth) : null} />
     </Shell>
   );
 }

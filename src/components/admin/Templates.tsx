@@ -57,7 +57,7 @@ export default function Templates({ initialId }: { initialId: string | null }) {
   return (
     <>
       {toast.node}
-      <PageHead title="Email templates" sub="Transactional emails the site sends. Merge tags like {{name}} and {{plotName}} are filled at send time; {{{sectionsHtml}}} inserts raw HTML.">
+      <PageHead title="Email templates" sub="Transactional emails the site sends. Merge tags like {{name}} and {{boothName}} are filled at send time; {{{sectionsHtml}}} inserts raw HTML.">
         <button className="admBtn" onClick={() => seed(false)}>Create default templates</button>
         <ConfirmButton className="admBtn admBtn--ghost" message="Reset ALL default templates to the built-in versions? Your edits are kept in version history." onConfirm={() => seed(true)}>Reset defaults</ConfirmButton>
         <button className="admBtn admBtn--primary" onClick={() => { setSel(null); setIsNew(true); setForm({ ...blank }); setVersions([]); setPreview(null); setTab("edit"); }}>New template</button>

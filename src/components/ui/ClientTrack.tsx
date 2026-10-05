@@ -1,11 +1,11 @@
 "use client";
 import { useEffect } from "react";
 /** Sets the first-party visitor cookie from the client (server components can't). */
-export function ClientTrack({ plotId }: { plotId: number }) {
+export function ClientTrack({ boothId }: { boothId: number }) {
   useEffect(() => {
     if (!document.cookie.includes("aoc_vid=")) {
-      void fetch("/api/track", { method: "POST", body: JSON.stringify({ kind: "hovers", plotId }), headers: { "Content-Type": "application/json" } });
+      void fetch("/api/track", { method: "POST", body: JSON.stringify({ kind: "hovers", boothId }), headers: { "Content-Type": "application/json" } });
     }
-  }, [plotId]);
+  }, [boothId]);
   return null;
 }

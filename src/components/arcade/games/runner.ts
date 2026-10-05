@@ -1,6 +1,6 @@
 import type { GameRunner } from "../GameShell";
 
-/** Rooftop Run: one-button endless runner across the skyline. Score = distance + coins. */
+/** Rooftop Run: one-button endless runner across the show floor. Score = distance + coins. */
 export const runRunner: GameRunner = (canvas, onScore, onEnd) => {
   const ctx = canvas.getContext("2d")!;
   const W = canvas.width, H = canvas.height, G = 0.6;
@@ -62,7 +62,7 @@ export const runRunner: GameRunner = (canvas, onScore, onEnd) => {
     while (lastEnd < x + W + 200) addRoof();
     ctx.fillStyle = "#070a16";
     ctx.fillRect(0, 0, W, H);
-    // parallax skyline
+    // parallax hall backdrop
     ctx.fillStyle = "#0f1530";
     for (let i = 0; i < 14; i++) {
       const bx = ((i * 97 - x * 0.3) % (W + 120)) - 60;

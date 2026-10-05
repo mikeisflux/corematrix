@@ -6,7 +6,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { divinitycoin, cleanOrigin, type CustomerOrigin } from "@/lib/divinitycoin";
-import { settle, type Tx, getPlot } from "@/lib/economy";
+import { settle, type Tx, getBooth } from "@/lib/economy";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { getSettings, flag } from "@/lib/settings";
 import { now } from "@/lib/util";
@@ -31,10 +31,10 @@ export async function nextStepUrl(tx: Tx): Promise<string> {
 export function describeTx(tx: Tx): string {
   const meta = tx.meta ? (JSON.parse(tx.meta) as { tier?: Tier; coins?: number; draft?: { name?: string } }) : {};
   switch (tx.kind) {
-    case "claim": return `Claim Plot #${tx.plotId}${meta.draft?.name ? ` · ${meta.draft.name}` : ""}`;
-    case "takeover": return `Take over Plot #${tx.plotId}`;
-    case "boost": return `Boost Plot #${tx.plotId}`;
-    case "tier": return `${TIERS[meta.tier ?? "pro"].name} plan for Plot #${tx.plotId} (30 days)`;
+    case "claim": return `Claim Booth #${tx.boothId}${meta.draft?.name ? ` · ${meta.draft.name}` : ""}`;
+    case "takeover": return `Take over Booth #${tx.boothId}`;
+    case "boost": return `Boost Booth #${tx.boothId}`;
+    case "tier": return `${TIERS[meta.tier ?? "pro"].name} plan for Booth #${tx.boothId} (30 days)`;
     case "coins": return `${meta.coins ?? ""} arcade coins`;
     case "billboard": return `Billboard campaign`;
     default: return tx.kind;
@@ -134,7 +134,7 @@ export async function markTxFailed(txId: string, reason: string) {
   await db.update(schema.transactions).set({ status: "failed", notes: reason.slice(0, 500) }).where(and(eq(schema.transactions.id, txId), eq(schema.transactions.status, "pending")));
 }
 
-/** Admin refund through DivinityCoin (full or partial). Claims refunded in full release the plot. */
+/** Admin refund through DivinityCoin (full or partial). Claims refunded in full release the booth. */
 export async function refundTx(txId: string, amountCents: number | undefined, reason: string, adminName: string): Promise<{ refundedCents: number }> {
   await ensureMigrated();
   const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
@@ -159,8 +159,8 @@ export async function refundTx(txId: string, amountCents: number | undefined, re
     notes: [tx.notes, `Refunded $${(amt / 100).toFixed(2)} by ${adminName} on ${new Date().toISOString()}${reason ? ` — ${reason}` : ""}`].filter(Boolean).join("\n"),
   }).where(eq(schema.transactions.id, tx.id));
   if (full && tx.kind === "claim") {
-    const p = await getPlot(tx.plotId);
-    if (p && p.ownerId === tx.buyerId) await db.update(schema.plots).set({ ownerId: null, hidden: true, updatedAt: now() }).where(eq(schema.plots.id, tx.plotId));
+    const p = await getBooth(tx.boothId);
+    if (p && p.ownerId === tx.buyerId) await db.update(schema.booths).set({ ownerId: null, hidden: true, updatedAt: now() }).where(eq(schema.booths.id, tx.boothId));
   }
   return { refundedCents: amt };
 }

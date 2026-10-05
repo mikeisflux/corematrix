@@ -1,6 +1,6 @@
 /* DivinityCoin webhook processing (DivinityCoin → us). Envelope
    { event, timestamp, data }; data.pledgeId is our reference: a transaction
-   id, or "sub:<plotId>:<period>" for plan renewals. */
+   id, or "sub:<boothId>:<period>" for plan renewals. */
 import { eq } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import type { DivinityWebhookEvent } from "@/lib/divinitycoin";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BuildingDraft } from "@/lib/economy";
+import { startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft } from "@/lib/economy";
 import { nextStepUrl } from "@/lib/payments";
 import { COIN_RULES } from "@/lib/arcade";
 
@@ -14,17 +14,15 @@ const Draft = z.object({
   color: z.string().max(9).optional(),
   accent: z.string().max(9).optional(),
   style: z.string().max(20).optional(),
-  shape: z.string().max(20).optional(),
-  roof: z.string().max(20).optional(),
-  district: z.string().max(30).optional(),
-  floors: z.number().int().min(1).max(500).optional(),
+  cloth: z.string().max(9).optional(),
+  category: z.string().max(30).optional(),
 });
 
 const Body = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("claim"), plotId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
-  z.object({ kind: z.literal("takeover"), plotId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
-  z.object({ kind: z.literal("boost"), plotId: z.number().int().positive(), amountCents: z.number().int().positive() }),
-  z.object({ kind: z.literal("tier"), plotId: z.number().int().positive(), tier: z.enum(["pro", "landmark"]) }),
+  z.object({ kind: z.literal("claim"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
+  z.object({ kind: z.literal("takeover"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
+  z.object({ kind: z.literal("boost"), boothId: z.number().int().positive(), amountCents: z.number().int().positive() }),
+  z.object({ kind: z.literal("tier"), boothId: z.number().int().positive(), tier: z.enum(["pro", "landmark"]) }),
   z.object({ kind: z.literal("coins"), packId: z.string().max(30) }),
   z.object({
     kind: z.literal("billboard"),
@@ -36,7 +34,7 @@ const Body = z.discriminatedUnion("kind", [
     website: z.string().max(300).optional(),
     imageUrl: z.string().max(400_000).optional(),
     color: z.string().max(9).optional(),
-    plotId: z.number().int().positive().nullable().optional(),
+    boothId: z.number().int().positive().nullable().optional(),
   }),
 ]);
 
@@ -48,19 +46,19 @@ export async function POST(req: Request) {
   const b = parsed.data;
   try {
     if (b.kind === "claim") {
-      const tx = await startClaim(b.plotId, u.id, b.draft as BuildingDraft, b.useCredit === false ? 0 : u.creditCents);
+      const tx = await startClaim(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : u.creditCents);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "takeover") {
-      const tx = await startTakeover(b.plotId, u.id, b.draft as BuildingDraft, b.useCredit === false ? 0 : u.creditCents);
+      const tx = await startTakeover(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : u.creditCents);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "boost") {
-      const tx = await startBoost(b.plotId, u.id, b.amountCents);
+      const tx = await startBoost(b.boothId, u.id, b.amountCents);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "tier") {
-      const tx = await startTier(b.plotId, u.id, b.tier);
+      const tx = await startTier(b.boothId, u.id, b.tier);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "coins") {

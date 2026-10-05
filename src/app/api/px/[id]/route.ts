@@ -13,16 +13,16 @@ const GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "bas
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   await ensureMigrated();
   const { id } = await ctx.params;
-  const plotId = Number(id);
+  const boothId = Number(id);
   const v = Number(new URL(req.url).searchParams.get("v") ?? 0);
   const cents = Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 10_000_000) : 0;
-  if (Number.isFinite(plotId) && plotId > 0) {
+  if (Number.isFinite(boothId) && boothId > 0) {
     await db
-      .insert(schema.plotDaily)
-      .values({ plotId, day: dayKey(), conversions: 1, conversionValueCents: cents })
+      .insert(schema.boothDaily)
+      .values({ boothId, day: dayKey(), conversions: 1, conversionValueCents: cents })
       .onConflictDoUpdate({
-        target: [schema.plotDaily.plotId, schema.plotDaily.day],
-        set: { conversions: sql`${schema.plotDaily.conversions} + 1`, conversionValueCents: sql`${schema.plotDaily.conversionValueCents} + ${cents}` },
+        target: [schema.boothDaily.boothId, schema.boothDaily.day],
+        set: { conversions: sql`${schema.boothDaily.conversions} + 1`, conversionValueCents: sql`${schema.boothDaily.conversionValueCents} + ${cents}` },
       });
   }
   return new NextResponse(GIF, {

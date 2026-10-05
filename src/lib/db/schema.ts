@@ -18,6 +18,7 @@ export const users = sqliteTable("users", {
   dcPaymentMethodId: text("dc_payment_method_id"), // DivinityCoin saved card for plan renewals
   cardIp: text("card_ip"),
   cardUserAgent: text("card_user_agent"),
+  avatar: text("avatar"), // JSON AvatarConfig (body, skin, hair, hairColor, outfit)
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),
@@ -38,13 +39,19 @@ export const loginTokens = sqliteTable("login_tokens", {
 });
 
 /**
- * A plot is a fixed address on the avenue. Plot numbers are permanent; the
- * building on it changes hands. We store the current building inline.
+ * A booth is a fixed space on the convention floor (see src/lib/hall/layout.ts
+ * for where every space sits). Booth ids are permanent; the exhibitor in it
+ * changes hands. We store the current exhibitor's setup inline.
  */
-export const plots = sqliteTable(
-  "plots",
+export const booths = sqliteTable(
+  "booths",
   {
-    id: integer("id").primaryKey(), // plot number, 1..N
+    id: integer("id").primaryKey(), // layout index, 1..N
+    label: text("label").notNull().default(""), // floor-plan number, e.g. "2329" or "AA-B12"
+    size: text("size").notNull().default("10x10"), // 6x10 | 10x10 | 20x10 | 20x20
+    kind: text("kind").notNull().default("exhibitor"), // exhibitor | artist
+    hall: text("hall").notNull().default("A"), // A..H
+    aisle: integer("aisle").notNull().default(100),
     ownerId: text("owner_id"),
     name: text("name"),
     tagline: text("tagline"),
@@ -53,11 +60,9 @@ export const plots = sqliteTable(
     logoUrl: text("logo_url"),
     color: text("color").notNull().default("#5b8def"),
     accent: text("accent").notNull().default("#ffffff"),
-    style: text("style").notNull().default("modern"), // facade: modern | glass | brick | neon | deco
-    shape: text("shape").notNull().default("tower"), // tower | stepped | twin | cantilever | spire
-    floors: integer("floors").notNull().default(1),
-    roof: text("roof").notNull().default("flat"), // flat | spire | antenna | garden | billboard
-    district: text("district").notNull().default("downtown"),
+    style: text("style").notNull().default("classic"), // banner style: classic | neon | comic | minimal | retro
+    cloth: text("cloth").notNull().default("#111827"), // table cloth / drape color
+    category: text("category").notNull().default("comics"), // comics | art | toys | games | publisher | media | retail | fan
     tier: text("tier").notNull().default("free"), // free | pro | landmark
     tierUntil: integer("tier_until"),
     subscriptionId: text("subscription_id"), // stripe sub id, or "sandbox:<txid>"
@@ -75,7 +80,7 @@ export const plots = sqliteTable(
     totalImpressions: integer("total_impressions").notNull().default(0),
     salesCount: integer("sales_count").notNull().default(0),
   },
-  (t) => [index("plots_owner_idx").on(t.ownerId), index("plots_value_idx").on(t.valueCents)],
+  (t) => [index("booths_owner_idx").on(t.ownerId), index("booths_value_idx").on(t.valueCents)],
 );
 
 /** Every money movement. amount is what the buyer paid. */
@@ -83,7 +88,7 @@ export const transactions = sqliteTable(
   "transactions",
   {
     id: text("id").primaryKey(),
-    plotId: integer("plot_id").notNull(),
+    boothId: integer("booth_id").notNull(),
     kind: text("kind").notNull(), // claim | takeover | boost | tier | billboard
     buyerId: text("buyer_id"),
     sellerId: text("seller_id"),
@@ -100,11 +105,11 @@ export const transactions = sqliteTable(
     customerUserAgent: text("customer_user_agent"),
     refundedCents: integer("refunded_cents").notNull().default(0),
     notes: text("notes"),
-    meta: text("meta"), // JSON: pending building draft, tier, etc.
+    meta: text("meta"), // JSON: pending booth draft, tier, etc.
     createdAt: integer("created_at").notNull(),
     paidAt: integer("paid_at"),
   },
-  (t) => [index("tx_plot_idx").on(t.plotId), index("tx_buyer_idx").on(t.buyerId), index("tx_session_idx").on(t.sessionId), index("tx_status_idx").on(t.status, t.createdAt)],
+  (t) => [index("tx_booth_idx").on(t.boothId), index("tx_buyer_idx").on(t.buyerId), index("tx_session_idx").on(t.sessionId), index("tx_status_idx").on(t.status, t.createdAt)],
 );
 
 /** Public activity feed. */
@@ -113,7 +118,7 @@ export const events = sqliteTable(
   {
     id: text("id").primaryKey(),
     type: text("type").notNull(), // claim | takeover | boost | milestone | tier | rank
-    plotId: integer("plot_id"),
+    boothId: integer("booth_id"),
     title: text("title").notNull(),
     detail: text("detail"),
     amountCents: integer("amount_cents"),
@@ -122,44 +127,44 @@ export const events = sqliteTable(
   (t) => [index("events_created_idx").on(t.createdAt)],
 );
 
-/** Daily rollups per plot: the owner-facing metrics. */
-export const plotDaily = sqliteTable(
-  "plot_daily",
+/** Daily rollups per booth: the owner-facing metrics. */
+export const boothDaily = sqliteTable(
+  "booth_daily",
   {
-    plotId: integer("plot_id").notNull(),
+    boothId: integer("booth_id").notNull(),
     day: text("day").notNull(), // YYYY-MM-DD (UTC)
-    impressions: integer("impressions").notNull().default(0), // seen on skyline
+    impressions: integer("impressions").notNull().default(0), // seen on the floor
     hovers: integer("hovers").notNull().default(0),
-    views: integer("views").notNull().default(0), // building page opened
+    views: integer("views").notNull().default(0), // booth opened
     clicks: integer("clicks").notNull().default(0), // outbound link
     uniques: integer("uniques").notNull().default(0),
     conversions: integer("conversions").notNull().default(0), // owner-reported via pixel
     conversionValueCents: integer("conversion_value_cents").notNull().default(0),
   },
-  (t) => [uniqueIndex("plot_daily_pk").on(t.plotId, t.day)],
+  (t) => [uniqueIndex("booth_daily_pk").on(t.boothId, t.day)],
 );
 
-/** Referrer breakdown per plot (where their clicks come from). */
-export const plotReferrers = sqliteTable(
-  "plot_referrers",
+/** Referrer breakdown per booth (where their clicks come from). */
+export const boothReferrers = sqliteTable(
+  "booth_referrers",
   {
-    plotId: integer("plot_id").notNull(),
-    source: text("source").notNull(), // skyline | rankings | directory | share | embed | direct | x.com | ...
+    boothId: integer("booth_id").notNull(),
+    source: text("source").notNull(), // map | walk | banner | rankings | directory | share | embed | direct | x.com | ...
     views: integer("views").notNull().default(0),
     clicks: integer("clicks").notNull().default(0),
   },
-  (t) => [uniqueIndex("plot_ref_pk").on(t.plotId, t.source)],
+  (t) => [uniqueIndex("booth_ref_pk").on(t.boothId, t.source)],
 );
 
-/** Dedupe table for uniques: (plot, day, visitor hash). Pruned nightly. */
+/** Dedupe table for uniques: (booth, day, visitor hash). Pruned nightly. */
 export const visitorSeen = sqliteTable(
   "visitor_seen",
   {
-    plotId: integer("plot_id").notNull(),
+    boothId: integer("booth_id").notNull(),
     day: text("day").notNull(),
     visitor: text("visitor").notNull(),
   },
-  (t) => [uniqueIndex("visitor_seen_pk").on(t.plotId, t.day, t.visitor)],
+  (t) => [uniqueIndex("visitor_seen_pk").on(t.boothId, t.day, t.visitor)],
 );
 
 /** Site-wide daily KPIs for the operator dashboard. */
@@ -176,15 +181,15 @@ export const siteDaily = sqliteTable("site_daily", {
   checkoutStarts: integer("checkout_starts").notNull().default(0),
 });
 
-/** Chat: avenue-wide lobby plus per-building guestbooks. */
+/** Chat: hall-wide lobby plus per-booth guestbooks. */
 export const messages = sqliteTable(
   "messages",
   {
     id: text("id").primaryKey(),
-    room: text("room").notNull(), // "lobby" | "plot:123"
+    room: text("room").notNull(), // "lobby" | "booth:123"
     userId: text("user_id").notNull(),
     authorName: text("author_name").notNull(),
-    authorPlotId: integer("author_plot_id"),
+    authorBoothId: integer("author_booth_id"),
     body: text("body").notNull(),
     hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull(),
@@ -208,7 +213,7 @@ export const billboards = sqliteTable(
     id: text("id").primaryKey(),
     slot: text("slot").notNull(), // airship | block:N
     ownerId: text("owner_id").notNull(),
-    plotId: integer("plot_id"),
+    boothId: integer("booth_id"),
     headline: text("headline").notNull(),
     body: text("body"),
     website: text("website"),
@@ -234,7 +239,7 @@ export const notifications = sqliteTable(
     type: text("type").notNull(),
     title: text("title").notNull(),
     body: text("body"),
-    plotId: integer("plot_id"),
+    boothId: integer("booth_id"),
     readAt: integer("read_at"),
     createdAt: integer("created_at").notNull(),
   },
@@ -268,7 +273,7 @@ export const gameScores = sqliteTable(
     gameId: text("game_id").notNull(),
     userId: text("user_id").notNull(),
     playerName: text("player_name").notNull(),
-    plotId: integer("plot_id"),
+    boothId: integer("booth_id"),
     score: integer("score").notNull(),
     day: text("day").notNull(),
     createdAt: integer("created_at").notNull(),
@@ -311,7 +316,7 @@ export const mailMessages = sqliteTable(
     templateSlug: text("template_slug"),
     userId: text("user_id"),
     txId: text("tx_id"),
-    plotId: integer("plot_id"),
+    boothId: integer("booth_id"),
     headers: text("headers"), // JSON
     events: text("events"), // JSON array of SendGrid events
     createdAt: integer("created_at").notNull(),

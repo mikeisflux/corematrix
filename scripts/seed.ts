@@ -1,79 +1,89 @@
 /**
- * Seeds a believable demo city: ~140 buildings across districts, 30 days of
- * metrics, a sales history and an activity feed. Run: npm run seed
- * Idempotent-ish: skips if plots already exist unless --force.
+ * Seeds a believable demo show floor: ~260 exhibitors and artists across the
+ * halls, 30 days of metrics, a sales history and an activity feed. Run: npm run seed
+ * Idempotent-ish: skips if booths already exist unless --force.
  */
 import "dotenv/config";
 import { sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "../src/lib/db";
-import { claimPriceCents } from "../src/lib/economy";
+import { claimPriceCents, spaceColumns } from "../src/lib/economy";
 import { newCode, newId, seeded, dayKey } from "../src/lib/util";
-import { splitTakeover, zoneFor } from "../src/lib/config";
-import { floorsForValue } from "../src/lib/city/layout";
+import { splitTakeover, BANNER_STYLES } from "../src/lib/config";
+import { hallLayout, boothSpace } from "../src/lib/hall/layout";
 import { closeSeason } from "../src/lib/seasons";
 import { weekBounds } from "../src/lib/util";
 
 const force = process.argv.includes("--force");
 
 const NAMES: Array<[string, string, string, string]> = [
-  // name, tagline, district, website
-  ["Northwind Labs", "Infra for teams that ship", "startup-alley", "northwind.dev"],
-  ["Pixel & Pine", "Indie game studio", "creator-corner", "pixelpine.gg"],
-  ["$ORBIT", "Community token. No promises, just orbit.", "crypto-row", "orbit.fun"],
-  ["Harbor Coffee Co.", "Roasted on the pier", "main-street", "harborcoffee.co"],
-  ["Complex Law", "Tech and consumer claims", "main-street", "complexlaw.example"],
-  ["Looma", "Design tokens that sync", "startup-alley", "looma.app"],
-  ["Night Owl Radio", "24/7 lo-fi", "creator-corner", "nightowl.fm"],
-  ["Vaultline", "Cold storage for DAOs", "crypto-row", "vaultline.xyz"],
-  ["Greenhouse Supply", "Hydro gear, same-day", "main-street", "greenhouse.supply"],
-  ["Kestrel AI", "Agents for ops teams", "startup-alley", "kestrel.ai"],
-  ["Wobin Hood", "An NFT with a whole world", "crypto-row", "wobin.world"],
-  ["Studio Marrow", "Illustration + motion", "creator-corner", "marrow.studio"],
-  ["Ferrocat", "Rugged phone mounts", "main-street", "ferrocat.com"],
-  ["Driftpad", "Notes that move with you", "startup-alley", "driftpad.io"],
-  ["$GATTO", "Built to last", "crypto-row", "gatto.cat"],
-  ["Blue Door Books", "Used, rare, loved", "main-street", "bluedoorbooks.shop"],
-  ["Oakline Motors", "EV conversions", "main-street", "oakline.motors"],
-  ["Parallax", "3D for the web", "startup-alley", "parallax.gl"],
-  ["MOONFROG", "ribbit ribbit", "crypto-row", "moonfrog.lol"],
-  ["The Daily Spark", "Newsletter for makers", "creator-corner", "dailyspark.news"],
-  ["Summit Dental", "Smiles downtown", "main-street", "summitdental.example"],
-  ["Helix Fitness", "Strength, simply", "main-street", "helixfit.example"],
-  ["Quill", "Writing assistant for lawyers", "startup-alley", "quill.legal"],
-  ["Riverbend Realty", "Homes on the water", "main-street", "riverbend.realty"],
-  ["ZK Collective", "Proofs, not promises", "crypto-row", "zkcollective.org"],
-  ["Pepper & Salt", "Street food truck", "main-street", "pepperandsalt.food"],
-  ["Beacon Analytics", "Dashboards in a day", "startup-alley", "beacon.run"],
-  ["Lantern Press", "Small-batch zines", "creator-corner", "lanternpress.ink"],
-  ["Tidewater Surf", "Boards, wax, stoke", "main-street", "tidewater.surf"],
-  ["ApexDAO", "Treasury tooling", "crypto-row", "apexdao.xyz"],
-  ["Mira Studio", "Photography", "creator-corner", "mira.photo"],
-  ["Bricklane Pizza", "Wood-fired since 2011", "main-street", "bricklane.pizza"],
-  ["Sidecar", "Billing for AI apps", "startup-alley", "sidecar.money"],
-  ["Hollow Knight Fan Hub", "Community wiki", "creator-corner", "hkfans.wiki"],
-  ["Ironclad Security", "Pen-testing, fixed price", "startup-alley", "ironclad.sec"],
-  ["Pond Wallet", "The frog-friendly wallet", "crypto-row", "pond.cash"],
-  ["Copperleaf Garden", "Native plants nursery", "main-street", "copperleaf.garden"],
-  ["Echo Chamber", "Podcast network", "creator-corner", "echochamber.fm"],
-  ["Formworks", "Forms that don't suck", "startup-alley", "formworks.so"],
-  ["Luna Bakery", "Croissants at 6am", "main-street", "lunabakery.example"],
+  // name, tagline, category, website
+  ["Marvel Comics", "Earth's mightiest booth", "comics", "marvel.com"],
+  ["DC", "Home of the Justice League", "comics", "dc.com"],
+  ["Image Comics", "Creator-owned since 1992", "comics", "imagecomics.com"],
+  ["Dark Horse", "The best in illustrated storytelling", "comics", "darkhorse.com"],
+  ["IDW Publishing", "TMNT, Sonic, Star Trek", "comics", "idwpublishing.com"],
+  ["BOOM! Studios", "Something, Something, Something Comics", "comics", "boom-studios.com"],
+  ["Oni Press", "Scott Pilgrim lives here", "comics", "onipress.com"],
+  ["Fantagraphics", "Publisher of the world's greatest cartoonists", "comics", "fantagraphics.com"],
+  ["Hasbro Pulse", "Fan-first exclusives", "toys", "hasbropulse.com"],
+  ["Funko", "Pop! Everything.", "toys", "funko.com"],
+  ["Mattel Creations", "Masters of the Universe & more", "toys", "creations.mattel.com"],
+  ["Sideshow", "Collectible statues", "toys", "sideshow.com"],
+  ["Hot Toys", "1/6 scale perfection", "toys", "hottoys.com.hk"],
+  ["Super7", "ReAction figures", "toys", "super7.com"],
+  ["Wizards of the Coast", "Magic: The Gathering · D&D", "games", "wizards.com"],
+  ["Bandai Namco", "Gunpla, Dragon Ball, Tekken", "games", "bandainamcoent.com"],
+  ["Nintendo", "Play has no limits", "games", "nintendo.com"],
+  ["Pokémon Center", "Gotta catch 'em all", "games", "pokemoncenter.com"],
+  ["Crunchyroll", "Anime, every season", "media", "crunchyroll.com"],
+  ["Adult Swim", "[as]", "media", "adultswim.com"],
+  ["Nerdist", "Podcasts, news, nerds", "media", "nerdist.com"],
+  ["Lucasfilm", "A galaxy far, far away", "media", "starwars.com"],
+  ["Legendary", "Monsterverse", "media", "legendary.com"],
+  ["Loot Crate", "Monthly fandom boxes", "retail", "lootcrate.com"],
+  ["Mile High Comics", "The biggest back-issue dealer", "retail", "milehighcomics.com"],
+  ["Graphitti Designs", "Tees since 1982", "retail", "graphittidesigns.com"],
+  ["BoxLunch", "Give back, geek out", "retail", "boxlunch.com"],
+  ["Entertainment Earth", "Collectibles delivered", "retail", "entertainmentearth.com"],
+  ["Hero Initiative", "Helping comic creators in need", "fan", "heroinitiative.org"],
+  ["501st Legion", "Bad guys doing good", "fan", "501st.com"],
+  ["Cosplay Central", "Builds, foam, LEDs", "fan", "cosplaycentral.example"],
+  ["Golden Age Pavilion", "Pre-code and pedigree books", "retail", "goldenagepavilion.example"],
+  ["Comic Book Legal Defense Fund", "Protecting the freedom to read", "fan", "cbldf.org"],
+  ["Skottie Young", "I Hate Fairyland · sketch covers", "art", "skottieyoung.com"],
+  ["Fiona Staples", "Saga", "art", "fionastaples.example"],
+  ["Jim Lee", "DC Publisher & artist", "art", "jimlee.example"],
+  ["Peach Momoko", "Demon Days", "art", "peachmomoko.example"],
+  ["Artgerm", "Prints & lithographs", "art", "artgerm.com"],
+  ["Mondo", "Posters, vinyl, collectibles", "art", "mondoshop.com"],
+  ["Webtoon", "Vertical scroll comics", "comics", "webtoons.com"],
+  ["Tapas", "Comics and novels", "comics", "tapas.io"],
+  ["Kickstarter Comics", "Launch your book", "comics", "kickstarter.com"],
+  ["Heritage Auctions", "Key issues, graded", "retail", "ha.com"],
+  ["CGC", "Comics grading", "retail", "cgccomics.com"],
+  ["Weta Workshop", "Props and miniatures", "toys", "wetanz.com"],
+  ["Square Enix", "Final Fantasy & Kingdom Hearts", "games", "square-enix.com"],
+  ["Capcom", "Street Fighter · Resident Evil", "games", "capcom.com"],
+  ["Titan Comics", "Doctor Who, Blade Runner", "comics", "titan-comics.com"],
+  ["Archie Comics", "Riverdale since 1941", "comics", "archiecomics.com"],
+  ["Viz Media", "Manga, anime, more", "comics", "viz.com"],
 ];
 
-const ADJ = ["Apex", "North", "Blue", "Iron", "Solar", "Velvet", "Granite", "Cobalt", "Amber", "Cedar", "Quantum", "Mint", "Ember", "Onyx", "Civic", "Harbor", "Atlas", "Nova", "Pilot", "Ridge"];
-const NOUN = ["Works", "Labs", "Collective", "Studio", "Supply", "Capital", "House", "Guild", "Forge", "Market", "Depot", "Signal", "Press", "Garage", "Foundry", "Club", "Exchange", "Kitchen", "Systems", "Co."];
-const STYLES = ["modern", "glass", "brick", "neon", "deco"];
-const ROOFS = ["flat", "spire", "antenna", "garden", "billboard"];
+const ADJ = ["Ink", "Panel", "Gutter", "Splash", "Vortex", "Neon", "Retro", "Moon", "Lunar", "Pulp", "Kaiju", "Hero", "Rogue", "Cosmic", "Shadow", "Pixel", "Atomic", "Vinyl", "Onyx", "Ember"];
+const NOUN = ["Press", "Studio", "Comics", "Collective", "Illustration", "Prints", "Zines", "Toys", "Games", "Guild", "Forge", "Foundry", "Workshop", "Art", "Club", "Gallery", "Lab", "Co.", "Books", "Tales"];
+const STYLES = BANNER_STYLES;
+const CLOTHS = ["#111827", "#7f1d1d", "#1e3a8a", "#065f46", "#4c1d95", "#9a3412", "#3f3f46"];
 const PALETTE = ["#e63946", "#f4a261", "#2a9d8f", "#264653", "#e9c46a", "#8338ec", "#3a86ff", "#ff006e", "#fb5607", "#06d6a0", "#118ab2", "#ef476f", "#ffd166", "#073b4c", "#9b5de5", "#00bbf9", "#00f5d4", "#f15bb5", "#fee440", "#1b998b", "#2d3142", "#4f5d75", "#bfc0c0", "#ef8354", "#5c4b51", "#8cbeb2", "#f2ebbf", "#f3b562", "#f06060"];
 
 async function main() {
   await ensureMigrated();
-  const existing = await db.select({ c: sql<number>`count(*)` }).from(schema.plots);
+  const existing = await db.select({ c: sql<number>`count(*)` }).from(schema.booths);
   if (Number(existing[0]?.c ?? 0) > 0 && !force) {
-    console.log("Plots exist; pass --force to reseed.");
+    console.log("Booths exist; pass --force to reseed.");
     return;
   }
   if (force) {
-    for (const t of [schema.plots, schema.users, schema.sessions, schema.transactions, schema.events, schema.plotDaily, schema.plotReferrers, schema.visitorSeen, schema.siteDaily, schema.messages, schema.notifications, schema.billboards, schema.seasons, schema.coinLedger, schema.gameScores, schema.gamePlays]) {
+    for (const t of [schema.booths, schema.users, schema.sessions, schema.transactions, schema.events, schema.boothDaily, schema.boothReferrers, schema.visitorSeen, schema.siteDaily, schema.messages, schema.notifications, schema.billboards, schema.seasons, schema.coinLedger, schema.gameScores, schema.gamePlays]) {
       await db.delete(t);
     }
   }
@@ -98,40 +108,45 @@ async function main() {
     });
   }
 
-  // Which plots are claimed: dense in the first 150, sparse up to ~420
+  // Which spaces are claimed: islands and headliner row almost full, front of house busy, standard aisles patchy, artists' alley lively
   const claimed: number[] = [];
-  for (let p = 1; p <= 420; p++) {
-    const dense = p <= 150 ? 0.82 : p <= 260 ? 0.35 : 0.12;
-    if (rnd() < dense) claimed.push(p);
+  for (const b of hallLayout()) {
+    const dense = b.size === "20x20" ? 0.9 : b.zone === "headliner" ? 0.7 : b.zone === "front" ? 0.55 : b.kind === "artist" ? 0.35 : 0.12;
+    if (rnd() < dense) claimed.push(b.id);
   }
+  const bigNames = NAMES.slice(0, 29); // publishers, toys, games, media go on islands and headliner row first
+  const artistNames = NAMES.filter((n) => n[2] === "art");
 
   let nameIdx = 0;
   const feed: Array<typeof schema.events.$inferInsert> = [];
   let salesTotal = 0;
 
-  for (const plotId of claimed) {
-    let name: string, tagline: string, district: string, website: string;
-    if (nameIdx < NAMES.length) {
-      [name, tagline, district, website] = NAMES[nameIdx++];
+  for (const boothId of claimed) {
+    const space = boothSpace(boothId)!;
+    let name: string, tagline: string, category: string, website: string;
+    const big = space.size === "20x20" || space.zone === "headliner";
+    if (big && nameIdx < bigNames.length) {
+      [name, tagline, category, website] = bigNames[nameIdx++];
+    } else if (space.kind === "artist" && artistNames.length && rnd() < 0.4) {
+      [name, tagline, category, website] = artistNames.shift()!;
+    } else if (!big && nameIdx >= bigNames.length && nameIdx < NAMES.length && space.kind !== "artist") {
+      [name, tagline, category, website] = NAMES[nameIdx++];
     } else {
-      name = `${pick(ADJ)} ${pick(NOUN)}`;
-      tagline = pick(["Doing the thing.", "Est. 2024", "Ask us anything", "We ship weekly", "Open late", "Now hiring", "Built different", "Quietly excellent"]);
-      district = pick(["downtown", "crypto-row", "startup-alley", "creator-corner", "main-street"]);
+      name = space.kind === "artist" ? `${pick(["Ava", "Kenji", "Mara", "Theo", "Yuki", "Dev", "Rosa", "Finn", "Ines", "Jules", "Nico", "Sage"])} ${pick(["Okafor", "Tanaka", "Reyes", "Lindqvist", "Patel", "Novak", "Haddad", "Moreau", "Kim", "Silva", "Brandt", "Ortiz"])}` : `${pick(ADJ)} ${pick(NOUN)}`;
+      tagline = space.kind === "artist" ? pick(["Prints, commissions, sketch covers", "Original art & zines", "Webcomic artist", "Character designer", "Watercolor & ink", "Sticker club"]) : pick(["New issue every month", "Est. 2019", "Indie books, big ideas", "Variant covers here", "Exclusives all weekend", "Signing at 2pm", "Built different", "Ask us anything"]);
+      category = space.kind === "artist" ? "art" : pick(["comics", "comics", "toys", "games", "retail", "fan", "media"]);
       website = `${name.toLowerCase().replace(/[^a-z]+/g, "")}.example`;
     }
-    if (plotId <= 24 && rnd() < 0.6) district = "downtown";
     const owner = pick(owners);
     const claimedAt = nowTs - Math.floor(rnd() * 55 + 2) * DAY;
-    const zone = zoneFor(plotId);
-    const floors = Math.max(zone.minFloors, Math.min(120, Math.floor(rnd() * (plotId <= 40 ? 60 : 25)) + zone.minFloors));
-    const basePrice = claimPriceCents(plotId, floors);
+    const basePrice = claimPriceCents(boothId);
     let value = basePrice;
     let salesCount = 1;
     const txs: Array<typeof schema.transactions.$inferInsert> = [];
-    txs.push({ id: newId(), plotId, kind: "claim", buyerId: owner, amountCents: basePrice, platformCents: basePrice, valueBefore: 0, valueAfter: basePrice, status: "paid", provider: "sandbox", createdAt: claimedAt, paidAt: claimedAt });
+    txs.push({ id: newId(), boothId, kind: "claim", buyerId: owner, amountCents: basePrice, platformCents: basePrice, valueBefore: 0, valueAfter: basePrice, status: "paid", provider: "sandbox", createdAt: claimedAt, paidAt: claimedAt });
     salesTotal += basePrice;
-    // Takeovers / boosts: popular low plots have a history
-    const rounds = plotId <= 30 ? Math.floor(rnd() * 6) : plotId <= 120 ? Math.floor(rnd() * 3) : rnd() < 0.2 ? 1 : 0;
+    // Takeovers / boosts: popular low booths have a history
+    const rounds = big ? Math.floor(rnd() * 6) : space.zone === "front" ? Math.floor(rnd() * 3) : rnd() < 0.2 ? 1 : 0;
     let t = claimedAt;
     let currentOwner = owner;
     for (let r = 0; r < rounds; r++) {
@@ -140,37 +155,36 @@ async function main() {
       if (rnd() < 0.5) {
         const { price, sellerPayout, platform } = splitTakeover(value);
         const buyer = pick(owners);
-        txs.push({ id: newId(), plotId, kind: "takeover", buyerId: buyer, sellerId: currentOwner, amountCents: price, sellerPayoutCents: sellerPayout, platformCents: platform, valueBefore: value, valueAfter: price, status: "paid", provider: "sandbox", createdAt: t, paidAt: t });
+        txs.push({ id: newId(), boothId, kind: "takeover", buyerId: buyer, sellerId: currentOwner, amountCents: price, sellerPayoutCents: sellerPayout, platformCents: platform, valueBefore: value, valueAfter: price, status: "paid", provider: "sandbox", createdAt: t, paidAt: t });
         salesTotal += price;
         value = price;
         currentOwner = buyer;
         salesCount++;
-        feed.push({ id: newId(), type: "takeover", plotId, title: `${name} took over Plot #${plotId}`, detail: `Bought for $${(price / 100).toFixed(0)}`, amountCents: price, createdAt: t });
+        feed.push({ id: newId(), type: "takeover", boothId, title: `${name} took over booth ${space.label}`, detail: `Bought for $${(price / 100).toFixed(0)}`, amountCents: price, createdAt: t });
       } else {
         const amt = Math.round((rnd() * 4000 + 500) / 100) * 100;
-        txs.push({ id: newId(), plotId, kind: "boost", buyerId: currentOwner, amountCents: amt, platformCents: amt, valueBefore: value, valueAfter: value + amt, status: "paid", provider: "sandbox", createdAt: t, paidAt: t });
+        txs.push({ id: newId(), boothId, kind: "boost", buyerId: currentOwner, amountCents: amt, platformCents: amt, valueBefore: value, valueAfter: value + amt, status: "paid", provider: "sandbox", createdAt: t, paidAt: t });
         salesTotal += amt;
         value += amt;
-        feed.push({ id: newId(), type: "boost", plotId, title: `${name} grew taller`, detail: `+$${(amt / 100).toFixed(0)} in value`, amountCents: amt, createdAt: t });
+        feed.push({ id: newId(), type: "boost", boothId, title: `${name} upgraded its signage`, detail: `+$${(amt / 100).toFixed(0)} in value`, amountCents: amt, createdAt: t });
       }
     }
     const tier = value > 30000 && rnd() < 0.5 ? "landmark" : value > 8000 && rnd() < 0.5 ? "pro" : "free";
     const color = pick(PALETTE);
-    await db.insert(schema.plots).values({
-      id: plotId,
+    await db.insert(schema.booths).values({
+      id: boothId,
       ownerId: currentOwner,
       name,
       tagline,
-      description: rnd() < 0.5 ? `${name} — ${tagline}. Find us at Plot #${plotId}.` : null,
+      description: rnd() < 0.5 ? `${name} — ${tagline}. Find us at ${space.kind === "artist" ? "table" : "booth"} ${space.label} in Hall ${space.hall}.` : null,
       website: `https://${website}`,
       logoUrl: null,
       color,
       accent: "#ffffff",
+      ...spaceColumns(boothId),
       style: pick(STYLES),
-      shape: pick(["tower", "tower", "tower", "stepped", "twin", "cantilever", "spire"]),
-      floors: Math.max(floors, floorsForValue(value)),
-      roof: pick(ROOFS),
-      district,
+      cloth: pick(CLOTHS),
+      category,
       tier,
       tierUntil: tier !== "free" ? nowTs + 20 * DAY : null,
       subscriptionId: tier !== "free" ? `sandbox:${newId()}` : null,
@@ -185,10 +199,10 @@ async function main() {
       totalImpressions: 0,
     });
     await db.insert(schema.transactions).values(txs);
-    feed.push({ id: newId(), type: "claim", plotId, title: `${name} joined the avenue`, detail: `Plot #${plotId}`, amountCents: basePrice, createdAt: claimedAt });
+    feed.push({ id: newId(), type: "claim", boothId, title: `${name} is on the show floor`, detail: `Booth ${space.label} · Hall ${space.hall}`, amountCents: basePrice, createdAt: claimedAt });
 
     // 30 days of metrics; traffic scales with value and recency
-    const pop = Math.log2(value / 100 + 2) * (plotId <= 40 ? 2.2 : 1);
+    const pop = Math.log2(value / 100 + 2) * (big ? 2.2 : 1);
     let tv = 0, tc = 0, ti = 0;
     for (let d = 29; d >= 0; d--) {
       const ts = nowTs - d * DAY;
@@ -201,12 +215,12 @@ async function main() {
       const clicks = Math.floor(views * (0.12 + rnd() * 0.25));
       const uniques = Math.floor(impressions * 0.7);
       tv += views; tc += clicks; ti += impressions;
-      await db.insert(schema.plotDaily).values({ plotId, day: dayKey(ts), impressions, hovers, views, clicks, uniques });
+      await db.insert(schema.boothDaily).values({ boothId, day: dayKey(ts), impressions, hovers, views, clicks, uniques });
     }
-    await db.update(schema.plots).set({ totalViews: tv, totalClicks: tc, totalImpressions: ti }).where(sql`id = ${plotId}`);
-    const sources: Array<[string, number]> = [["skyline", 0.5], ["rankings", 0.18], ["directory", 0.1], ["x.com", 0.12], ["share", 0.06], ["embed", 0.04]];
+    await db.update(schema.booths).set({ totalViews: tv, totalClicks: tc, totalImpressions: ti }).where(sql`id = ${boothId}`);
+    const sources: Array<[string, number]> = [["map", 0.3], ["banner", 0.12], ["walk", 0.08], ["rankings", 0.18], ["directory", 0.1], ["x.com", 0.12], ["share", 0.06], ["embed", 0.04]];
     for (const [source, share] of sources) {
-      await db.insert(schema.plotReferrers).values({ plotId, source, views: Math.floor(tv * share), clicks: Math.floor(tc * share) });
+      await db.insert(schema.boothReferrers).values({ boothId, source, views: Math.floor(tv * share), clicks: Math.floor(tc * share) });
     }
   }
 
@@ -239,18 +253,18 @@ async function main() {
     ["Harbor Coffee Co.", 4, "Morning everyone, fresh batch on the site today ☕"],
     ["$ORBIT", 3, "orbit holders assemble, we're climbing the rankings"],
     ["Pixel & Pine", 2, "Just moved our logo to the rooftop sign. looks so good at night"],
-    ["Northwind Labs", 1, "Got 40 clicks from the skyline this week. Not bad for $15."],
-    ["Looma", 6, "Anyone else notice plot #20 keeps changing hands lol"],
-    ["Night Owl Radio", 7, "we're live right now, link on the building"],
+    ["Marvel Comics", 1, "Got 400 banner clicks this week. Not bad for a booth."],
+    ["Looma", 6, "Anyone else notice booth #20 keeps changing hands lol"],
+    ["Oni Press", 7, "signing at our booth right now, link on the banner"],
   ];
   const chatOwner = owners[0];
   let ct = nowTs - 6 * 3600_000;
-  for (const [who, plot, body] of lines) {
+  for (const [who, booth, body] of lines) {
     ct += Math.floor(rnd() * 50 + 10) * 60_000;
-    await db.insert(schema.messages).values({ id: newId(), room: "lobby", userId: chatOwner, authorName: who as string, authorPlotId: plot as number, body: body as string, createdAt: ct });
+    await db.insert(schema.messages).values({ id: newId(), room: "lobby", userId: chatOwner, authorName: who as string, authorBoothId: booth as number, body: body as string, createdAt: ct });
   }
 
-  console.log(`Seeded ${claimed.length} buildings, $${(salesTotal / 100).toFixed(0)} in sales, ${feed.length} events.`);
+  console.log(`Seeded ${claimed.length} exhibitors, $${(salesTotal / 100).toFixed(0)} in sales, ${feed.length} events.`);
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

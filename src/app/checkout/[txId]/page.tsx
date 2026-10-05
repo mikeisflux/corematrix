@@ -41,7 +41,7 @@ export default async function CheckoutPage({ params, searchParams }: { params: P
         <p className="mt-1 text-slate-300">{tx.kind === "tier" ? `${formatMoney(tx.amountCents)} every 30 days. Save a card to start; cancel any time.` : `${formatMoney(tx.amountCents)}, charged once.`}</p>
         {sp.cancelled && <p className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm">Checkout was cancelled. Nothing was charged. You can try again below.</p>}
         <div className="mt-6">
-          {error ? <div className="rounded-xl border border-rose-400/40 bg-rose-400/10 p-3 text-sm">{error}</div> : embed ? <CheckoutClient txId={tx.id} url={embed.url} sessionId={embed.sessionId} plotId={tx.plotId} /> : null}
+          {error ? <div className="rounded-xl border border-rose-400/40 bg-rose-400/10 p-3 text-sm">{error}</div> : embed ? <CheckoutClient txId={tx.id} url={embed.url} sessionId={embed.sessionId} boothId={tx.boothId} /> : null}
         </div>
       </div>
     </Shell>

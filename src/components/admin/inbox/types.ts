@@ -7,7 +7,7 @@ export interface MsgRow {
 export interface AttachmentRow { id: string; filename: string; contentType: string; size: number; inline: boolean; contentId?: string | null }
 export interface FullMsg extends MsgRow {
   cc: string | null; text: string | null; html: string | null; headers: Record<string, string> | null; attachments: AttachmentRow[];
-  events: Array<{ event: string; at?: string; timestamp?: number | string; reason?: string; url?: string }> | null; userId: string | null; txId: string | null; plotId: number | null;
+  events: Array<{ event: string; at?: string; timestamp?: number | string; reason?: string; url?: string }> | null; userId: string | null; txId: string | null; boothId: number | null;
 }
 export interface ThreadRow { id: string; direction: string; fromEmail: string; fromName: string | null; toEmail: string | null; subject: string; snippet: string; createdAt: number; status: string | null; read: boolean; attachmentCount: number }
 export type Counts = Record<string, number>;

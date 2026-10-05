@@ -4,15 +4,15 @@ const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromi
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-await page.goto("http://localhost:3000/?plot=5", { waitUntil: "networkidle", timeout: 120000 });
+await page.goto("http://localhost:3000/?booth=5", { waitUntil: "networkidle", timeout: 120000 });
 await page.waitForTimeout(7000);
-await page.screenshot({ path: `${S}/flow_plot.png` });
+await page.screenshot({ path: `${S}/flow_booth.png` });
 await page.click("text=Take over for");
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${S}/flow_takeover.png` });
 await page.goto("http://localhost:3000/?claim=1", { waitUntil: "networkidle", timeout: 120000 });
 await page.waitForTimeout(6000);
-await page.click("text=Plot #");
+await page.click("text=Booth #");
 await page.waitForTimeout(2500);
 await page.screenshot({ path: `${S}/flow_designer.png` });
 await page.click('button[title="Night"]');

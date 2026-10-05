@@ -10,7 +10,7 @@ export async function Shell({ children, wide }: { children: React.ReactNode; wid
         <div className={`mx-auto flex h-14 items-center gap-4 px-4 ${wide ? "max-w-7xl" : "max-w-5xl"}`}>
           <Link href="/" className="flex items-center gap-2 font-bold tracking-tight"><span className="inline-block h-5 w-5 rounded-md bg-amber-300" />{SITE_NAME}</Link>
           <nav className="ml-4 hidden items-center gap-1 text-sm text-slate-300 md:flex">
-            <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/">City</Link>
+            <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/">Show floor</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/rankings">Rankings</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/seasons">Seasons</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/directory">Directory</Link>
@@ -26,7 +26,7 @@ export async function Shell({ children, wide }: { children: React.ReactNode; wid
             ) : (
               <Link href="/login" className="btn-ghost text-xs">Sign in</Link>
             )}
-            <Link href="/?claim=1" className="btn-primary text-xs">Claim a plot</Link>
+            <Link href="/?claim=1" className="btn-primary text-xs">Claim a booth</Link>
           </div>
         </div>
       </header>

@@ -25,7 +25,7 @@ const URL_RE = /https?:\/\/|www\.|\.(xyz|lol|fun|io|com|net|org)\b/i;
 
 /**
  * Anti-spam rules (the thing Claim Avenue's bar is missing):
- *  - only building owners can post links
+ *  - only exhibitors can post links
  *  - 1 message / 5 s, 30 / hour per user
  *  - identical message within 10 minutes is dropped
  */
@@ -35,13 +35,13 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Message too long or empty" }, { status: 400 });
   const { room, body } = parsed.data;
-  const [plot] = await db
-    .select({ id: schema.plots.id, name: schema.plots.name })
-    .from(schema.plots)
-    .where(eq(schema.plots.ownerId, u.id))
-    .orderBy(desc(schema.plots.valueCents))
+  const [booth] = await db
+    .select({ id: schema.booths.id, name: schema.booths.name })
+    .from(schema.booths)
+    .where(eq(schema.booths.ownerId, u.id))
+    .orderBy(desc(schema.booths.valueCents))
     .limit(1);
-  if (URL_RE.test(body) && !plot) return NextResponse.json({ error: "Only building owners can post links. Claim a plot from $5." }, { status: 403 });
+  if (URL_RE.test(body) && !booth) return NextResponse.json({ error: "Only exhibitors can post links. Get a booth from $5." }, { status: 403 });
   const t = now();
   const [recent] = await db
     .select({ n: sql<number>`count(*)`, last: sql<number>`max(${schema.messages.createdAt})` })
@@ -54,8 +54,8 @@ export async function POST(req: Request) {
     .from(schema.messages)
     .where(and(eq(schema.messages.userId, u.id), eq(schema.messages.body, body), gte(schema.messages.createdAt, t - 600_000)));
   if (Number(dup?.n ?? 0) > 0) return NextResponse.json({ error: "You just said that" }, { status: 429 });
-  const msg = { id: newId(), room, userId: u.id, authorName: plot?.name ?? u.displayName ?? "visitor", authorPlotId: plot?.id ?? null, body, createdAt: t };
+  const msg = { id: newId(), room, userId: u.id, authorName: booth?.name ?? u.displayName ?? "visitor", authorBoothId: booth?.id ?? null, body, createdAt: t };
   await db.insert(schema.messages).values(msg);
-  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorPlotId: msg.authorPlotId, body, createdAt: t } });
+  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t } });
   return NextResponse.json({ ok: true });
 }

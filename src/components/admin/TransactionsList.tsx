@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useJson, Pager, PageHead, Badge, Money, DateTime, Select, SearchBox, qs, Empty } from "./shared";
-interface Row { id: string; plotId: number; kind: string; status: string; provider: string; amountCents: number; refundedCents: number; sellerPayoutCents: number; createdAt: number; paidAt: number | null; providerRef: string | null; buyerEmail: string | null }
+interface Row { id: string; boothId: number; kind: string; status: string; provider: string; amountCents: number; refundedCents: number; sellerPayoutCents: number; createdAt: number; paidAt: number | null; providerRef: string | null; buyerEmail: string | null }
 export default function TransactionsList({ initialStatus = "" }: { initialStatus?: string }) {
   const [status, setStatus] = useState(initialStatus); const [kind, setKind] = useState(""); const [provider, setProvider] = useState(""); const [q, setQ] = useState(""); const [page, setPage] = useState(1);
   const list = useJson<{ rows: Row[]; total: number; pages: number; paidSumCents: number }>(`/api/admin/transactions?${qs({ status, kind, provider, q, page })}`);
@@ -24,7 +24,7 @@ export default function TransactionsList({ initialStatus = "" }: { initialStatus
         <div className="admTableWrap"><table className="admTable">
           <thead><tr><th>When</th><th>Kind</th><th>Booth</th><th>Buyer</th><th>Status</th><th>Provider</th><th>Amount</th><th>Refunded</th><th></th></tr></thead>
           <tbody>{list.data?.rows.map((t) => (
-            <tr key={t.id}><td><DateTime value={t.createdAt} /></td><td>{t.kind}</td><td className="admMono"><Link href={`/admin/booths/${t.plotId}`}>#{t.plotId}</Link></td><td className="admMono">{t.buyerEmail || "—"}</td><td><Badge>{t.status}</Badge></td><td className="admMono">{t.provider}</td><td className="num"><Money cents={t.amountCents} /></td><td className="num">{t.refundedCents ? <Money cents={t.refundedCents} /> : <span className="admMuted">—</span>}</td><td><Link className="admBtn admBtn--sm" href={`/admin/transactions/${t.id}`}>Open</Link></td></tr>
+            <tr key={t.id}><td><DateTime value={t.createdAt} /></td><td>{t.kind}</td><td className="admMono"><Link href={`/admin/booths/${t.boothId}`}>#{t.boothId}</Link></td><td className="admMono">{t.buyerEmail || "—"}</td><td><Badge>{t.status}</Badge></td><td className="admMono">{t.provider}</td><td className="num"><Money cents={t.amountCents} /></td><td className="num">{t.refundedCents ? <Money cents={t.refundedCents} /> : <span className="admMuted">—</span>}</td><td><Link className="admBtn admBtn--sm" href={`/admin/transactions/${t.id}`}>Open</Link></td></tr>
           ))}</tbody>
         </table></div>
         {list.data && list.data.rows.length === 0 && <Empty>{list.loading ? "Loading…" : "No transactions match."}</Empty>}

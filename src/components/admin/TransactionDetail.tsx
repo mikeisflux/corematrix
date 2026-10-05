@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Field, Input, Textarea } from "./shared";
-interface Resp { tx: { id: string; plotId: number; kind: string; status: string; provider: string; providerRef: string | null; sessionId: string | null; amountCents: number; refundedCents: number; sellerPayoutCents: number; platformCents: number; valueBefore: number; valueAfter: number; customerIp: string | null; customerUserAgent: string | null; notes: string | null; meta: unknown; createdAt: number; paidAt: number | null }; description: string; buyer: { id: string; email: string } | null; seller: { id: string; email: string } | null; plot: { id: number; name: string | null; ownerId: string | null; tier: string; valueCents: number } | null; webhooks: { id: string; type: string; status: string; receivedAt: number; error: string | null }[]; mail: { id: string; subject: string; status: string | null; toEmail: string | null; createdAt: number }[] }
+interface Resp { tx: { id: string; boothId: number; kind: string; status: string; provider: string; providerRef: string | null; sessionId: string | null; amountCents: number; refundedCents: number; sellerPayoutCents: number; platformCents: number; valueBefore: number; valueAfter: number; customerIp: string | null; customerUserAgent: string | null; notes: string | null; meta: unknown; createdAt: number; paidAt: number | null }; description: string; buyer: { id: string; email: string } | null; seller: { id: string; email: string } | null; booth: { id: number; name: string | null; ownerId: string | null; tier: string; valueCents: number } | null; webhooks: { id: string; type: string; status: string; receivedAt: number; error: string | null }[]; mail: { id: string; subject: string; status: string | null; toEmail: string | null; createdAt: number }[] }
 export default function TransactionDetail({ id }: { id: string }) {
   const d = useJson<Resp>(`/api/admin/transactions/${id}`);
   const [refund, setRefund] = useState({ amount: "", reason: "" });
@@ -11,7 +11,7 @@ export default function TransactionDetail({ id }: { id: string }) {
   const act = async (json: Record<string, unknown>, msg: string) => { try { await api(`/api/admin/transactions/${id}`, { method: "POST", json }); toast.ok(msg); d.reload(); } catch (e) { toast.err(e); } };
   if (d.error) return <div className="admNote admNote--err">{d.error}</div>;
   if (!d.data) return <div className="admMuted">Loading…</div>;
-  const { tx, buyer, seller, plot } = d.data;
+  const { tx, buyer, seller, booth } = d.data;
   const left = tx.amountCents - tx.refundedCents;
   return (
     <>
@@ -35,7 +35,7 @@ export default function TransactionDetail({ id }: { id: string }) {
             <dt>Customer</dt><dd className="admMono">{tx.customerIp || "—"}<div className="admMuted" style={{ fontSize: 11 }}>{tx.customerUserAgent}</div></dd>
             <dt>Buyer</dt><dd>{buyer ? <Link href={`/admin/users/${buyer.id}`}>{buyer.email}</Link> : "—"}</dd>
             {seller && <><dt>Seller</dt><dd><Link href={`/admin/users/${seller.id}`}>{seller.email}</Link></dd></>}
-            <dt>Booth</dt><dd>{plot ? <Link href={`/admin/booths/${plot.id}`}>#{plot.id} {plot.name}</Link> : `#${tx.plotId}`}</dd>
+            <dt>Booth</dt><dd>{booth ? <Link href={`/admin/booths/${booth.id}`}>#{booth.id} {booth.name}</Link> : `#${tx.boothId}`}</dd>
           </dl>
           {tx.meta ? <><div className="admLabel" style={{ marginTop: 10 }}>Meta</div><pre className="admPre" style={{ maxHeight: 220 }}>{JSON.stringify(tx.meta, null, 2)}</pre></> : null}
         </div>

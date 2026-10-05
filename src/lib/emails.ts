@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { sendTemplate } from "@/lib/sendgrid";
 import { formatMoney, splitTakeover } from "@/lib/config";
-import { plotSeries, sumSeries, plotReferrerRows } from "@/lib/analytics";
+import { boothSeries, sumSeries, boothReferrerRows } from "@/lib/analytics";
 import { lastWeekRank } from "@/lib/seasons";
 import { daysAgoKey } from "@/lib/util";
 
@@ -14,61 +14,61 @@ async function recipient(userId: string | null): Promise<{ email: string; name: 
   return u?.notify ? { email: u.email, name: u.name ?? u.email } : null;
 }
 
-export async function sendWelcome(ownerId: string, plotId: number, name: string) {
+export async function sendWelcome(ownerId: string, boothId: number, name: string) {
   const u = await recipient(ownerId);
   if (!u) return;
-  await sendTemplate("welcome", u.email, { subject: `${name} is live (#${plotId})`, fallbackText: `Your booth ${name} (#${plotId}) is live. Open your dashboard to share your card, add the badge and the conversion pixel.`, name: u.name, plotName: name, plotId }, { userId: ownerId, plotId, channel: "system" });
+  await sendTemplate("welcome", u.email, { subject: `${name} is live (#${boothId})`, fallbackText: `Your booth ${name} (#${boothId}) is live. Open your dashboard to share your card, add the badge and the conversion pixel.`, name: u.name, boothName: name, boothId }, { userId: ownerId, boothId, channel: "system" });
 }
 
-export async function sendReceipt(userId: string, description: string, amountCents: number, txId: string, plotId?: number) {
+export async function sendReceipt(userId: string, description: string, amountCents: number, txId: string, boothId?: number) {
   const u = await recipient(userId);
   if (!u || amountCents <= 0) return;
-  await sendTemplate("receipt", u.email, { subject: `Receipt: ${description}`, fallbackText: `Paid ${formatMoney(amountCents)} for ${description}. Reference ${txId}.`, name: u.name, description, amount: formatMoney(amountCents), txId, plotId: plotId ?? "" }, { userId, txId, plotId, channel: "system" });
+  await sendTemplate("receipt", u.email, { subject: `Receipt: ${description}`, fallbackText: `Paid ${formatMoney(amountCents)} for ${description}. Reference ${txId}.`, name: u.name, description, amount: formatMoney(amountCents), txId, boothId: boothId ?? "" }, { userId, txId, boothId, channel: "system" });
 }
 
-export async function sendSold(sellerId: string, plotId: number, name: string, priceCents: number, payoutCents: number, valueBefore: number) {
+export async function sendSold(sellerId: string, boothId: number, name: string, priceCents: number, payoutCents: number, valueBefore: number) {
   const u = await recipient(sellerId);
   if (!u) return;
   await sendTemplate("sold", u.email, {
     subject: `${name} was bought out for ${formatMoney(priceCents)}. You earned ${formatMoney(payoutCents - valueBefore)}.`,
-    fallbackText: `Someone paid ${formatMoney(priceCents)} for #${plotId}. ${formatMoney(payoutCents)} was added to your balance (${formatMoney(payoutCents - valueBefore)} profit).`,
-    name: u.name, plotName: name, plotId, price: formatMoney(priceCents), payout: formatMoney(payoutCents), profit: formatMoney(payoutCents - valueBefore),
-  }, { userId: sellerId, plotId, channel: "system" });
+    fallbackText: `Someone paid ${formatMoney(priceCents)} for #${boothId}. ${formatMoney(payoutCents)} was added to your balance (${formatMoney(payoutCents - valueBefore)} profit).`,
+    name: u.name, boothName: name, boothId, price: formatMoney(priceCents), payout: formatMoney(payoutCents), profit: formatMoney(payoutCents - valueBefore),
+  }, { userId: sellerId, boothId, channel: "system" });
 }
 
-export async function sendTakeoverNudge(ownerId: string, plotId: number, name: string, valueCents: number) {
+export async function sendTakeoverNudge(ownerId: string, boothId: number, name: string, valueCents: number) {
   const u = await recipient(ownerId);
   if (!u) return;
   const { price, sellerPayout } = splitTakeover(valueCents);
-  await sendTemplate("takeover_nudge", u.email, { subject: `Someone is looking at taking over ${name}`, fallbackText: `A visitor opened the takeover page for #${plotId}. Price ${formatMoney(price)}; you'd receive ${formatMoney(sellerPayout)}. Boost to raise both.`, name: u.name, plotName: name, plotId, price: formatMoney(price), payout: formatMoney(sellerPayout) }, { userId: ownerId, plotId, channel: "system" });
+  await sendTemplate("takeover_nudge", u.email, { subject: `Someone is looking at taking over ${name}`, fallbackText: `A visitor opened the takeover page for #${boothId}. Price ${formatMoney(price)}; you'd receive ${formatMoney(sellerPayout)}. Boost to raise both.`, name: u.name, boothName: name, boothId, price: formatMoney(price), payout: formatMoney(sellerPayout) }, { userId: ownerId, boothId, channel: "system" });
 }
 
-export async function sendSeasonResult(ownerId: string, plotId: number, name: string, rank: number, views: number, clicks: number, season: string, prize: number) {
+export async function sendSeasonResult(ownerId: string, boothId: number, name: string, rank: number, views: number, clicks: number, season: string, prize: number) {
   const u = await recipient(ownerId);
   if (!u) return;
-  await sendTemplate("season_result", u.email, { subject: `${name} finished #${rank} this week`, fallbackText: `${name} was #${rank} trending in season ${season}: ${views} views, ${clicks} clicks. You won ${prize} coins and a week on the home page.`, name: u.name, plotName: name, plotId, rank, views: views.toLocaleString(), clicks: clicks.toLocaleString(), season, prize }, { userId: ownerId, plotId, channel: "system" });
+  await sendTemplate("season_result", u.email, { subject: `${name} finished #${rank} this week`, fallbackText: `${name} was #${rank} trending in season ${season}: ${views} views, ${clicks} clicks. You won ${prize} coins and a week on the home page.`, name: u.name, boothName: name, boothId, rank, views: views.toLocaleString(), clicks: clicks.toLocaleString(), season, prize }, { userId: ownerId, boothId, channel: "system" });
 }
 
 /** Monday report for every owner with email on. Pro+ gets referrers. */
 export async function sendWeeklyDigests(): Promise<number> {
   await ensureMigrated();
   const owners = await db.select({ id: schema.users.id, email: schema.users.email, name: schema.users.displayName }).from(schema.users).where(eq(schema.users.notifyEmail, true));
-  const allPlots = await db.select().from(schema.plots).where(sql`owner_id IS NOT NULL`);
-  const ranks = new Map(allPlots.slice().sort((a, b) => b.valueCents - a.valueCents).map((p, i) => [p.id, i + 1]));
+  const allBooths = await db.select().from(schema.booths).where(sql`owner_id IS NOT NULL`);
+  const ranks = new Map(allBooths.slice().sort((a, b) => b.valueCents - a.valueCents).map((p, i) => [p.id, i + 1]));
   let sent = 0;
   for (const o of owners) {
-    const mine = allPlots.filter((p) => p.ownerId === o.id);
+    const mine = allBooths.filter((p) => p.ownerId === o.id);
     if (!mine.length) continue;
     const sections: string[] = [];
     for (const p of mine) {
-      const series = await plotSeries(p.id, 14);
+      const series = await boothSeries(p.id, 14);
       const cur = sumSeries(series.slice(-7));
       const prev = sumSeries(series.slice(0, 7));
       const d = (a: number, b: number) => (b ? `${a >= b ? "+" : ""}${Math.round(((a - b) / b) * 100)}%` : a ? "new" : "–");
       const rank = ranks.get(p.id) ?? 0;
       const last = await lastWeekRank(p.id);
       const move = last ? (last > rank ? `up ${last - rank} from #${last}` : last < rank ? `down ${rank - last} from #${last}` : "unchanged") : "";
-      const refs = p.tier !== "free" ? await plotReferrerRows(p.id) : [];
+      const refs = p.tier !== "free" ? await boothReferrerRows(p.id) : [];
       const conv = series.slice(-7).reduce((a, r) => a + r.conversions, 0);
       sections.push(`<h3 style="margin:18px 0 6px;color:#fff;font-size:16px">${p.name} · #${p.id} · rank #${rank}${move ? ` (${move})` : ""}</h3>
 <table cellpadding="6" style="border-collapse:collapse;color:#c9cfe6;font-size:14px">

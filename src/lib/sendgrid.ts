@@ -13,7 +13,7 @@ export interface MailAttachment { filename: string; contentType: string; content
 
 export interface MailInput {
   to: string | string[]; cc?: string[]; bcc?: string[]; subject: string; text: string; html?: string; replyTo?: string;
-  attachments?: MailAttachment[]; templateSlug?: string; userId?: string; txId?: string; plotId?: number; threadId?: string; channel?: string;
+  attachments?: MailAttachment[]; templateSlug?: string; userId?: string; txId?: string; boothId?: number; threadId?: string; channel?: string;
 }
 export interface MailResult { ok: boolean; error?: string; messageId?: string; logId?: string }
 
@@ -32,7 +32,7 @@ export async function sendMail(input: MailInput): Promise<MailResult> {
   await db.insert(schema.mailMessages).values({
     id: logId, direction: "out", channel: input.channel || "email", fromEmail: from, fromName, toEmail: toList.join(", "), cc: input.cc?.join(", ") || null,
     subject: input.subject, text, html: html ?? null, read: true, status: "queued", templateSlug: input.templateSlug ?? null,
-    userId: input.userId ?? null, txId: input.txId ?? null, plotId: input.plotId ?? null, threadId: input.threadId ?? null,
+    userId: input.userId ?? null, txId: input.txId ?? null, boothId: input.boothId ?? null, threadId: input.threadId ?? null,
     headers: input.bcc?.length ? JSON.stringify({ bcc: input.bcc.join(", ") }) : null, createdAt: now(),
   });
   if (input.attachments?.length) {

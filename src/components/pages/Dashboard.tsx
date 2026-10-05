@@ -1,15 +1,15 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/city/store";
-import { BUILDING_SHAPES, BUILDING_STYLES, DISTRICTS, formatCount, formatMoney, ROOF_STYLES, splitTakeover, TIERS } from "@/lib/config";
+import { api } from "@/lib/hall/store";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
-interface MyPlot { id: number; name: string | null; valueCents: number; tier: string; color: string }
+interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string }
 interface Detail {
-  plot: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; shape: string; roof: string; district: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; floors: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -18,24 +18,24 @@ interface Detail {
   history: Array<{ id: string; kind: string; amountCents: number; valueAfter: number; createdAt: number; sellerPayoutCents: number }>;
 }
 
-export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
+export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   const [me, setMe] = useState<Me | null>(null);
-  const [plots, setPlots] = useState<MyPlot[]>([]);
-  const [sel, setSel] = useState<number | null>(initialPlot);
+  const [booths, setBooths] = useState<MyBooth[]>([]);
+  const [sel, setSel] = useState<number | null>(initialBooth);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const d = await api<{ user: Me; plots: MyPlot[] }>("/api/me");
+    const d = await api<{ user: Me; booths: MyBooth[] }>("/api/me");
     setMe(d.user);
-    setPlots(d.plots);
-    if (!sel && d.plots[0]) setSel(d.plots[0].id);
+    setBooths(d.booths);
+    if (!sel && d.booths[0]) setSel(d.booths[0].id);
   }, [sel]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!sel) return;
-    api<Detail>(`/api/plot/${sel}`).then(setDetail).catch(() => setDetail(null));
+    api<Detail>(`/api/booth/${sel}`).then(setDetail).catch(() => setDetail(null));
   }, [sel]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -50,12 +50,12 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
 
   if (!me) return <p className="text-slate-400">Loading…</p>;
 
-  if (plots.length === 0) {
+  if (booths.length === 0) {
     return (
       <div className="mx-auto max-w-xl text-center">
-        <h1 className="text-3xl font-bold">You don't own a building yet</h1>
-        <p className="mt-2 text-slate-300">Claim a plot from $5. You'll get a permanent address, your logo on the skyline, and daily numbers on who saw it and who clicked.</p>
-        <Link href="/?claim=1" className="btn-primary mt-6">Claim a plot →</Link>
+        <h1 className="text-3xl font-bold">You don't have a booth yet</h1>
+        <p className="mt-2 text-slate-300">Get a booth from $5. You'll get a permanent booth number, your banner on the show floor, and daily numbers on who saw it and who clicked.</p>
+        <Link href="/?claim=1" className="btn-primary mt-6">Claim a booth →</Link>
         <div className="mt-8 rounded-2xl border border-white/10 p-4 text-left text-sm">
           <div className="font-bold">Your balances</div>
           <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover)</div>
@@ -65,7 +65,7 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
     );
   }
 
-  const p = detail?.plot;
+  const p = detail?.booth;
   const takeover = p ? splitTakeover(p.valueCents) : null;
 
   return (
@@ -78,14 +78,14 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
           <p className="mt-1 text-[11px] text-slate-500">Credit comes from takeover payouts and referrals. Spend it on any claim, takeover, boost or billboard. Payouts to your bank: email us.</p>
         </div>
         <div className="rounded-2xl border border-white/10 p-2">
-          <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Your buildings</div>
-          {plots.map((b) => (
+          <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Your booths</div>
+          {booths.map((b) => (
             <button key={b.id} onClick={() => setSel(b.id)} className={`flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left ${sel === b.id ? "bg-amber-300/15" : "hover:bg-white/5"}`}>
               <span className="h-8 w-8 shrink-0 rounded-lg" style={{ background: b.color }} />
               <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{b.name}</span><span className="block text-[11px] text-slate-400">#{b.id} · {formatMoney(b.valueCents)} · {b.tier}</span></span>
             </button>
           ))}
-          <Link href="/?claim=1" className="btn-ghost mt-1 w-full text-xs">+ Claim another plot</Link>
+          <Link href="/?claim=1" className="btn-ghost mt-1 w-full text-xs">+ Claim another booth</Link>
         </div>
         <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-xs">
           <b>Refer a friend.</b> You both get $2 credit and 25 coins when they claim.
@@ -101,22 +101,22 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-2xl font-bold">{p.name}</h1>
               <div className="text-xs text-slate-400">
-                Plot #{p.id} · {DISTRICTS[p.district]?.name} · {p.floors} floors · rank <b className="text-white">#{detail.rank}</b>
+                {p.kind === "artist" ? `Table ${p.label}` : `Booth ${p.label}`} · Hall {p.hall} · {BOOTH_SIZES[p.size as keyof typeof BOOTH_SIZES]?.short ?? p.size} · {CATEGORIES[p.category]?.name} · rank <b className="text-white">#{detail.rank}</b>
                 {detail.prevRank != null && detail.prevRank !== detail.rank && (
                   <span className={detail.prevRank > detail.rank ? "text-emerald-400" : "text-rose-400"}> {detail.prevRank > detail.rank ? "▲" : "▼"} {Math.abs(detail.prevRank - detail.rank)} since last week (#{detail.prevRank})</span>
                 )}
                 {p.featuredUntil && p.featuredUntil > Date.now() && <span className="ml-2 rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">🏆 featured this week</span>}
               </div>
             </div>
-            <Link href={`/plot/${p.id}`} className="btn-ghost text-xs">Public page</Link>
-            <Link href={`/?plot=${p.id}`} className="btn-ghost text-xs">View on skyline</Link>
+            <Link href={`/booth/${p.id}`} className="btn-ghost text-xs">Public page</Link>
+            <Link href={`/?booth=${p.id}`} className="btn-ghost text-xs">Walk to it</Link>
             <div className="flex rounded-xl bg-white/5 p-0.5">{([7, 30, 90] as const).map((r) => <button key={r} onClick={() => setRange(r)} className={`rounded-lg px-3 py-1 text-xs ${range === r ? "bg-amber-300 text-slate-950 font-semibold" : ""}`}>{r}d</button>)}</div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-            <K label="Impressions" v={formatCount(sums.impressions)} sub="seen on the skyline" />
+            <K label="Impressions" v={formatCount(sums.impressions)} sub="seen on the show floor" />
             <K label="Unique visitors" v={formatCount(sums.uniques)} />
-            <K label="Building views" v={formatCount(sums.views)} sub={prev ? `${delta(sums.views, prev.views)} vs prior` : undefined} />
+            <K label="Booth visits" v={formatCount(sums.views)} sub={prev ? `${delta(sums.views, prev.views)} vs prior` : undefined} />
             <K label="Website clicks" v={formatCount(sums.clicks)} sub={prev ? `${delta(sums.clicks, prev.clicks)} vs prior` : undefined} accent />
             <K label="CTR" v={`${sums.views ? ((sums.clicks / sums.views) * 100).toFixed(1) : "0.0"}%`} sub="clicks ÷ views" />
             <K label="Conversions" v={String(sums.conversions)} sub={sums.value ? `${formatMoney(sums.value)} reported` : "add the pixel ↓"} />
@@ -150,25 +150,25 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Grow p={p} me={me} onDone={() => { void load(); api<Detail>(`/api/plot/${p.id}`).then(setDetail); }} setMsg={setMsg} />
+            <Grow p={p} me={me} onDone={() => { void load(); api<Detail>(`/api/booth/${p.id}`).then(setDetail); }} setMsg={setMsg} />
             <Protect p={p} takeover={takeover!} setMsg={setMsg} />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Plan p={p} setMsg={setMsg} onChanged={() => api<Detail>(`/api/plot/${p.id}`).then(setDetail)} />
+            <Plan p={p} setMsg={setMsg} onChanged={() => api<Detail>(`/api/booth/${p.id}`).then(setDetail)} />
             <Emails me={me} onChanged={() => void load()} />
           </div>
 
-          <Edit p={p} onSaved={(d) => { setDetail({ ...detail, plot: { ...detail.plot, ...d } }); setMsg("Saved. The skyline updates instantly."); }} setMsg={setMsg} />
+          <Edit p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Code title="Conversion pixel" blurb="Put this on your thank-you / signup success page. Pass the order value in cents with ?v= to see revenue next to clicks." code={`<img src="${origin}/api/px/${p.id}?v=0" width="1" height="1" alt="" />`} />
-            <Code title="Badge for your site" blurb="Links back to your building. Clicks count as referrals and raise your trending score." code={`<a href="${origin}/plot/${p.id}?src=embed"><img src="${origin}/embed/${p.id}" alt="${p.name} on the skyline" width="320" height="64" /></a>`} />
+            <Code title="Badge for your site" blurb="Links back to your booth. Clicks count as referrals and raise your trending score." code={`<a href="${origin}/booth/${p.id}?src=embed"><img src="${origin}/embed/${p.id}" alt="${p.name} on the skyline" width="320" height="64" /></a>`} />
           </div>
 
           {detail.history.length > 0 && (
             <div className="rounded-2xl border border-white/10 p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Transactions on this plot</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Transactions on this booth</div>
               <ul className="mt-2 divide-y divide-white/8 text-sm">
                 {detail.history.slice().reverse().map((h) => (
                   <li key={h.id} className="flex items-center justify-between py-2"><span className="capitalize">{h.kind}{h.kind === "takeover" && h.sellerPayoutCents ? <span className="text-slate-500"> · seller received {formatMoney(h.sellerPayoutCents)}</span> : null}</span><span className="mono">{formatMoney(h.amountCents)} → value {formatMoney(h.valueAfter)}<span className="ml-2 text-slate-500">{timeAgo(h.createdAt)}</span></span></li>
@@ -179,7 +179,7 @@ export function Dashboard({ initialPlot }: { initialPlot: number | null }) {
           {msg && <div className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-xl" onAnimationEnd={() => setMsg(null)}>{msg}</div>}
         </section>
       ) : (
-        <p className="text-slate-400">Loading building…</p>
+        <p className="text-slate-400">Loading booth…</p>
       )}
     </div>
   );
@@ -195,19 +195,19 @@ function K({ label, v, sub, accent }: { label: string; v: string; sub?: string; 
   );
 }
 
-function Checklist({ p }: { p: Detail["plot"] }) {
+function Checklist({ p }: { p: Detail["booth"] }) {
   const items = [
     { ok: !!p.logoUrl, label: "Upload a real logo (initials are the fallback)" },
     { ok: !!p.website, label: "Add your website link" },
     { ok: !!p.tagline, label: "Write a one-line tagline" },
     { ok: p.totalClicks > 0, label: "Get your first website click" },
-    { ok: p.totalViews >= 50, label: "Reach 50 building views (share your card on X)" },
+    { ok: p.totalViews >= 50, label: "Reach 50 booth visits (share your card on X)" },
   ];
   const done = items.filter((i) => i.ok).length;
   if (done === items.length) return null;
   return (
     <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4">
-      <div className="flex items-center justify-between"><div className="font-bold">Get the most from your building · {done}/{items.length}</div></div>
+      <div className="flex items-center justify-between"><div className="font-bold">Get the most from your booth · {done}/{items.length}</div></div>
       <ul className="mt-2 grid gap-1 text-sm md:grid-cols-2">
         {items.map((i) => <li key={i.label} className={i.ok ? "text-slate-500 line-through" : ""}>{i.ok ? "✓" : "○"} {i.label}</li>)}
       </ul>
@@ -215,21 +215,21 @@ function Checklist({ p }: { p: Detail["plot"] }) {
   );
 }
 
-function Grow({ p, me, onDone, setMsg }: { p: Detail["plot"]; me: Me; onDone: () => void; setMsg: (s: string) => void }) {
+function Grow({ p, me, onDone, setMsg }: { p: Detail["booth"]; me: Me; onDone: () => void; setMsg: (s: string) => void }) {
   const [amt, setAmt] = useState(1000);
   const [coins, setCoins] = useState(100);
   const [busy, setBusy] = useState(false);
   const boost = async () => {
     setBusy(true);
     try {
-      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: "boost", plotId: p.id, amountCents: amt }) });
+      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: "boost", boothId: p.id, amountCents: amt }) });
       window.location.href = r.url;
     } catch (e) { setMsg((e as Error).message); setBusy(false); }
   };
   const convert = async () => {
     setBusy(true);
     try {
-      const r = await api<{ cents: number }>("/api/arcade/convert", { method: "POST", body: JSON.stringify({ plotId: p.id, coins }) });
+      const r = await api<{ cents: number }>("/api/arcade/convert", { method: "POST", body: JSON.stringify({ boothId: p.id, coins }) });
       setMsg(`+${formatMoney(r.cents)} of height from coins`);
       onDone();
     } catch (e) { setMsg((e as Error).message); }
@@ -238,7 +238,7 @@ function Grow({ p, me, onDone, setMsg }: { p: Detail["plot"]; me: Me; onDone: ()
   const tier = async (t: "pro" | "landmark") => {
     setBusy(true);
     try {
-      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: "tier", plotId: p.id, tier: t }) });
+      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: "tier", boothId: p.id, tier: t }) });
       window.location.href = r.url;
     } catch (e) { setMsg((e as Error).message); setBusy(false); }
   };
@@ -267,14 +267,14 @@ function Grow({ p, me, onDone, setMsg }: { p: Detail["plot"]; me: Me; onDone: ()
   );
 }
 
-function Plan({ p, setMsg, onChanged }: { p: Detail["plot"]; setMsg: (s: string) => void; onChanged: () => void }) {
+function Plan({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const t = p.tier as keyof typeof TIERS;
   const cancel = async () => {
     if (!confirm("Cancel this plan? You keep the perks until the paid period ends.")) return;
     setBusy(true);
     try {
-      await api("/api/plan", { method: "POST", body: JSON.stringify({ plotId: p.id, action: "cancel" }) });
+      await api("/api/plan", { method: "POST", body: JSON.stringify({ boothId: p.id, action: "cancel" }) });
       setMsg("Plan will end at the close of the current period.");
       onChanged();
     } catch (e) { setMsg((e as Error).message); }
@@ -286,12 +286,12 @@ function Plan({ p, setMsg, onChanged }: { p: Detail["plot"]; setMsg: (s: string)
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Plan</div>
       <div className="mt-1 flex items-baseline justify-between"><span className="text-xl font-bold">{TIERS[t]?.name ?? "Owner"}</span>{t !== "free" && <span className="mono text-amber-300">{formatMoney(TIERS[t].priceCents)} / 30 days</span>}</div>
       {t === "free" ? (
-        <p className="mt-1 text-xs text-slate-400">Included with every building. Upgrade in the Grow panel for 90-day history, referrers, a rooftop sign, height bonus and more.</p>
+        <p className="mt-1 text-xs text-slate-400">Included with every booth. Upgrade in the Grow panel for 90-day history, referrers, a hanging sign, bigger signage and more.</p>
       ) : (
         <>
           <p className="mt-1 text-xs text-slate-300">
             {p.subscriptionStatus === "active" && <>Renews automatically on <b>{until}</b>.</>}
-            {p.subscriptionStatus === "canceling" && <>Canceled. Perks continue until <b>{until}</b>, then the building returns to the Owner plan.</>}
+            {p.subscriptionStatus === "canceling" && <>Canceled. Perks continue until <b>{until}</b>, then the booth returns to the Exhibitor plan.</>}
             {p.subscriptionStatus === "past_due" && <span className="text-rose-400">Last payment failed. Renew the plan to save a new card, or perks end on {until}.</span>}
             {p.subscriptionStatus === "canceled" && <>Subscription ended. Perks continue until <b>{until}</b>.</>}
             {!p.subscriptionStatus && <>Active until <b>{until}</b>.</>}
@@ -321,13 +321,13 @@ function Emails({ me, onChanged }: { me: Me; onChanged: () => void }) {
   );
 }
 
-function Protect({ p, takeover, setMsg }: { p: Detail["plot"]; takeover: ReturnType<typeof splitTakeover>; setMsg: (s: string) => void }) {
+function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: ReturnType<typeof splitTakeover>; setMsg: (s: string) => void }) {
   void setMsg;
   return (
     <div className="rounded-2xl border border-white/10 p-4">
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Takeover exposure</div>
       <div className="mono mt-1 text-3xl font-bold">{formatMoney(takeover.price)}</div>
-      <p className="text-xs text-slate-300">is what someone pays to take Plot #{p.id}. You would receive <b className="text-white">{formatMoney(takeover.sellerPayout)}</b> as credit, a {formatMoney(takeover.sellerPayout - p.valueCents)} profit on your {formatMoney(p.valueCents)}.</p>
+      <p className="text-xs text-slate-300">is what someone pays to take Booth #{p.id}. You would receive <b className="text-white">{formatMoney(takeover.sellerPayout)}</b> as credit, a {formatMoney(takeover.sellerPayout - p.valueCents)} profit on your {formatMoney(p.valueCents)}.</p>
       <ul className="mt-3 space-y-1 text-xs text-slate-400">
         <li>• You get an email the moment it happens, with your payout.</li>
         <li>• Boosting raises the price buyers pay and your payout.</li>
@@ -338,15 +338,15 @@ function Protect({ p, takeover, setMsg }: { p: Detail["plot"]; takeover: ReturnT
   );
 }
 
-function Edit({ p, onSaved, setMsg }: { p: Detail["plot"]; onSaved: (d: Partial<Detail["plot"]>) => void; setMsg: (s: string) => void }) {
-  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, shape: p.shape, roof: p.roof, district: p.district });
+function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
+  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
   const [busy, setBusy] = useState(false);
-  useEffect(() => setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, shape: p.shape, roof: p.roof, district: p.district }), [p]);
+  useEffect(() => setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }), [p]);
   const save = async () => {
     setBusy(true);
     try {
-      const r = await api<{ plot: Detail["plot"] }>(`/api/plot/${p.id}`, { method: "PATCH", body: JSON.stringify(d) });
-      onSaved(r.plot);
+      const r = await api<{ booth: Detail["booth"] }>(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify(d) });
+      onSaved(r.booth);
     } catch (e) { setMsg((e as Error).message); }
     setBusy(false);
   };
@@ -360,7 +360,7 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["plot"]; onSaved: (d: Partial<
   };
   return (
     <div className="rounded-2xl border border-white/10 p-4">
-      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Edit building · free, instant</div>
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Edit booth · free, instant</div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div><label className="label">Name</label><input className="input" maxLength={40} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></div>
         <div><label className="label">Website</label><input className="input" value={d.website} onChange={(e) => setD({ ...d, website: e.target.value })} /></div>
@@ -378,10 +378,9 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["plot"]; onSaved: (d: Partial<
           <div><label className="label">Color</label><input type="color" className="h-10 w-full rounded-xl bg-transparent" value={d.color} onChange={(e) => setD({ ...d, color: e.target.value })} /></div>
           <div><label className="label">Accent</label><input type="color" className="h-10 w-full rounded-xl bg-transparent" value={d.accent} onChange={(e) => setD({ ...d, accent: e.target.value })} /></div>
         </div>
-        <div><label className="label">Shape</label><select className="input" value={d.shape} onChange={(e) => setD({ ...d, shape: e.target.value })}>{BUILDING_SHAPES.map((x) => <option key={x}>{x}</option>)}</select></div>
-        <div><label className="label">Windows</label><select className="input" value={d.style} onChange={(e) => setD({ ...d, style: e.target.value })}>{BUILDING_STYLES.map((x) => <option key={x}>{x}</option>)}</select></div>
-        <div><label className="label">Roof</label><select className="input" value={d.roof} onChange={(e) => setD({ ...d, roof: e.target.value })}>{ROOF_STYLES.map((x) => <option key={x}>{x}</option>)}</select></div>
-        <div><label className="label">District</label><select className="input" value={d.district} onChange={(e) => setD({ ...d, district: e.target.value })}>{Object.entries(DISTRICTS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}</select></div>
+        <div><label className="label">Banner style</label><select className="input" value={d.style} onChange={(e) => setD({ ...d, style: e.target.value })}>{BANNER_STYLES.map((x) => <option key={x}>{x}</option>)}</select></div>
+        <div><label className="label">Table cloth / drapes</label><input type="color" className="h-10 w-full rounded-xl bg-transparent" value={d.cloth} onChange={(e) => setD({ ...d, cloth: e.target.value })} /></div>
+        <div><label className="label">Category</label><select className="input" value={d.category} onChange={(e) => setD({ ...d, category: e.target.value })}>{Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}</select></div>
       </div>
       <button className="btn-primary mt-3" disabled={busy || !d.name.trim()} onClick={save}>{busy ? "Saving…" : "Save changes"}</button>
     </div>

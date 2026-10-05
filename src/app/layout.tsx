@@ -8,8 +8,8 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: `${SITE_NAME} — claim a plot, build a tower, get the traffic`, template: `%s · ${SITE_NAME}` },
-  description: "A living 3D city where brands and creators own buildings. Every building is a permanent address with real analytics: impressions, visits, clicks and conversions.",
+  title: { default: `${SITE_NAME} — claim a booth, build a tower, get the traffic`, template: `%s · ${SITE_NAME}` },
+  description: "A 3D comic convention that never closes. Publishers, artists and shops own booths on a show floor laid out like San Diego's, with real analytics: impressions, visits, clicks and conversions.",
   openGraph: { siteName: SITE_NAME, type: "website" },
   twitter: { card: "summary_large_image" },
 };

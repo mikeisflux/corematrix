@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-const VARS = ["name", "email", "plotName", "plotId", "amount", "price", "payout", "profit", "planName", "periodEnd", "link", "siteName", "siteUrl", "supportEmail", "currentYear"];
+const VARS = ["name", "email", "boothName", "boothId", "amount", "price", "payout", "profit", "planName", "periodEnd", "link", "siteName", "siteUrl", "supportEmail", "currentYear"];
 /* contentEditable HTML editor with a raw-HTML toggle. `value` is HTML. */
 export default function RichEditor({ value, onChange, minHeight = 260, allowRaw = true }: { value: string; onChange: (html: string) => void; minHeight?: number; allowRaw?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);

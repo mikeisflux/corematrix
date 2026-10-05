@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 
-/** Accepts a small image and returns a data URL to store on the building. */
+/** Accepts a small image and returns a data URL to store on the booth. */
 export async function POST(req: Request) {
   const u = await currentUser();
   if (!u) return NextResponse.json({ error: "Sign in first" }, { status: 401 });

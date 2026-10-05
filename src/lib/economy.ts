@@ -3,41 +3,26 @@
  * transaction row first (pending), then `settle()` applies it once payment
  * is confirmed (comp/credit: immediately; DivinityCoin: from the webhook).
  */
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
-import {
-  BASE_CLAIM_PRICE_CENTS,
-  MIN_BOOST_CENTS,
-  TIERS,
-  type Tier,
-  splitTakeover,
-  TOTAL_PLOTS,
-  formatMoney,
-  DISTRICTS,
-  BUILDING_STYLES,
-  BUILDING_SHAPES,
-  ROOF_STYLES,
-  PRICE_PER_FLOOR_CENTS,
-  MAX_FLOORS,
-  zoneFor,
-} from "@/lib/config";
+import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES } from "@/lib/config";
 import { clampStr, isHexColor, newId, normalizeUrl, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { BILLBOARD_SLOTS } from "@/lib/config";
-import { floorsForValue } from "@/lib/city/layout";
+import { boothSpace, hallLayout, totalBooths, describeSpace } from "@/lib/hall/layout";
 import { activatePlan } from "@/lib/subscriptions";
 import { sendReceipt, sendSold, sendWelcome } from "@/lib/emails";
 import { sendTemplate } from "@/lib/sendgrid";
 
-export type Plot = typeof schema.plots.$inferSelect;
+export type Booth = typeof schema.booths.$inferSelect;
 
-export function livePlot(p: Plot) {
-  return { id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, style: p.style, shape: p.shape, floors: p.floors, roof: p.roof, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, district: p.district };
+export function liveBooth(p: Booth) {
+  return { id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
-export interface BuildingDraft {
+export interface BoothDraft {
   name: string;
   tagline?: string;
   description?: string;
@@ -45,16 +30,14 @@ export interface BuildingDraft {
   logoUrl?: string;
   color?: string;
   accent?: string;
-  style?: string;
-  shape?: string;
-  roof?: string;
-  district?: string;
-  floors?: number;
+  style?: string; // banner style
+  cloth?: string; // table cloth / drape color
+  category?: string;
 }
 
-export function sanitizeDraft(d: Partial<BuildingDraft>): BuildingDraft {
+export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
   const name = clampStr(d.name, 40);
-  if (!name) throw new Error("Give your building a name");
+  if (!name) throw new Error("Give your booth a name");
   const website = normalizeUrl(d.website);
   const logo = d.logoUrl ? (d.logoUrl.startsWith("/") ? d.logoUrl : normalizeUrl(d.logoUrl)) : null;
   return {
@@ -65,64 +48,73 @@ export function sanitizeDraft(d: Partial<BuildingDraft>): BuildingDraft {
     logoUrl: logo ?? undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#5b8def",
     accent: d.accent && isHexColor(d.accent) ? d.accent : "#ffffff",
-    style: BUILDING_STYLES.includes((d.style ?? "") as never) ? d.style : "modern",
-    shape: BUILDING_SHAPES.includes((d.shape ?? "") as never) ? d.shape : "tower",
-    floors: Math.max(1, Math.min(MAX_FLOORS, Math.floor(Number(d.floors) || 1))),
-    roof: ROOF_STYLES.includes((d.roof ?? "") as never) ? d.roof : "flat",
-    district: d.district && DISTRICTS[d.district] ? d.district : "downtown",
+    style: BANNER_STYLES.includes((d.style ?? "") as never) ? d.style : "classic",
+    cloth: d.cloth && isHexColor(d.cloth) ? d.cloth : "#111827",
+    category: d.category && CATEGORIES[d.category] ? d.category : "comics",
   };
 }
 
-export async function getPlot(id: number): Promise<Plot | null> {
+/** Layout columns copied onto a booth row so lists and admin pages don't need the layout. */
+export function spaceColumns(boothId: number) {
+  const s = boothSpace(boothId);
+  if (!s) throw new Error("No such booth");
+  return { label: s.label, size: s.size, kind: s.kind, hall: s.hall, aisle: s.aisle };
+}
+
+export async function getBooth(id: number): Promise<Booth | null> {
   await ensureMigrated();
-  const [p] = await db.select().from(schema.plots).where(eq(schema.plots.id, id)).limit(1);
+  const [p] = await db.select().from(schema.booths).where(eq(schema.booths.id, id)).limit(1);
   return p ?? null;
 }
 
-export async function claimedPlots(): Promise<Plot[]> {
+export async function claimedBooths(): Promise<Booth[]> {
   await ensureMigrated();
   return db
     .select()
-    .from(schema.plots)
-    .where(and(sql`${schema.plots.ownerId} IS NOT NULL`, eq(schema.plots.hidden, false)))
-    .orderBy(schema.plots.id);
+    .from(schema.booths)
+    .where(and(sql`${schema.booths.ownerId} IS NOT NULL`, eq(schema.booths.hidden, false)))
+    .orderBy(schema.booths.id);
 }
 
-/** Lowest unclaimed plot number, or null if sold out. */
-export async function nextAvailablePlot(): Promise<number | null> {
-  await ensureMigrated();
-  const rows = await db.select({ id: schema.plots.id }).from(schema.plots).where(sql`${schema.plots.ownerId} IS NOT NULL`);
-  const taken = new Set(rows.map((r) => r.id));
-  for (let i = 1; i <= TOTAL_PLOTS; i++) if (!taken.has(i)) return i;
-  return null;
+/** Lowest unclaimed booth id, or null if sold out. */
+export async function nextAvailableBooth(): Promise<number | null> {
+  const [first] = await availableBooths(1);
+  return first ?? null;
 }
 
-export async function availablePlots(limit = 60): Promise<number[]> {
+export async function availableBooths(limit = 60, size?: string): Promise<number[]> {
   await ensureMigrated();
-  const rows = await db.select({ id: schema.plots.id }).from(schema.plots).where(sql`${schema.plots.ownerId} IS NOT NULL`);
+  const rows = await db.select({ id: schema.booths.id }).from(schema.booths).where(sql`${schema.booths.ownerId} IS NOT NULL`);
   const taken = new Set(rows.map((r) => r.id));
   const out: number[] = [];
-  for (let i = 1; i <= TOTAL_PLOTS && out.length < limit; i++) if (!taken.has(i)) out.push(i);
+  for (const b of hallLayout()) {
+    if (out.length >= limit) break;
+    if (taken.has(b.id)) continue;
+    if (size && b.size !== size) continue;
+    out.push(b.id);
+  }
   return out;
 }
 
-/** Claim price = floors × price per floor, with the zone's minimum enforced. */
-export function claimPriceCents(plotId: number, floors?: number): number {
-  const z = zoneFor(plotId);
-  const f = Math.max(z.minFloors, Math.min(MAX_FLOORS, Math.floor(floors ?? z.minFloors) || z.minFloors));
-  return f * PRICE_PER_FLOOR_CENTS;
+/** Claim price comes from the space: size × zone multiplier. */
+export function claimPriceCents(boothId: number): number {
+  const s = boothSpace(boothId);
+  if (!s) throw new Error("No such booth");
+  return s.priceCents;
 }
+export const TOTAL_BOOTHS = totalBooths();
+export { BOOTH_SIZES, ZONES };
 
 const HOLD_MS = 10 * 60_000;
 
-/** A plot with a pending claim by someone else in the last 10 minutes is held. */
-async function heldByOther(plotId: number, buyerId: string): Promise<boolean> {
+/** A booth with a pending claim by someone else in the last 10 minutes is held. */
+async function heldByOther(boothId: number, buyerId: string): Promise<boolean> {
   const [h] = await db
     .select({ id: schema.transactions.id })
     .from(schema.transactions)
     .where(
       and(
-        eq(schema.transactions.plotId, plotId),
+        eq(schema.transactions.boothId, boothId),
         eq(schema.transactions.kind, "claim"),
         eq(schema.transactions.status, "pending"),
         sql`${schema.transactions.buyerId} != ${buyerId}`,
@@ -133,20 +125,17 @@ async function heldByOther(plotId: number, buyerId: string): Promise<boolean> {
   return !!h;
 }
 
-export async function startClaim(plotId: number, buyerId: string, draft: BuildingDraft, creditCents: number) {
+export async function startClaim(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number) {
   await ensureMigrated();
-  if (plotId < 1 || plotId > TOTAL_PLOTS) throw new Error("No such plot");
-  const p = await getPlot(plotId);
-  if (p?.ownerId) throw new Error("That plot is already claimed. Try a takeover instead.");
-  if (await heldByOther(plotId, buyerId)) throw new Error("Someone is checking out this plot right now. Try again in a few minutes or pick another.");
-  const z = zoneFor(plotId);
-  const floors = Math.max(z.minFloors, Math.min(MAX_FLOORS, Math.floor(draft.floors ?? z.minFloors) || z.minFloors));
-  draft = { ...draft, floors };
-  const price = claimPriceCents(plotId, floors);
+  if (!boothSpace(boothId)) throw new Error("No such booth");
+  const p = await getBooth(boothId);
+  if (p?.ownerId) throw new Error("That booth is already claimed. Try a takeover instead.");
+  if (await heldByOther(boothId, buyerId)) throw new Error("Someone is checking out this booth right now. Try again in a few minutes or pick another.");
+  const price = claimPriceCents(boothId);
   const credit = Math.min(creditCents, price);
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    plotId,
+    boothId,
     kind: "claim",
     buyerId,
     amountCents: price - credit,
@@ -162,17 +151,17 @@ export async function startClaim(plotId: number, buyerId: string, draft: Buildin
   return tx as Tx;
 }
 
-export async function startTakeover(plotId: number, buyerId: string, draft: BuildingDraft, creditCents: number) {
+export async function startTakeover(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number) {
   await ensureMigrated();
-  const p = await getPlot(plotId);
-  if (!p?.ownerId) throw new Error("That plot is unclaimed. Claim it instead.");
-  if (p.ownerId === buyerId) throw new Error("You already own this building. Boost it instead.");
-  if (p.notForSaleUntil && p.notForSaleUntil > now()) throw new Error("This Landmark is shielded for a few more days.");
+  const p = await getBooth(boothId);
+  if (!p?.ownerId) throw new Error("That booth is unclaimed. Claim it instead.");
+  if (p.ownerId === buyerId) throw new Error("You already own this booth. Boost it instead.");
+  if (p.notForSaleUntil && p.notForSaleUntil > now()) throw new Error("This Headliner booth is shielded for a few more days.");
   const { price, sellerPayout, platform } = splitTakeover(p.valueCents);
   const credit = Math.min(creditCents, Math.max(0, price - sellerPayout));
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    plotId,
+    boothId,
     kind: "takeover",
     buyerId,
     sellerId: p.ownerId,
@@ -190,15 +179,15 @@ export async function startTakeover(plotId: number, buyerId: string, draft: Buil
   return tx as Tx;
 }
 
-export async function startBoost(plotId: number, buyerId: string, amountCents: number) {
+export async function startBoost(boothId: number, buyerId: string, amountCents: number) {
   await ensureMigrated();
-  const p = await getPlot(plotId);
-  if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only boost a building you own");
+  const p = await getBooth(boothId);
+  if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only boost a booth you own");
   if (!Number.isFinite(amountCents) || amountCents < MIN_BOOST_CENTS) throw new Error(`Minimum boost is ${formatMoney(MIN_BOOST_CENTS)}`);
   const amt = Math.round(amountCents);
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    plotId,
+    boothId,
     kind: "boost",
     buyerId,
     amountCents: amt,
@@ -213,15 +202,15 @@ export async function startBoost(plotId: number, buyerId: string, amountCents: n
   return tx as Tx;
 }
 
-export async function startTier(plotId: number, buyerId: string, tier: Tier) {
+export async function startTier(boothId: number, buyerId: string, tier: Tier) {
   await ensureMigrated();
-  const p = await getPlot(plotId);
-  if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only upgrade a building you own");
+  const p = await getBooth(boothId);
+  if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only upgrade a booth you own");
   if (tier === "free") throw new Error("Pick a paid tier");
   const price = TIERS[tier].priceCents;
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    plotId,
+    boothId,
     kind: "tier",
     buyerId,
     amountCents: price,
@@ -243,7 +232,7 @@ export async function startCoinPack(buyerId: string, packId: string, packs: Read
   if (!pack) throw new Error("Unknown pack");
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    plotId: 0,
+    boothId: 0,
     kind: "coins",
     buyerId,
     amountCents: pack.priceCents,
@@ -266,7 +255,7 @@ export interface BillboardDraft {
   website?: string;
   imageUrl?: string;
   color?: string;
-  plotId?: number | null;
+  boothId?: number | null;
 }
 
 export async function startBillboard(buyerId: string, d: BillboardDraft) {
@@ -289,14 +278,14 @@ export async function startBillboard(buyerId: string, d: BillboardDraft) {
     website: normalizeUrl(d.website) ?? undefined,
     imageUrl: d.imageUrl && (d.imageUrl.startsWith("/") || d.imageUrl.startsWith("data:")) ? d.imageUrl : normalizeUrl(d.imageUrl) ?? undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#111827",
-    plotId: d.plotId ?? null,
+    boothId: d.boothId ?? null,
     startsAt,
     endsAt: startsAt + weeks * 7 * 86_400_000,
     weeks,
   };
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    plotId: d.plotId ?? 0,
+    boothId: d.boothId ?? 0,
     kind: "billboard",
     buyerId,
     amountCents: price,
@@ -321,12 +310,12 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
   if (tx.status !== "pending") return tx;
   const meta = tx.meta
     ? (JSON.parse(tx.meta) as {
-        draft?: BuildingDraft;
+        draft?: BoothDraft;
         creditUsed?: number;
         tier?: Tier;
         previousName?: string;
         coins?: number;
-        billboard?: { slot: string; headline: string; body?: string; website?: string; imageUrl?: string; color: string; plotId: number | null; startsAt: number; endsAt: number };
+        billboard?: { slot: string; headline: string; body?: string; website?: string; imageUrl?: string; color: string; boothId: number | null; startsAt: number; endsAt: number };
       })
     : {};
   const t = now();
@@ -349,9 +338,10 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
   if (tx.kind === "claim" && meta.draft) {
     const d = sanitizeDraft(meta.draft);
     await db
-      .insert(schema.plots)
+      .insert(schema.booths)
       .values({
-        id: tx.plotId,
+        id: tx.boothId,
+        ...spaceColumns(tx.boothId),
         ownerId: tx.buyerId,
         ...d,
         valueCents: tx.valueAfter,
@@ -361,21 +351,21 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
         salesCount: 1,
       })
       .onConflictDoUpdate({
-        target: schema.plots.id,
-        set: { ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false },
+        target: schema.booths.id,
+        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false },
       });
-    await addEvent("claim", tx.plotId, `${d.name} joined the avenue`, `Plot #${tx.plotId} · ${DISTRICTS[d.district ?? "downtown"].name}`, tx.valueAfter);
+    await addEvent("claim", tx.boothId, `${d.name} is on the show floor`, `${describeSpace(boothSpace(tx.boothId)!)} · ${CATEGORIES[d.category ?? "comics"].name}`, tx.valueAfter);
     await bumpSiteDaily({ claims: 1, revenueCents: tx.amountCents });
     if (tx.buyerId) {
       await db.update(schema.users).set({ coins: sql`${schema.users.coins} + 50` }).where(eq(schema.users.id, tx.buyerId));
-      await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: 50, reason: "claim", ref: `plot:${tx.plotId}`, createdAt: t });
-      await sendWelcome(tx.buyerId, tx.plotId, d.name);
+      await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: 50, reason: "claim", ref: `booth:${tx.boothId}`, createdAt: t });
+      await sendWelcome(tx.buyerId, tx.boothId, d.name);
     }
   } else if (tx.kind === "takeover" && meta.draft) {
     const d = sanitizeDraft(meta.draft);
-    const prev = await getPlot(tx.plotId);
+    const prev = await getBooth(tx.boothId);
     await db
-      .update(schema.plots)
+      .update(schema.booths)
       .set({
         ownerId: tx.buyerId,
         ...d,
@@ -388,9 +378,9 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
         subscriptionStatus: null,
         featuredUntil: null,
         notForSaleUntil: null,
-        salesCount: sql`${schema.plots.salesCount} + 1`,
+        salesCount: sql`${schema.booths.salesCount} + 1`,
       })
-      .where(eq(schema.plots.id, tx.plotId));
+      .where(eq(schema.booths.id, tx.boothId));
     if (tx.sellerId) {
       await db
         .update(schema.users)
@@ -400,56 +390,53 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
         id: newId(),
         userId: tx.sellerId,
         type: "sold",
-        title: `${prev?.name ?? "Your building"} was bought out`,
-        body: `Plot #${tx.plotId} sold for ${formatMoney(tx.valueAfter)}. ${formatMoney(tx.sellerPayoutCents)} was added to your balance (${formatMoney(tx.sellerPayoutCents - tx.valueBefore)} profit). Claim a new plot or take one over.`,
-        plotId: tx.plotId,
+        title: `${prev?.name ?? "Your booth"} was bought out`,
+        body: `Booth ${prev?.label ?? tx.boothId} sold for ${formatMoney(tx.valueAfter)}. ${formatMoney(tx.sellerPayoutCents)} was added to your balance (${formatMoney(tx.sellerPayoutCents - tx.valueBefore)} profit). Claim a new booth or take one over.`,
+        boothId: tx.boothId,
         createdAt: t,
       });
-      await sendSold(tx.sellerId, tx.plotId, prev?.name ?? "Your building", tx.valueAfter, tx.sellerPayoutCents, tx.valueBefore);
+      await sendSold(tx.sellerId, tx.boothId, prev?.name ?? "Your booth", tx.valueAfter, tx.sellerPayoutCents, tx.valueBefore);
     }
-    await addEvent("takeover", tx.plotId, `${d.name} took over Plot #${tx.plotId}`, `Bought ${meta.previousName ?? "the building"} for ${formatMoney(tx.valueAfter)}`, tx.valueAfter);
+    await addEvent("takeover", tx.boothId, `${d.name} took over booth ${prev?.label ?? tx.boothId}`, `Bought ${meta.previousName ?? "the space"} for ${formatMoney(tx.valueAfter)}`, tx.valueAfter);
     await bumpSiteDaily({ takeovers: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "boost") {
     const [p] = await db
-      .update(schema.plots)
-      .set({ valueCents: sql`${schema.plots.valueCents} + ${tx.amountCents}`, updatedAt: t })
-      .where(eq(schema.plots.id, tx.plotId))
+      .update(schema.booths)
+      .set({ valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .where(eq(schema.booths.id, tx.boothId))
       .returning();
-    await addEvent("boost", tx.plotId, `${p?.name ?? "A building"} grew taller`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
+    await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} upgraded its signage`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
     const pm = (meta as { paymentMethodId?: string }).paymentMethodId ?? null;
-    const p = await activatePlan(tx.plotId, meta.tier, provider === "comp" ? null : pm);
-    await addEvent("tier", tx.plotId, `${p?.name ?? "A booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall, takeover shield on" : "Unlocked full analytics", tx.amountCents);
+    const p = await activatePlan(tx.boothId, meta.tier, provider === "comp" ? null : pm);
+    await addEvent("tier", tx.boothId, `${p?.name ?? "A booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall, takeover shield on" : "Unlocked full analytics", tx.amountCents);
     await bumpSiteDaily({ revenueCents: tx.amountCents });
     if (tx.buyerId) {
       const [u] = await db.select({ email: schema.users.email, notify: schema.users.notifyEmail, name: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, tx.buyerId));
       if (u?.notify) {
-        await sendTemplate("plan_started", u.email, { subject: `${p?.name ?? `#${tx.plotId}`} is now a ${TIERS[meta.tier].name}`, fallbackText: `Your ${TIERS[meta.tier].name} plan is active. Renews every 30 days; cancel any time from the dashboard.`, name: u.name ?? u.email, plotName: p?.name ?? `#${tx.plotId}`, planName: TIERS[meta.tier].name, amount: formatMoney(tx.amountCents), perks: TIERS[meta.tier].perks.join(" · "), plotId: tx.plotId }, { userId: tx.buyerId, plotId: tx.plotId, txId: tx.id, channel: "system" });
+        await sendTemplate("plan_started", u.email, { subject: `${p?.name ?? `#${tx.boothId}`} is now a ${TIERS[meta.tier].name}`, fallbackText: `Your ${TIERS[meta.tier].name} plan is active. Renews every 30 days; cancel any time from the dashboard.`, name: u.name ?? u.email, boothName: p?.name ?? `#${tx.boothId}`, planName: TIERS[meta.tier].name, amount: formatMoney(tx.amountCents), perks: TIERS[meta.tier].perks.join(" · "), boothId: tx.boothId }, { userId: tx.buyerId, boothId: tx.boothId, txId: tx.id, channel: "system" });
       }
     }
   }
 
-  if (tx.plotId) {
-    await db.update(schema.plots).set({ floors: sql`max(${schema.plots.floors}, ${floorsForValue(tx.valueAfter)})` }).where(eq(schema.plots.id, tx.plotId));
-  }
   if (tx.buyerId && tx.amountCents > 0 && provider !== "comp") {
     const { describeTx } = await import("@/lib/payments");
-    await sendReceipt(tx.buyerId, describeTx(tx), tx.amountCents, tx.id, tx.plotId || undefined).catch(() => {});
+    await sendReceipt(tx.buyerId, describeTx(tx), tx.amountCents, tx.id, tx.boothId || undefined).catch(() => {});
   }
-  const plot = tx.plotId ? await getPlot(tx.plotId) : null;
-  if (plot) {
+  const booth = tx.boothId ? await getBooth(tx.boothId) : null;
+  if (booth) {
     publish({
-      type: "plot",
-      plot: livePlot(plot),
+      type: "booth",
+      booth: liveBooth(booth),
     });
   }
   await publishStats();
   return updated[0];
 }
 
-export async function addEvent(type: string, plotId: number | null, title: string, detail: string | null, amountCents: number | null) {
-  const ev = { id: newId(), type, plotId, title, detail, amountCents, createdAt: now() };
+export async function addEvent(type: string, boothId: number | null, title: string, detail: string | null, amountCents: number | null) {
+  const ev = { id: newId(), type, boothId, title, detail, amountCents, createdAt: now() };
   await db.insert(schema.events).values(ev);
   publish({ type: "event", event: ev });
   return ev;
@@ -469,14 +456,14 @@ export async function siteStats() {
       impressions: sql<number>`coalesce(sum(total_impressions), 0)`,
       value: sql<number>`coalesce(sum(value_cents), 0)`,
     })
-    .from(schema.plots)
+    .from(schema.booths)
     .where(sql`owner_id IS NOT NULL`);
   const [sd] = await db.select({ visits: sql<number>`coalesce(sum(visits), 0)` }).from(schema.siteDaily);
   return {
     totalSalesCents: Number(s?.sales ?? 0),
     claimed: Number(p?.claimed ?? 0),
     totalViews: Number(sd?.visits ?? 0),
-    totalPlotViews: Number(p?.views ?? 0),
+    totalBoothViews: Number(p?.views ?? 0),
     totalImpressions: Number(p?.impressions ?? 0),
     totalValueCents: Number(p?.value ?? 0),
   };
@@ -492,32 +479,30 @@ export async function recentEvents(limit = 30) {
   return db.select().from(schema.events).orderBy(desc(schema.events.createdAt)).limit(limit);
 }
 
-export async function plotHistory(plotId: number) {
+export async function boothHistory(boothId: number) {
   return db
     .select()
     .from(schema.transactions)
-    .where(and(eq(schema.transactions.plotId, plotId), eq(schema.transactions.status, "paid")))
+    .where(and(eq(schema.transactions.boothId, boothId), eq(schema.transactions.status, "paid")))
     .orderBy(schema.transactions.createdAt);
 }
 
-export async function updateBuilding(plotId: number, ownerId: string, draft: Partial<BuildingDraft>) {
-  const p = await getPlot(plotId);
-  if (!p || p.ownerId !== ownerId) throw new Error("Not your building");
-  const d = sanitizeDraft({ ...p, ...draft, name: draft.name ?? p.name ?? "" } as BuildingDraft);
-  await db.update(schema.plots).set({ ...d, updatedAt: now() }).where(eq(schema.plots.id, plotId));
-  const plot = (await getPlot(plotId))!;
+export async function updateBooth(boothId: number, ownerId: string, draft: Partial<BoothDraft>) {
+  const p = await getBooth(boothId);
+  if (!p || p.ownerId !== ownerId) throw new Error("Not your booth");
+  const d = sanitizeDraft({ ...p, ...draft, name: draft.name ?? p.name ?? "" } as BoothDraft);
+  await db.update(schema.booths).set({ ...d, updatedAt: now() }).where(eq(schema.booths.id, boothId));
+  const booth = (await getBooth(boothId))!;
   publish({
-    type: "plot",
-    plot: livePlot(plot),
+    type: "booth",
+    booth: liveBooth(booth),
   });
-  return plot;
+  return booth;
 }
 
 export async function unclaimedCount(): Promise<number> {
-  const [r] = await db.select({ c: sql<number>`count(*)` }).from(schema.plots).where(isNull(schema.plots.ownerId));
-  const claimed = (await db.select({ c: sql<number>`count(*)` }).from(schema.plots).where(sql`owner_id IS NOT NULL`))[0];
-  void r;
-  return TOTAL_PLOTS - Number(claimed?.c ?? 0);
+  const claimed = (await db.select({ c: sql<number>`count(*)` }).from(schema.booths).where(sql`owner_id IS NOT NULL`))[0];
+  return TOTAL_BOOTHS - Number(claimed?.c ?? 0);
 }
 
 export async function activeBillboards() {

@@ -15,7 +15,7 @@ export default async function Arcade() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Arcade</h1>
-          <p className="text-sm text-slate-400">Original machines, daily and all-time leaderboards, coin prizes. Coins turn into building height: {COIN_RULES.convertRate} coins = $1.</p>
+          <p className="text-sm text-slate-400">Original machines, daily and all-time leaderboards, coin prizes. Coins turn into booth value: {COIN_RULES.convertRate} coins = $1.</p>
         </div>
         {!user && <Link href="/login?next=/arcade" className="btn-primary">Sign in to play (free coins)</Link>}
       </div>
@@ -36,7 +36,7 @@ export default async function Arcade() {
         })}
       </div>
       <div className="mt-8 rounded-2xl border border-white/10 p-4 text-sm text-slate-300">
-        <b>Coin packs:</b> {COIN_RULES.packs.map((p) => `${p.coins} for ${formatMoney(p.priceCents)}`).join(" · ")}. Free coins: +{COIN_RULES.dailyVisit}/day, streak bonus, +{COIN_RULES.explore} per building explored, +{COIN_RULES.claim} per claim, +{COIN_RULES.referral} per referral.
+        <b>Coin packs:</b> {COIN_RULES.packs.map((p) => `${p.coins} for ${formatMoney(p.priceCents)}`).join(" · ")}. Free coins: +{COIN_RULES.dailyVisit}/day, streak bonus, +{COIN_RULES.explore} per boolding explored, +{COIN_RULES.claim} per claim, +{COIN_RULES.referral} per referral.
       </div>
     </Shell>
   );

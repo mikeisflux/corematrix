@@ -136,7 +136,7 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
       userId: referredBy,
       type: "referral",
       title: "Someone joined with your link",
-      body: `You both earned $${(REFERRAL_CREDIT_CENTS / 100).toFixed(2)} in building credit.`,
+      body: `You both earned $${(REFERRAL_CREDIT_CENTS / 100).toFixed(2)} in booth credit.`,
       createdAt: now(),
     });
   }

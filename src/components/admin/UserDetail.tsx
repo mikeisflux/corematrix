@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Field, Input, Checkbox, Empty } from "./shared";
 interface User { id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
-interface Resp { user: User; booths: { id: number; name: string | null; tier: string; valueCents: number; floors: number; hidden: boolean; claimedAt: number | null; subscriptionStatus: string | null }[]; txs: { id: string; kind: string; status: string; amountCents: number; plotId: number; createdAt: number; buyerId: string | null }[]; coins: { id: string; delta: number; reason: string; ref: string | null; createdAt: number }[]; mail: { id: string; direction: string; subject: string; status: string | null; createdAt: number }[]; sessions: number }
+interface Resp { user: User; booths: { id: number; name: string | null; tier: string; valueCents: number; floors: number; hidden: boolean; claimedAt: number | null; subscriptionStatus: string | null }[]; txs: { id: string; kind: string; status: string; amountCents: number; boothId: number; createdAt: number; buyerId: string | null }[]; coins: { id: string; delta: number; reason: string; ref: string | null; createdAt: number }[]; mail: { id: string; direction: string; subject: string; status: string | null; createdAt: number }[]; sessions: number }
 export default function UserDetail({ id }: { id: string }) {
   const d = useJson<Resp>(`/api/admin/users/${id}`);
   const [form, setForm] = useState<{ displayName: string; handle: string; notifyEmail: boolean } | null>(null);
@@ -64,7 +64,7 @@ export default function UserDetail({ id }: { id: string }) {
         </div>
         <div className="admCard">
           <div className="admCard__hd"><h2 className="admH2">Transactions</h2></div>
-          {d.data!.txs.length === 0 ? <Empty>No transactions.</Empty> : <div className="admTableWrap"><table className="admTable"><thead><tr><th>Kind</th><th>Booth</th><th>Status</th><th>Amount</th><th>When</th></tr></thead><tbody>{d.data!.txs.map((t) => <tr key={t.id}><td><Link href={`/admin/transactions/${t.id}`}>{t.kind}</Link>{t.buyerId !== u.id && <span className="admMuted"> (seller)</span>}</td><td className="admMono">#{t.plotId}</td><td><Badge>{t.status}</Badge></td><td className="num"><Money cents={t.amountCents} /></td><td><DateTime value={t.createdAt} /></td></tr>)}</tbody></table></div>}
+          {d.data!.txs.length === 0 ? <Empty>No transactions.</Empty> : <div className="admTableWrap"><table className="admTable"><thead><tr><th>Kind</th><th>Booth</th><th>Status</th><th>Amount</th><th>When</th></tr></thead><tbody>{d.data!.txs.map((t) => <tr key={t.id}><td><Link href={`/admin/transactions/${t.id}`}>{t.kind}</Link>{t.buyerId !== u.id && <span className="admMuted"> (seller)</span>}</td><td className="admMono">#{t.boothId}</td><td><Badge>{t.status}</Badge></td><td className="num"><Money cents={t.amountCents} /></td><td><DateTime value={t.createdAt} /></td></tr>)}</tbody></table></div>}
         </div>
       </div>
       <div className="admCard">

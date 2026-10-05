@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Empty } from "./shared";
-interface Row { id: string; slot: string; headline: string; body: string | null; website: string | null; imageUrl: string | null; color: string; startsAt: number; endsAt: number; amountCents: number; seen: number; opens: number; clicks: number; status: string; createdAt: number; ownerId: string; ownerEmail: string | null; plotId: number | null }
+interface Row { id: string; slot: string; headline: string; body: string | null; website: string | null; imageUrl: string | null; color: string; startsAt: number; endsAt: number; amountCents: number; seen: number; opens: number; clicks: number; status: string; createdAt: number; ownerId: string; ownerEmail: string | null; boothId: number | null }
 export default function Billboards() {
   const d = useJson<{ rows: Row[] }>("/api/admin/billboards");
   const toast = useToast();

@@ -1,18 +1,17 @@
 /**
  * Arcade economy. Coins are a soft currency: earned by showing up, exploring
  * and referring; bought for cash; spent to play and to ride; won as prizes.
- * Coins never cash out, but they can be converted into building value.
+ * Coins never cash out, but they can be converted into booth value.
  */
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { dayKey, newId, now } from "@/lib/util";
-import { addEvent, livePlot } from "@/lib/economy";
+import { addEvent, liveBooth } from "@/lib/economy";
 import { publish } from "@/lib/realtime";
-import { floorsForValue } from "@/lib/city/layout";
 
 export const GAMES = {
   snake: { name: "Serpent Ave.", blurb: "Classic snake. Eat, grow, don't crash.", cost: 2, prizeAt: 400, prize: 25 },
-  breakout: { name: "Block Party", blurb: "Smash the skyline brick by brick.", cost: 2, prizeAt: 800, prize: 30 },
+  breakout: { name: "Block Party", blurb: "Smash the longboxes brick by brick.", cost: 2, prizeAt: 800, prize: 30 },
   runner: { name: "Rooftop Run", blurb: "Jump the gaps. One button. Endless.", cost: 3, prizeAt: 1500, prize: 40 },
 } as const;
 export type GameId = keyof typeof GAMES;
@@ -20,11 +19,11 @@ export type GameId = keyof typeof GAMES;
 export const COIN_RULES = {
   dailyVisit: 5,
   streakBonusPerDay: 1, // up to +10
-  explore: 1, // first view of a building each day (max 10/day)
+  explore: 1, // first view of a booth each day (max 10/day)
   claim: 50,
   referral: 25,
-  coasterCost: 5,
-  convertRate: 100, // coins per $1 of building value when converting
+  flyoverCost: 5,
+  convertRate: 100, // coins per $1 of booth value when converting
   packs: [
     { id: "pack_small", coins: 100, priceCents: 199 },
     { id: "pack_med", coins: 350, priceCents: 499 },
@@ -59,7 +58,7 @@ export async function dailyCheckIn(userId: string): Promise<{ awarded: number; s
   return { awarded, streak, coins };
 }
 
-export async function exploreReward(userId: string, plotId: number): Promise<number> {
+export async function exploreReward(userId: string, boothId: number): Promise<number> {
   const since = now() - 86_400_000;
   const [c] = await db
     .select({ n: sql<number>`count(*)` })
@@ -69,9 +68,9 @@ export async function exploreReward(userId: string, plotId: number): Promise<num
   const [dup] = await db
     .select({ n: sql<number>`count(*)` })
     .from(schema.coinLedger)
-    .where(and(eq(schema.coinLedger.userId, userId), eq(schema.coinLedger.reason, "explore"), eq(schema.coinLedger.ref, `plot:${plotId}`), gte(schema.coinLedger.createdAt, since)));
+    .where(and(eq(schema.coinLedger.userId, userId), eq(schema.coinLedger.reason, "explore"), eq(schema.coinLedger.ref, `booth:${boothId}`), gte(schema.coinLedger.createdAt, since)));
   if (Number(dup?.n ?? 0) > 0) return 0;
-  await addCoins(userId, COIN_RULES.explore, "explore", `plot:${plotId}`);
+  await addCoins(userId, COIN_RULES.explore, "explore", `booth:${boothId}`);
   return COIN_RULES.explore;
 }
 
@@ -86,7 +85,7 @@ export async function startPlay(userId: string, gameId: GameId): Promise<{ playI
   return { playId, coins };
 }
 
-export async function finishPlay(userId: string, playId: string, score: number, playerName: string, plotId: number | null) {
+export async function finishPlay(userId: string, playId: string, score: number, playerName: string, boothId: number | null) {
   await ensureMigrated();
   const [p] = await db.select().from(schema.gamePlays).where(eq(schema.gamePlays.id, playId));
   if (!p || p.userId !== userId) throw new Error("Unknown play");
@@ -97,7 +96,7 @@ export async function finishPlay(userId: string, playId: string, score: number, 
   const maxPerSecond = p.gameId === "runner" ? 60 : p.gameId === "breakout" ? 120 : 40;
   const s = Math.max(0, Math.min(Math.floor(score), Math.floor((elapsed / 1000 + 2) * maxPerSecond)));
   await db.update(schema.gamePlays).set({ finishedAt: now() }).where(eq(schema.gamePlays.id, playId));
-  await db.insert(schema.gameScores).values({ id: newId(), gameId: p.gameId, userId, playerName, plotId, score: s, day: dayKey(), createdAt: now() });
+  await db.insert(schema.gameScores).values({ id: newId(), gameId: p.gameId, userId, playerName, boothId, score: s, day: dayKey(), createdAt: now() });
   let prize = 0;
   if (s >= g.prizeAt) {
     prize = g.prize;
@@ -111,7 +110,7 @@ export async function finishPlay(userId: string, playId: string, score: number, 
     .orderBy(desc(schema.gameScores.score))
     .limit(1);
   if (top && top.score === s) {
-    await addEvent("arcade", plotId, `${playerName} tops ${g.name} today`, `${s.toLocaleString()} points`, null);
+    await addEvent("arcade", boothId, `${playerName} tops ${g.name} today`, `${s.toLocaleString()} points`, null);
   }
   const [u] = await db.select({ coins: schema.users.coins }).from(schema.users).where(eq(schema.users.id, userId));
   return { score: s, prize, coins: u?.coins ?? 0 };
@@ -124,7 +123,7 @@ export async function leaderboard(gameId: GameId, scope: "today" | "all", limit 
     .select({
       userId: schema.gameScores.userId,
       playerName: schema.gameScores.playerName,
-      plotId: schema.gameScores.plotId,
+      boothId: schema.gameScores.boothId,
       score: sql<number>`max(${schema.gameScores.score})`,
       at: sql<number>`max(${schema.gameScores.createdAt})`,
     })
@@ -144,32 +143,31 @@ export async function myBest(gameId: GameId, userId: string) {
   return { best: Number(r?.best ?? 0), plays: Number(r?.plays ?? 0) };
 }
 
-export async function rideCoaster(userId: string): Promise<number> {
+export async function rideFlyover(userId: string): Promise<number> {
   const [u] = await db.select({ coins: schema.users.coins }).from(schema.users).where(eq(schema.users.id, userId));
-  if (!u || u.coins < COIN_RULES.coasterCost) throw new Error(`The Skyline Coaster costs ${COIN_RULES.coasterCost} coins.`);
-  const coins = await addCoins(userId, -COIN_RULES.coasterCost, "coaster");
+  if (!u || u.coins < COIN_RULES.flyoverCost) throw new Error(`The Hall Flyover costs ${COIN_RULES.flyoverCost} coins.`);
+  const coins = await addCoins(userId, -COIN_RULES.flyoverCost, "flyover");
   publish({ type: "presence", online: -1 }); // no-op marker; presence recomputed by bus
   return coins;
 }
 
-/** Turn coins into building value: 100 coins = $1 of height. A coin sink that feeds the status game. */
-export async function convertCoinsToValue(userId: string, plotId: number, coins: number) {
+/** Turn coins into booth value: 100 coins = $1. A coin sink that feeds the status game. */
+export async function convertCoinsToValue(userId: string, boothId: number, coins: number) {
   await ensureMigrated();
   if (!Number.isFinite(coins) || coins < COIN_RULES.convertRate) throw new Error(`Minimum ${COIN_RULES.convertRate} coins`);
-  const [p] = await db.select().from(schema.plots).where(eq(schema.plots.id, plotId));
-  if (!p || p.ownerId !== userId) throw new Error("Not your building");
+  const [p] = await db.select().from(schema.booths).where(eq(schema.booths.id, boothId));
+  if (!p || p.ownerId !== userId) throw new Error("Not your booth");
   const [u] = await db.select({ coins: schema.users.coins }).from(schema.users).where(eq(schema.users.id, userId));
   const spend = Math.min(Math.floor(coins / COIN_RULES.convertRate) * COIN_RULES.convertRate, u?.coins ?? 0);
   if (spend < COIN_RULES.convertRate) throw new Error("Not enough coins");
   const cents = (spend / COIN_RULES.convertRate) * 100;
-  await addCoins(userId, -spend, "boost_convert", `plot:${plotId}`);
+  await addCoins(userId, -spend, "boost_convert", `booth:${boothId}`);
   const [np] = await db
-    .update(schema.plots)
-    .set({ valueCents: sql`${schema.plots.valueCents} + ${cents}`, updatedAt: now() })
-    .where(eq(schema.plots.id, plotId))
+    .update(schema.booths)
+    .set({ valueCents: sql`${schema.booths.valueCents} + ${cents}`, updatedAt: now() })
+    .where(eq(schema.booths.id, boothId))
     .returning();
-  await db.update(schema.plots).set({ floors: Math.max(np.floors, floorsForValue(np.valueCents)) }).where(eq(schema.plots.id, plotId));
-  await addEvent("boost", plotId, `${np.name} grew taller with arcade coins`, `+$${(cents / 100).toFixed(0)} in value`, cents);
-  publish({ type: "plot", plot: livePlot(np) });
+  await addEvent("boost", boothId, `${np.name} grew taller with arcade coins`, `+$${(cents / 100).toFixed(0)} in value`, cents);
+  publish({ type: "booth", booth: liveBooth(np) });
   return { spent: spend, cents, valueCents: np.valueCents };
 }

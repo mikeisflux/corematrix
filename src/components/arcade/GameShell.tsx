@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/city/store";
+import { api } from "@/lib/hall/store";
 import { runSnake } from "./games/snake";
 import { runBreakout } from "./games/breakout";
 import { runRunner } from "./games/runner";
@@ -9,7 +9,7 @@ import { runRunner } from "./games/runner";
 export type GameRunner = (canvas: HTMLCanvasElement, onScore: (s: number) => void, onEnd: (s: number) => void) => () => void;
 const RUNNERS: Record<string, GameRunner> = { snake: runSnake, breakout: runBreakout, runner: runRunner };
 
-interface Row { rank: number; userId: string; playerName: string; plotId: number | null; score: number }
+interface Row { rank: number; userId: string; playerName: string; boothId: number | null; score: number }
 
 export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameId: string; name: string; blurb: string; cost: number; prize: number; prizeAt: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -81,7 +81,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
           {board.rows.map((r) => (
             <li key={r.userId} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${r.userId === board.me ? "bg-amber-300/15" : ""}`}>
               <span className={`mono w-6 ${r.rank <= 3 ? "text-amber-300 font-bold" : "text-slate-500"}`}>{r.rank}</span>
-              <span className="min-w-0 flex-1 truncate">{r.plotId ? <Link className="hover:underline" href={`/plot/${r.plotId}`}>{r.playerName}</Link> : r.playerName}</span>
+              <span className="min-w-0 flex-1 truncate">{r.boothId ? <Link className="hover:underline" href={`/booth/${r.boothId}`}>{r.playerName}</Link> : r.playerName}</span>
               <span className="mono">{r.score.toLocaleString()}</span>
             </li>
           ))}

@@ -2,15 +2,15 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Field, Input, Textarea, Checkbox, Empty } from "./shared";
-interface Plot { id: number; ownerId: string | null; name: string | null; tagline: string | null; description: string | null; website: string | null; tier: string; tierUntil: number | null; subscriptionStatus: string | null; district: string; floors: number; valueCents: number; claimedAt: number | null; hidden: boolean; notForSaleUntil: number | null; featuredUntil: number | null; totalViews: number; totalClicks: number; totalImpressions: number; salesCount: number }
-interface Resp { plot: Plot; owner: { id: string; email: string } | null; txs: { id: string; kind: string; status: string; amountCents: number; createdAt: number }[]; series: { day: string; views: number; clicks: number; impressions: number }[]; referrers: { host: string; clicks: number }[] }
+interface Booth { id: number; ownerId: string | null; name: string | null; tagline: string | null; description: string | null; website: string | null; tier: string; tierUntil: number | null; subscriptionStatus: string | null; size: string; hall: string; label: string; valueCents: number; claimedAt: number | null; hidden: boolean; notForSaleUntil: number | null; featuredUntil: number | null; totalViews: number; totalClicks: number; totalImpressions: number; salesCount: number }
+interface Resp { booth: Booth; owner: { id: string; email: string } | null; txs: { id: string; kind: string; status: string; amountCents: number; createdAt: number }[]; series: { day: string; views: number; clicks: number; impressions: number }[]; referrers: { host: string; clicks: number }[] }
 export default function BoothDetail({ id }: { id: string }) {
   const d = useJson<Resp>(`/api/admin/booths/${id}`);
-  const [form, setForm] = useState<Partial<Plot> | null>(null);
+  const [form, setForm] = useState<Partial<Booth> | null>(null);
   const [transfer, setTransfer] = useState("");
   const toast = useToast();
-  const p = d.data?.plot;
-  const f = { ...(p ?? {}), ...(form ?? {}) } as Plot;
+  const p = d.data?.booth;
+  const f = { ...(p ?? {}), ...(form ?? {}) } as Booth;
   const act = async (json: Record<string, unknown>, msg: string) => { try { await api(`/api/admin/booths/${id}`, { method: "PATCH", json }); toast.ok(msg); setForm(null); d.reload(); } catch (e) { toast.err(e); } };
   if (d.error) return <div className="admNote admNote--err">{d.error}</div>;
   if (!p) return <div className="admMuted">Loading…</div>;
@@ -18,8 +18,8 @@ export default function BoothDetail({ id }: { id: string }) {
   return (
     <>
       {toast.node}
-      <PageHead title={`Booth #${p.id}${p.name ? ` — ${p.name}` : ""}`} sub={`${p.district} · ${p.floors} floors · owner ${d.data!.owner?.email ?? "none"}`}>
-        <Link className="admBtn" href={`/plot/${p.id}`} target="_blank">View public page</Link>
+      <PageHead title={`Booth #${p.id}${p.name ? ` — ${p.name}` : ""}`} sub={`${p.size} · Hall ${p.hall} · booth ${p.label} · owner ${d.data!.owner?.email ?? "none"}`}>
+        <Link className="admBtn" href={`/booth/${p.id}`} target="_blank">View public page</Link>
         {d.data!.owner && <Link className="admBtn" href={`/admin/emails?compose=1&to=${encodeURIComponent(d.data!.owner.email)}&subject=${encodeURIComponent(`About your booth #${p.id}`)}`}>Email owner</Link>}
         {p.ownerId && <ConfirmButton className="admBtn admBtn--danger" message="Release this booth? The owner loses it, any plan is canceled, and the space becomes available again." onConfirm={() => act({ action: "release", reason: "released by admin" }, "Released")}>Release</ConfirmButton>}
       </PageHead>

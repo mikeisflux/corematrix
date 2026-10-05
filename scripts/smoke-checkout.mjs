@@ -8,12 +8,11 @@ const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 const login = async (email) => { const r = await page.request.post(`${base}/api/auth/request`, { data: { email } }); const { devLink } = await r.json(); await page.goto(devLink, { waitUntil: "networkidle" }); };
 await login("buyer-smoke@example.com");
-// find an available plot
-const avail = await (await page.request.get(`${base}/api/plots/available`)).json().catch(() => null);
-let plotId = avail?.ids?.[0] ?? avail?.[0] ?? null;
-if (!plotId) { const r = await page.request.get(`${base}/api/plots/next`); plotId = (await r.json().catch(() => ({}))).plotId ?? 900; }
-console.log("plot", plotId);
-let r = await page.request.post(`${base}/api/checkout`, { data: { kind: "claim", plotId, draft: { name: "Smoke Test Comics", tagline: "indie books", website: "https://example.com", floors: 3, color: "#ff2d55" } } });
+const hall = await (await page.request.get(`${base}/api/hall`)).json();
+const claimedIds = new Set(hall.booths.map((b) => b.id));
+let boothId = 1; while (claimedIds.has(boothId)) boothId++;
+console.log("booth", boothId);
+let r = await page.request.post(`${base}/api/checkout`, { data: { kind: "claim", boothId, draft: { name: "Smoke Test Comics", tagline: "indie books", website: "https://example.com", color: "#ff2d55", style: "comic", category: "comics" } } });
 let j = await r.json(); console.log("checkout", r.status(), j);
 const txId = j.txId;
 await page.goto(j.url, { waitUntil: "networkidle", timeout: 120000 });
@@ -27,10 +26,10 @@ console.log("url after pay", page.url());
 // check tx
 await login("admin@example.com");
 r = await page.request.get(`${base}/api/admin/transactions/${txId}`); j = await r.json();
-console.log("tx status", j.tx?.status, j.tx?.provider, j.tx?.providerRef, "plot owner?", j.plot?.ownerId, "mail", j.mail?.map((m) => `${m.subject}:${m.status}`), "webhooks", j.webhooks?.map((w) => `${w.type}:${w.status}`));
+console.log("tx status", j.tx?.status, j.tx?.provider, j.tx?.providerRef, "booth owner?", j.booth?.ownerId, "mail", j.mail?.map((m) => `${m.subject}:${m.status}`), "webhooks", j.webhooks?.map((w) => `${w.type}:${w.status}`));
 // tier setup flow
 await login("buyer-smoke@example.com");
-r = await page.request.post(`${base}/api/checkout`, { data: { kind: "tier", plotId, tier: "pro" } }); j = await r.json(); console.log("tier checkout", r.status(), j);
+r = await page.request.post(`${base}/api/checkout`, { data: { kind: "tier", boothId, tier: "pro" } }); j = await r.json(); console.log("tier checkout", r.status(), j);
 const tierTx = j.txId;
 await page.goto(j.url, { waitUntil: "networkidle", timeout: 120000 }); await page.waitForTimeout(2000);
 await page.screenshot({ path: `${S}/co_setup.png`, fullPage: true });
@@ -39,12 +38,12 @@ if (f2) { await f2.click("button:has-text(\"Save card\")"); await page.waitForTi
 console.log("url after setup", page.url());
 await login("admin@example.com");
 r = await page.request.get(`${base}/api/admin/transactions/${tierTx}`); j = await r.json();
-console.log("tier tx", j.tx?.status, "plot tier", j.plot?.tier);
-r = await page.request.get(`${base}/api/admin/booths/${plotId}`); j = await r.json(); console.log("booth", j.plot?.tier, j.plot?.subscriptionStatus, j.plot?.subscriptionId, "owner", j.owner?.email);
+console.log("tier tx", j.tx?.status, "booth tier", j.booth?.tier);
+r = await page.request.get(`${base}/api/admin/booths/${boothId}`); j = await r.json(); console.log("booth", j.booth?.tier, j.booth?.subscriptionStatus, j.booth?.subscriptionId, "owner", j.owner?.email);
 // refund the claim partially then fully
 r = await page.request.post(`${base}/api/admin/transactions/${txId}`, { data: { action: "refund", amountCents: 100, reason: "smoke partial" } }); console.log("partial refund", r.status(), await r.text());
 r = await page.request.post(`${base}/api/admin/transactions/${txId}`, { data: { action: "refund", reason: "smoke full" } }); console.log("full refund", r.status(), await r.text());
-r = await page.request.get(`${base}/api/admin/booths/${plotId}`); j = await r.json(); console.log("booth after refund owner", j.plot?.ownerId, "hidden", j.plot?.hidden);
+r = await page.request.get(`${base}/api/admin/booths/${boothId}`); j = await r.json(); console.log("booth after refund owner", j.booth?.ownerId, "hidden", j.booth?.hidden);
 // webhooks page + reprocess
 r = await page.request.get(`${base}/api/admin/webhooks`); j = await r.json(); console.log("webhooks", j.total, j.rows.slice(0, 4).map((w) => `${w.type}:${w.status}:${w.error || ""}`));
 if (j.rows[0]) { r = await page.request.post(`${base}/api/admin/webhooks/${j.rows[0].id}/reprocess`); console.log("reprocess", r.status(), await r.text()); }

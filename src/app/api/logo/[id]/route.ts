@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { getPlot } from "@/lib/economy";
+import { getBooth } from "@/lib/economy";
 
 /**
- * Serves a building's logo. Stored logos are data URLs (portable, no object
- * storage needed); if none is set we render initials on the building color.
+ * Serves a booth's logo. Stored logos are data URLs (portable, no object
+ * storage needed); if none is set we render initials on the booth color.
  * Same-origin, so Three.js can use it as a texture without CORS games.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const p = await getPlot(Number(id));
+  const p = await getBooth(Number(id));
   if (!p) return new NextResponse("not found", { status: 404 });
   if (p.logoUrl?.startsWith("data:")) {
     const m = /^data:([^;]+);base64,(.*)$/.exec(p.logoUrl);

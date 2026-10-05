@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/pages/Shell";
 import { currentUser } from "@/lib/auth";
-import { SignIn } from "@/components/city/panels/common";
+import { SignIn } from "@/components/hall/panels/common";
 
 export const metadata = { title: "Sign in" };
 

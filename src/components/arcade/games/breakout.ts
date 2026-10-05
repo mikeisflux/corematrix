@@ -1,6 +1,6 @@
 import type { GameRunner } from "../GameShell";
 
-/** Block Party: breakout where the bricks are a skyline. +10 per brick, +50 per cleared level, 3 balls. */
+/** Block Party: breakout where the bricks are stacked longboxes. +10 per brick, +50 per cleared level, 3 balls. */
 export const runBreakout: GameRunner = (canvas, onScore, onEnd) => {
   const ctx = canvas.getContext("2d")!;
   const W = canvas.width, H = canvas.height;

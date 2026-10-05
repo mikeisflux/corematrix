@@ -6,7 +6,7 @@ interface Stats {
   pending: number; disputes: number; booths: number; boothValue: number; users: number; unread: number; failedEmails: number; webhookFailures: number;
   mrr: number; plans: Record<string, number>; divinity: { ok: boolean; detail: string }; testMode: boolean; visits7d: number; clicks7d: number; signups7d: number;
   checks: { label: string; ok: boolean; hint: string }[];
-  recentTx: { id: string; kind: string; plotId: number; status: string; amountCents: number; createdAt: number; provider: string }[];
+  recentTx: { id: string; kind: string; boothId: number; status: string; amountCents: number; createdAt: number; provider: string }[];
   recentInbox: { id: string; fromEmail: string; fromName: string | null; subject: string; read: boolean; createdAt: number; channel: string }[];
 }
 const HEAT = ["var(--heat-1)", "var(--heat-2)", "var(--heat-3)", "var(--heat-4)", "var(--heat-5)", "var(--heat-6)", "var(--heat-7)"];
@@ -40,7 +40,7 @@ export default function Dashboard() {
             <div className="admCard__hd"><h2 className="admH2">Recent transactions</h2><Link className="admBtn admBtn--sm" href="/admin/transactions">All</Link></div>
             {data.recentTx.length === 0 ? <Empty>No transactions yet.</Empty> : (
               <div className="admTableWrap"><table className="admTable"><thead><tr><th>Kind</th><th>Booth</th><th>Status</th><th>Amount</th><th>When</th></tr></thead>
-                <tbody>{data.recentTx.map((o) => <tr key={o.id}><td><Link href={`/admin/transactions/${o.id}`}>{o.kind}</Link></td><td className="admMono">{o.plotId ? `#${o.plotId}` : "—"}</td><td><Badge>{o.status}</Badge></td><td className="num"><Money cents={o.amountCents} /></td><td><DateTime value={o.createdAt} /></td></tr>)}</tbody>
+                <tbody>{data.recentTx.map((o) => <tr key={o.id}><td><Link href={`/admin/transactions/${o.id}`}>{o.kind}</Link></td><td className="admMono">{o.boothId ? `#${o.boothId}` : "—"}</td><td><Badge>{o.status}</Badge></td><td className="num"><Money cents={o.amountCents} /></td><td><DateTime value={o.createdAt} /></td></tr>)}</tbody>
               </table></div>
             )}
           </div>

@@ -12,5 +12,5 @@ export async function GET(req: Request) {
   if (tx.kind === "coins") return NextResponse.redirect(`${SITE_URL}/arcade?paid=1`);
   if (tx.kind === "billboard") return NextResponse.redirect(`${SITE_URL}/dashboard?billboard=1`);
   const welcome = tx.kind === "claim" || tx.kind === "takeover" ? "&welcome=1" : "";
-  return NextResponse.redirect(`${SITE_URL}/plot/${tx.plotId}?paid=${tx.kind}${welcome}`);
+  return NextResponse.redirect(`${SITE_URL}/booth/${tx.boothId}?paid=${tx.kind}${welcome}`);
 }
