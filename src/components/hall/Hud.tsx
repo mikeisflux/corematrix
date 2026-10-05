@@ -119,7 +119,7 @@ export function Hud() {
       {mode === "walk" && <Joystick />}
       {toast && <div className="absolute bottom-16 left-1/2 -translate-x-1/2 panel rounded-full px-4 py-2 text-sm fade-up">{toast}</div>}
       {!loaded && <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg)]/70 text-sm text-slate-300">Opening the hall…</div>}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "WASD walk · shift run · Q turn · E open booth · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "arrows / WASD walk · drag the mouse to look · shift run · E open booth · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
     </div>
   );
 }

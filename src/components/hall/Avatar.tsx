@@ -8,7 +8,7 @@ import { AvatarRig, useModelUrl, type Motion } from "./models";
 import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
-export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0 };
+export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
 const keys = new Set<string>();
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => { const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable) return; keys.add(e.key.toLowerCase()); });
@@ -95,11 +95,30 @@ export function Player() {
   const setWalkTarget = useHall((s) => s.setWalkTarget);
   const select = useHall((s) => s.select);
   const booths = useHall((s) => s.booths);
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const group = useRef<THREE.Group>(null);
   const pos = useRef(new THREE.Vector3(0, 0, Z0 + 28));
   const heading = useRef(0); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
   const yaw = useRef(0);
+  const pitch = useRef(0); // mouse tilt, radians; + looks up
+
+  // mouse look: drag anywhere on the hall to turn the view (a short click still opens banners)
+  useEffect(() => {
+    if (mode !== "walk") return;
+    const el = gl.domElement;
+    let down = false, lx = 0, ly = 0;
+    const onDown = (e: PointerEvent) => { if (e.button !== 0 && e.button !== 2) return; down = true; lx = e.clientX; ly = e.clientY; };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      input.yawDrag -= (e.clientX - lx) * 0.0045; input.pitchDrag -= (e.clientY - ly) * 0.003;
+      lx = e.clientX; ly = e.clientY;
+    };
+    const onUp = () => { down = false; };
+    const onCtx = (e: Event) => e.preventDefault();
+    el.addEventListener("pointerdown", onDown); window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); window.addEventListener("blur", onUp); el.addEventListener("contextmenu", onCtx);
+    el.style.cursor = "grab";
+    return () => { el.removeEventListener("pointerdown", onDown); window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("blur", onUp); el.removeEventListener("contextmenu", onCtx); el.style.cursor = ""; };
+  }, [mode, gl]);
   const motion = useRef<Motion>({ speed: 0 }).current;
   const near = useRef<number | null>(null);
   const lastNear = useRef(0);
@@ -131,14 +150,17 @@ export function Player() {
     if (mode !== "walk" || !group.current) return;
     const d = Math.min(dt, 0.05);
     let fx = 0, fz = 0;
+    // arrows: up/down walk, left/right turn. WASD: W/S walk, A/D strafe. Q/E also turn.
     if (keys.has("w") || keys.has("arrowup")) fz += 1;
     if (keys.has("s") || keys.has("arrowdown")) fz -= 1;
-    if (keys.has("a") || keys.has("arrowleft")) fx -= 1;
-    if (keys.has("d") || keys.has("arrowright")) fx += 1;
+    if (keys.has("a")) fx -= 1;
+    if (keys.has("d")) fx += 1;
+    const joy = Math.hypot(input.joy.x, input.joy.y) > 0.05;
     fx += input.joy.x; fz -= input.joy.y;
-    if (keys.has("q")) yaw.current += 1.8 * d;
-    if (keys.has("e") && false) yaw.current -= 1.8 * d;
+    if (keys.has("arrowleft") || keys.has("q")) yaw.current += 2.2 * d;
+    if (keys.has("arrowright")) yaw.current -= 2.2 * d;
     yaw.current += input.yawDrag; input.yawDrag = 0;
+    pitch.current = THREE.MathUtils.clamp(pitch.current + input.pitchDrag, -0.45, 0.6); input.pitchDrag = 0;
     const run = keys.has("shift") || input.run;
     const len = Math.hypot(fx, fz);
     if (len <= 0.01) motion.speed = 0;
@@ -153,9 +175,8 @@ export function Player() {
       if (!blocked(pos.current.x, nzp)) pos.current.z = nzp;
       heading.current = Math.atan2(dx, dz);
       motion.speed = run ? 2 : 1;
-      // the camera yaw eases toward the heading so the player sees where they go
-      let diff = heading.current - yaw.current; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      yaw.current += diff * Math.min(1, d * 1.5);
+      // on the touch joystick the view eases toward the heading; with keys and mouse the view is yours
+      if (joy) { let diff = heading.current - yaw.current; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); yaw.current += diff * Math.min(1, d * 1.5); }
     }
     group.current.position.copy(pos.current);
     group.current.rotation.y = heading.current;
@@ -165,7 +186,7 @@ export function Player() {
     const cx = THREE.MathUtils.clamp(pos.current.x - Math.sin(yaw.current) * back, X0 + 3, X0 + HALL_LENGTH - 3);
     const cz = THREE.MathUtils.clamp(pos.current.z - Math.cos(yaw.current) * back, Z0 + 3, Z0 + HALL_DEPTH - 3);
     camera.position.lerp(new THREE.Vector3(cx, up, cz), Math.min(1, d * 6));
-    camera.lookAt(pos.current.x + Math.sin(yaw.current) * 20, 4.5, pos.current.z + Math.cos(yaw.current) * 20);
+    camera.lookAt(pos.current.x + Math.sin(yaw.current) * 20, 4.5 + Math.tan(pitch.current) * 20 + (fp.current ? 1.1 : 0), pos.current.z + Math.cos(yaw.current) * 20);
     // nearest claimed booth in front of us, every 0.25s
     if (state.clock.elapsedTime - lastNear.current > 0.25) {
       lastNear.current = state.clock.elapsedTime;

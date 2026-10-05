@@ -49,7 +49,7 @@ export function AvatarPanel() {
         <div><label className="label">Shirt</label><Swatches list={OUTFIT_COLORS} value={avatar.shirt} onPick={(shirt) => setAvatar({ shirt })} /></div>
         <div><label className="label">Pants</label><Swatches list={OUTFIT_COLORS} value={avatar.pants} onPick={(pants) => setAvatar({ pants })} /></div>
         <button className="btn-primary w-full" onClick={() => { setMode("walk"); setPanel("none"); }}>Walk the floor →</button>
-        <p className="text-[11px] text-slate-500">WASD / arrows to walk, Shift to run, Q to turn, E at a booth to open it, V for first person. On phones, use the joystick.</p>
+        <p className="text-[11px] text-slate-500">Arrow keys or WASD to walk (left/right arrows turn, A/D sidestep), drag the mouse to look around, Shift to run, E at a booth to open it, V for first person. On phones, use the joystick.</p>
       </div>
     </>
   );
