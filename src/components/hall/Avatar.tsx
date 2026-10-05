@@ -175,7 +175,8 @@ export function Player() {
       const nx = fx / Math.max(1, len), nz = fz / Math.max(1, len);
       // camera-relative: forward is the direction the camera looks (yaw)
       const sin = Math.sin(yaw.current), cos = Math.cos(yaw.current);
-      const dx = nx * cos + nz * sin, dz = -nx * sin + nz * cos;
+      // right of a figure facing (sin, cos) is (-cos, sin)
+      const dx = -nx * cos + nz * sin, dz = nx * sin + nz * cos;
       const sp = (run ? RUN : WALK) * d;
       const nxp = pos.current.x + dx * sp, nzp = pos.current.z + dz * sp;
       if (!blocked(nxp, pos.current.z)) pos.current.x = nxp;
