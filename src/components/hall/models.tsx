@@ -58,7 +58,7 @@ function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onCl
   const colorKey = JSON.stringify([colors, emissive]);
   const obj = useMemo(() => {
     const c = cloneWithMaterials(scene, colors, emissive);
-    if (maps) c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && maps[(m.material as THREE.Material).name]) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.map = maps[(m.material as THREE.Material).name]; mm.color.set("#ffffff"); m.material = mm; } });
+    if (maps) c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && maps[(m.material as THREE.Material).name]) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.map = maps[(m.material as THREE.Material).name]; mm.color.set("#ffffff"); mm.transparent = true; mm.alphaTest = 0.02; m.material = mm; } });
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, colorKey, maps]);

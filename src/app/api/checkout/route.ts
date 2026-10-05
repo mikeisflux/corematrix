@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { startBannerHeight, startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft } from "@/lib/economy";
+import { startBannerHeight, startBooks, startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft } from "@/lib/economy";
 import { nextStepUrl } from "@/lib/payments";
 import { COIN_RULES } from "@/lib/arcade";
 
@@ -10,7 +10,7 @@ const Draft = z.object({
   tagline: z.string().max(120).optional(),
   description: z.string().max(800).optional(),
   website: z.string().max(300).optional(),
-  logoUrl: z.string().max(400_000).optional(),
+  logoUrl: z.string().max(1_500_000).optional(),
   color: z.string().max(9).optional(),
   accent: z.string().max(9).optional(),
   style: z.string().max(20).optional(),
@@ -23,6 +23,7 @@ const Body = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("takeover"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
   z.object({ kind: z.literal("boost"), boothId: z.number().int().positive(), amountCents: z.number().int().positive() }),
   z.object({ kind: z.literal("banner"), boothId: z.number().int().positive(), height: z.number().int().min(6).max(16) }),
+  z.object({ kind: z.literal("book"), boothId: z.number().int().positive(), qty: z.number().int().min(1).max(16) }),
   z.object({ kind: z.literal("tier"), boothId: z.number().int().positive(), tier: z.enum(["pro", "landmark"]) }),
   z.object({ kind: z.literal("coins"), packId: z.string().max(30) }),
   z.object({
@@ -56,6 +57,10 @@ export async function POST(req: Request) {
     }
     if (b.kind === "boost") {
       const tx = await startBoost(b.boothId, u.id, b.amountCents);
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
+    }
+    if (b.kind === "book") {
+      const tx = await startBooks(b.boothId, u.id, b.qty);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "banner") {

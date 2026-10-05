@@ -75,6 +75,7 @@ async function seedHouseBooth(db: LibSQLDatabase<typeof schema>, ownerId: string
     cloth: "#0b0f1a",
     category: "comics",
     bannerHeight: 16,
+    bookSlots: 16,
     tier: "landmark",
     tierUntil: forever,
     notForSaleUntil: forever,

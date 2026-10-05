@@ -52,8 +52,33 @@ export const ART_SLOTS = {
     where: "Across the back wall, the header on posts and the hanging sign (all four faces of an island tower).",
     tip: "Logo left or centred, one line of text. Avoid thin strokes: it is seen from 20+ ft away.",
   },
+  book: {
+    name: "Comic cover",
+    ratio: "2:3",
+    width: 600, height: 900,
+    where: "A book standing on one of the platforms on your table.",
+    tip: "Upload the front cover at 2:3. Standard comic covers (6.625 × 10.25 in) fit with a sliver trimmed top and bottom.",
+  },
+  drape: {
+    name: "Table drape",
+    ratio: "3:1",
+    width: 1800, height: 600,
+    where: "Printed on the aisle-facing front of every table skirt in your booth, centred on your cloth colour.",
+    tip: "A logo on a transparent PNG works best: it is fitted and centred, never cropped. Anything you upload is scaled to fit inside 3:1.",
+  },
 } as const;
 export type ArtSlot = keyof typeof ART_SLOTS;
+/** Art slot keys stored per booth: a slot name, or "book:N" for the Nth display platform. */
+export const bookSlotKey = (n: number) => `book:${n}`;
+export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
+/** "Display a book": $5 per platform, one-time. How many platforms a space has depends on its tables (3 per 6 ft table, 4 per 8 ft). */
+export const BOOK_PRICE_CENTS = 500;
+export function bookCapacity(size: string, kind: string): number {
+  if (kind === "artist") return 3;
+  if (size === "20x20") return 16;
+  if (size === "20x10") return 6;
+  return 3;
+}
 export const ART_MAX_UPLOAD = 12 * 1024 * 1024;
 export const ART_FORMATS = "PNG, JPG, WebP or PDF (first page)";
 

@@ -27,6 +27,15 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   // uploaded artwork wins over the generated signage; the version number busts the texture cache on re-upload
   const wideUrl = booth.art?.wide ? `/api/art/${booth.id}/wide?v=${booth.art.wide}` : null;
   const portraitUrl = booth.art?.portrait ? `/api/art/${booth.id}/portrait?v=${booth.art.portrait}` : null;
+  const drapeUrl = booth.art?.drape ? `/api/art/${booth.id}/drape?v=${booth.art.drape}` : null;
+  const drapeArt = useMemo(() => (drapeUrl ? logoTexture(drapeUrl) : null), [drapeUrl]);
+  // standing comic covers: slot "book:N" → platform N, counted table by table
+  const bookKey = Object.entries(booth.art ?? {}).filter(([k]) => k.startsWith("book:")).map(([k, v]) => `${k}=${v}`).sort().join("|");
+  const books = useMemo(() => {
+    const m = new Map<number, THREE.Texture>();
+    for (const part of bookKey.split("|").filter(Boolean)) { const [k, v] = part.split("="); m.set(Number(k.slice(5)), logoTexture(`/api/art/${booth.id}/${k}?v=${v}`)); }
+    return m;
+  }, [bookKey, booth.id]);
   const banner = useMemo(() => {
     const t = wideUrl ? logoTexture(wideUrl) : bannerTexture({ name: booth.name ?? "", tagline: booth.tagline, color: booth.color, accent: booth.accent, style: booth.style, label: booth.label, wide: booth.size === "20x10" || booth.size === "20x20" });
     if (booth.house) { t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; }
@@ -35,7 +44,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const portrait = useMemo(() => portraitUrl ? logoTexture(portraitUrl) : signTexture([booth.name ?? "", booth.tagline ?? ""].filter(Boolean), { bg: booth.color, fg: luminance(booth.color) < 0.35 ? "#fff" : "#0b0f1a", w: 256, h: 640, size: 40 }), [portraitUrl, booth.name, booth.tagline, booth.color]);
   const hang = useMemo(() => wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
-  const logo = useMemo(() => logoTexture(booth.hasLogo || !preview ? `/api/logo/${booth.id}` : `/api/logo/${booth.id}`), [booth.id, booth.hasLogo, preview]);
+  const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
   if (!space) return null;
   const facing = space.facing;
   const rotY = facing === -1 ? Math.PI : 0;
@@ -83,7 +92,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         </group>
         {/* tables on four sides + corner drape posts */}
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, Math.PI / 2], [-7.5, 0, 0], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} wide />)}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, Math.PI / 2], [-7.5, 0, 0], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bannerClick} wide />)}
         {[[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <mesh key={i} position={[x, 4, z]}><cylinderGeometry args={[0.15, 0.15, 8, 6]} /><meshStandardMaterial color="#374151" /></mesh>)}
         {/* roll-up banner behind each table, facing out (3×6 by default, up to 8×16 when upgraded) */}
         {([[0, -5.6, Math.PI], [0, 5.6, 0], [-5.6, 0, -Math.PI / 2], [5.6, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
@@ -102,7 +111,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={0.55} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
         {/* low drape behind the table */}
         <mesh position={[-w / 2 + 0.3, 1.6, 0]}><boxGeometry args={[0.3, 3.2, d]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>
-        <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} />
+        <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />
         {/* print rack on the table */}
         {[-1.6, 0, 1.6].map((z) => <mesh key={z} position={[w / 2 - 2.2, 3.1, z]} rotation={[-0.35, 0, 0]}><boxGeometry args={[0.1, 1.3, 1.1]} /><meshStandardMaterial color={booth.accent} /></mesh>)}
         {/* retractable banner stand */}
@@ -139,7 +148,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       )}
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
-      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} />}
+      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={3} onBook={bannerClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
       {(wide ? [-5, 5] : [0]).map((z) => (
         <Prop key={z} name="banner_stand" position={[-w / 2 + 1.1, 0, z]} rotation={[0, Math.PI / 2, 0]} scale={[bw / 3, bh / 6, 1]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, bh / 2 + 0.2, 0]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}><TwoSided w={bw} h={bh}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
@@ -161,14 +170,28 @@ export function TwoSided({ w, h, children }: { w: number; h: number; children: R
   );
 }
 
-function Table({ x, z, rot, cloth, wide }: { x: number; z: number; rot: number; cloth: string; wide?: boolean }) {
+/** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by platform, this table owning platforms first..first+n-1. */
+function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (e: { stopPropagation: () => void }) => void }) {
   const len = wide ? 8 : 6;
-  return <Prop name={wide ? "table_wide" : "table"} position={[x, 0, z]} rotation={[0, rot, 0]} colors={{ cloth }} fallback={<TableFallback len={len} cloth={cloth} />} />;
+  const n = Math.max(2, Math.round(len / 2));
+  return (
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+      <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} />} />
+      {books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
+        // platform i sits at x 0.35, top at y 3.03; the book leans back a touch and faces the aisle (+x)
+        <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={onBook}>
+          <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
+          <mesh position={[0, 0.54, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 1.08]} /><meshStandardMaterial map={tex} roughness={0.55} /></mesh>
+        </group>
+      ))}
+    </group>
+  );
 }
-function TableFallback({ len, cloth }: { len: number; cloth: string }) {
+function TableFallback({ len, cloth, art }: { len: number; cloth: string; art?: THREE.Texture | null }) {
   return (
     <group>
       <mesh position={[0, 1.3, 0]}><boxGeometry args={[2.6, 2.6, len]} /><meshStandardMaterial color={cloth} roughness={0.9} /></mesh>
+      {art && <mesh position={[1.31, 1.15, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[len - 0.3, (len - 0.3) / 3]} /><meshStandardMaterial map={art} roughness={0.9} transparent alphaTest={0.02} /></mesh>}
       <mesh position={[0, 2.65, 0]}><boxGeometry args={[2.7, 0.1, len + 0.1]} /><meshStandardMaterial color="#f8fafc" /></mesh>
       {/* a few products */}
       {[-1.6, 0, 1.6].map((o) => <mesh key={o} position={[0.3, 2.9, o]}><boxGeometry args={[1.2, 0.4, 1]} /><meshStandardMaterial color="#e5e7eb" /></mesh>)}

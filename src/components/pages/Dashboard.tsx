@@ -3,14 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, type ArtSlot } from "@/lib/config";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string }
 interface Detail {
-  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: { portrait?: number; wide?: number }; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -165,6 +165,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
 
           <Edit p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
+          <Books p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Code title="Conversion pixel" blurb="Put this on your thank-you / signup success page. Pass the order value in cents with ?v= to see revenue next to clicks." code={`<img src="${origin}/api/px/${p.id}?v=0" width="1" height="1" alt="" />`} />
@@ -388,10 +389,16 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
   const upload = async (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
+    setMsg("Uploading logo…");
     const r = await fetch("/api/upload", { method: "POST", body: fd });
     const j = await r.json();
     if (!r.ok) return setMsg(j.error);
     setD((x) => ({ ...x, logoUrl: j.url }));
+    // save straight away so it's on the floor without a second click
+    try {
+      const saved = await api<{ booth: Detail["booth"] }>(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ logoUrl: j.url }) });
+      onSaved(saved.booth); setMsg("Logo saved. It's on your booth now.");
+    } catch (e) { setMsg((e as Error).message); }
   };
   return (
     <div className="rounded-2xl border border-white/10 p-4">
@@ -404,7 +411,7 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
         <div>
           <label className="label">Logo</label>
           <div className="flex items-center gap-2">
-            <img src={d.logoUrl || `/api/logo/${p.id}`} alt="" className="h-12 w-12 rounded-lg bg-white/10 object-cover" />
+            <img src={d.logoUrl || `/api/logo/${p.id}`} alt="" className="h-12 w-12 rounded-lg bg-white/10 object-contain" />
             <label className="btn-ghost cursor-pointer text-xs">Upload<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></label>
             <input className="input text-xs" placeholder="or image URL" value={d.logoUrl.startsWith("data:") ? "" : d.logoUrl} onChange={(e) => setD({ ...d, logoUrl: e.target.value })} />
           </div>
@@ -432,10 +439,96 @@ function Code({ title, blurb, code }: { title: string; blurb: string; code: stri
   );
 }
 
+/** PDF → PNG in the browser (first page), sized for the slot; images pass through. */
+async function fileToImage(file: File, want: { width: number; height: number }): Promise<File> {
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return file;
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const page = await doc.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(6, Math.max(want.width / base.width, want.height / base.height));
+  const vp = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("render failed"))), "image/png"));
+  return new File([blob], file.name.replace(/\.pdf$/i, "") + ".png", { type: "image/png" });
+}
+/** Upload + save one art slot (slot key may be "book:N"). Returns the booth's new art map. */
+async function uploadArt(boothId: number, slot: string, file: File, want: { width: number; height: number }): Promise<Record<string, number>> {
+  if (file.size > ART_MAX_UPLOAD) throw new Error("Keep the file under 12 MB");
+  const img = await fileToImage(file, want);
+  const fd = new FormData(); fd.append("file", img); fd.append("slot", slot);
+  const r = await fetch("/api/art/upload", { method: "POST", body: fd });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || "Upload failed");
+  const saved = await api<{ art: Record<string, number> }>(`/api/booth/${boothId}/art`, { method: "POST", body: JSON.stringify({ slot, url: j.url }) });
+  return saved.art;
+}
+
+/** "Display a book": $5 per platform; each unlocked platform takes a 2:3 cover that stands on the table. */
+function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
+  const cap = bookCapacity(p.size, p.kind);
+  const owned = Math.min(cap, p.bookSlots || 0);
+  const [qty, setQty] = useState(1);
+  const [busy, setBusy] = useState<string | null>(null);
+  const spec = ART_SLOTS.book;
+  const buy = async () => {
+    setBusy("buy");
+    try { const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: "book", boothId: p.id, qty }) }); window.location.href = r.url; }
+    catch (e) { setMsg((e as Error).message); setBusy(null); }
+  };
+  const upload = async (n: number, file: File) => {
+    setBusy(bookSlotKey(n));
+    try { onChanged(await uploadArt(p.id, bookSlotKey(n), file, spec)); setMsg(`Book ${n + 1} is on your table.`); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  const remove = async (n: number) => {
+    setBusy(bookSlotKey(n));
+    try { const r = await api<{ art: Record<string, number> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot: bookSlotKey(n), url: null }) }); onChanged(r.art); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  return (
+    <div className="rounded-2xl border border-white/10 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Books on display · {owned}/{cap} platforms</div>
+        <div className="text-[11px] text-slate-500">{formatMoney(BOOK_PRICE_CENTS)} per book, one-time</div>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">Your table has {cap} display platforms. Unlock one and stand a comic on it: upload the front cover at {spec.width} × {spec.height} px ({spec.ratio}; minimum {spec.width / 2} × {spec.height / 2}). {spec.tip}</p>
+      {owned < cap && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select className="input w-auto" value={qty} onChange={(e) => setQty(Number(e.target.value))}>{Array.from({ length: cap - owned }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} {n === 1 ? "book" : "books"} · {formatMoney(n * BOOK_PRICE_CENTS)}</option>)}</select>
+          <button className="btn-primary text-xs" disabled={busy === "buy"} onClick={buy}>Display {qty === 1 ? "a book" : `${qty} books`}</button>
+        </div>
+      )}
+      {owned > 0 && (
+        <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+          {Array.from({ length: owned }, (_, n) => {
+            const v = p.art?.[bookSlotKey(n)];
+            return (
+              <div key={n} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+                <div className="mx-auto overflow-hidden rounded-md border border-white/10 bg-slate-900" style={{ width: 56, height: 84 }}>
+                  {v ? <img src={`/api/art/${p.id}/${bookSlotKey(n)}?v=${v}`} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[10px] text-slate-500">#{n + 1}</div>}
+                </div>
+                <label className={`btn-ghost mt-2 block cursor-pointer text-[11px] ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === bookSlotKey(n) ? "…" : v ? "Replace" : "Upload cover"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(n, f); e.target.value = ""; }} /></label>
+                {v && <button className="mt-1 text-[11px] text-slate-500 hover:text-rose-300" onClick={() => remove(n)}>remove</button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Full-size banner artwork: PNG/JPG/WebP straight up, PDFs rendered to an image here in the browser first. */
-function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: { portrait?: number; wide?: number }) => void }) {
+function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
   const [busy, setBusy] = useState<ArtSlot | null>(null);
-  const slots = Object.keys(ART_SLOTS) as ArtSlot[];
+  const slots = (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book");
   const toImage = async (file: File, slot: ArtSlot): Promise<File> => {
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return file;
     const pdfjs = await import("pdfjs-dist");
@@ -462,7 +555,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
       const fd = new FormData(); fd.append("file", img); fd.append("slot", slot);
       const r = await fetch("/api/art/upload", { method: "POST", body: fd });
       const j = await r.json(); if (!r.ok) throw new Error(j.error || "Upload failed");
-      const saved = await api<{ art: { portrait?: number; wide?: number } }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: j.url }) });
+      const saved = await api<{ art: Record<string, number> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: j.url }) });
       onChanged(saved.art);
       setMsg(`${ART_SLOTS[slot].name} updated. It's on the floor now.`);
     } catch (e) { setMsg((e as Error).message); }
@@ -470,7 +563,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
   };
   const remove = async (slot: ArtSlot) => {
     setBusy(slot);
-    try { const saved = await api<{ art: { portrait?: number; wide?: number } }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: null }) }); onChanged(saved.art); setMsg("Back to the generated banner."); }
+    try { const saved = await api<{ art: Record<string, number> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: null }) }); onChanged(saved.art); setMsg("Back to the generated banner."); }
     catch (e) { setMsg((e as Error).message); }
     setBusy(null);
   };
@@ -493,7 +586,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">{spec.ratio}</span>
               </div>
               <div className="mt-3 flex gap-3">
-                <div className={`shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-900 ${portrait ? "h-28 w-14" : "h-14 w-56"}`}>
+                <div className="shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-900" style={{ height: portrait ? 112 : 56, aspectRatio: `${spec.width} / ${spec.height}` }}>
                   {v ? <img src={`/api/art/${p.id}/${slot}?v=${v}`} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[10px] text-slate-500">{spec.width}×{spec.height}</div>}
                 </div>
                 <div className="text-[11px] text-slate-400">

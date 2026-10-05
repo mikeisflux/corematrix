@@ -1,0 +1,1 @@
+ALTER TABLE `booths` ADD `book_slots` integer DEFAULT 0 NOT NULL;

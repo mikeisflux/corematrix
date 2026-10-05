@@ -31,7 +31,7 @@ const Patch = z.object({
   tagline: z.string().max(120).optional(),
   description: z.string().max(800).optional(),
   website: z.string().max(300).optional(),
-  logoUrl: z.string().max(400_000).nullable().optional(),
+  logoUrl: z.string().max(1_500_000).nullable().optional(),
   color: z.string().max(9).optional(),
   accent: z.string().max(9).optional(),
   style: z.string().max(20).optional(),

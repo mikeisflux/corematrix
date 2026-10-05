@@ -7,13 +7,15 @@ export interface HallBooth {
   tagline: string | null;
   website: string | null;
   hasLogo: boolean;
+  logoVersion?: number; // bumps when the logo changes so the floor reloads it
   color: string;
   accent: string;
   style: string;
   cloth: string;
   bannerHeight: number;
   house?: boolean; // the show's own booth: flagship build
-  art?: { portrait?: number; wide?: number }; // uploaded banner art, slot → version
+  art?: Record<string, number>; // uploaded art: portrait | wide | drape | book:N → version
+  bookSlots?: number; // paid display platforms
   category: string;
   size: string;
   kind: string;

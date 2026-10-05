@@ -4,6 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { getBooth, liveBooth } from "@/lib/economy";
 import { isArtSlot, setArt, artFlagsFor } from "@/lib/art";
 import { publish } from "@/lib/realtime";
+import { bookCapacity, BOOK_PRICE_CENTS } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 const Body = z.object({ slot: z.string(), url: z.string().max(6_000_000).nullable() });
@@ -19,6 +20,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success || !isArtSlot(parsed.data.slot)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const { slot, url } = parsed.data;
+  if (slot.startsWith("book:")) {
+    const n = Number(slot.slice(5));
+    if (!(n < Math.min(p.bookSlots, bookCapacity(p.size, p.kind)))) return NextResponse.json({ error: `Platform ${n + 1} isn't unlocked yet. Display a book for ${BOOK_PRICE_CENTS / 100} dollars first.` }, { status: 400 });
+  }
   if (url === null) await setArt(boothId, slot, null);
   else {
     const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(url);

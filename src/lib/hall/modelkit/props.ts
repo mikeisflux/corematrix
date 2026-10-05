@@ -11,12 +11,16 @@ const mat = (name: string, color: string, extra: Partial<THREE.MeshStandardMater
 const mesh = (name: string, geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const me = new THREE.Mesh(geo, m); me.name = name; me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true; return me; };
 const group = (name: string) => { const g = new THREE.Group(); g.name = name; return g; };
 
-/** 6 ft draped table, origin at floor center. Materials: cloth, top, metal, product. */
+/** 6 ft draped table, origin at floor center, aisle side is +x. Materials: cloth, cloth_front (the skirt panel facing the aisle, takes the owner's drape art), top, metal, product. */
 export function buildTable(len = 6): THREE.Group {
   const g = group("table");
   const cloth = mat("cloth", "#111827", { roughness: 0.9 }), top = mat("top", "#f8fafc", { roughness: 0.5 }), metal = mat("metal", "#6b7280", { metalness: 0.6, roughness: 0.4 }), product = mat("product", "#e5e7eb");
+  const clothFront = mat("cloth_front", "#111827", { roughness: 0.9 });
   const skirt = new THREE.BoxGeometry(2.6, 2.45, len); skirt.translate(0, 1.225, 0);
   g.add(mesh("skirt", skirt, cloth));
+  // printed front panel: 3:1, reads left-to-right from the aisle
+  const front = new THREE.PlaneGeometry(len - 0.3, (len - 0.3) / 3); front.rotateY(Math.PI / 2); front.translate(1.305, 1.15, 0);
+  g.add(mesh("skirt_front", front, clothFront));
   const drape = new THREE.BoxGeometry(2.75, 0.3, len + 0.15); drape.translate(0, 2.35, 0);
   g.add(mesh("drape", drape, cloth));
   const topGeo = new THREE.BoxGeometry(2.7, 0.1, len + 0.1); topGeo.translate(0, 2.55, 0);

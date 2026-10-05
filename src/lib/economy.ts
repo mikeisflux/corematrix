@@ -5,7 +5,7 @@
  */
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
-import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID } from "@/lib/config";
+import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, BOOK_PRICE_CENTS, bookCapacity } from "@/lib/config";
 import { clampStr, isHexColor, newId, normalizeUrl, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
@@ -17,8 +17,8 @@ import { sendTemplate } from "@/lib/sendgrid";
 
 export type Booth = typeof schema.booths.$inferSelect;
 
-export function liveBooth(p: Booth, art?: { portrait?: number; wide?: number }) {
-  return { art, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+export function liveBooth(p: Booth, art?: Record<string, number>) {
+  return { art, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: p.updatedAt ?? 0, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -39,7 +39,8 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
   const name = clampStr(d.name, 40);
   if (!name) throw new Error("Give your booth a name");
   const website = normalizeUrl(d.website);
-  const logo = d.logoUrl ? (d.logoUrl.startsWith("/") ? d.logoUrl : normalizeUrl(d.logoUrl)) : null;
+  // logos: a local path, an uploaded data URL (what /api/upload returns), or a remote http(s) URL
+  const logo = d.logoUrl ? (d.logoUrl.startsWith("/") ? d.logoUrl : /^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(d.logoUrl) && d.logoUrl.length < 1_500_000 ? d.logoUrl : normalizeUrl(d.logoUrl)) : null;
   return {
     name,
     tagline: clampStr(d.tagline, 90),
@@ -223,6 +224,25 @@ export async function startBannerHeight(boothId: number, buyerId: string, height
     status: "pending",
     meta: JSON.stringify({ height, from: p.bannerHeight }),
     createdAt: now(),
+  };
+  await db.insert(schema.transactions).values(tx);
+  await bumpSiteDaily({ checkoutStarts: 1 });
+  return tx as Tx;
+}
+
+/** "Display a book": unlock platforms on the table for standing comic covers, $5 each, one-time; the spend counts toward value. */
+export async function startBooks(boothId: number, buyerId: string, qty: number) {
+  await ensureMigrated();
+  const p = await getBooth(boothId);
+  if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only add books to a booth you own");
+  const cap = bookCapacity(p.size, p.kind);
+  const n = Math.max(1, Math.min(Math.round(qty), cap - p.bookSlots));
+  if (p.bookSlots >= cap) throw new Error(`All ${cap} platforms on your table are already unlocked`);
+  const amt = n * BOOK_PRICE_CENTS;
+  const tx: typeof schema.transactions.$inferInsert = {
+    id: newId(), boothId, kind: "book", buyerId, amountCents: amt, platformCents: amt,
+    valueBefore: p.valueCents, valueAfter: p.valueCents + amt, status: "pending",
+    meta: JSON.stringify({ qty: n }), createdAt: now(),
   };
   await db.insert(schema.transactions).values(tx);
   await bumpSiteDaily({ checkoutStarts: 1 });
@@ -442,6 +462,17 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       .where(eq(schema.booths.id, tx.boothId))
       .returning();
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} raised its banner to ${height} ft`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
+    await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
+  } else if (tx.kind === "book") {
+    const qty = Math.max(1, Number((meta as { qty?: number }).qty) || 1);
+    const cur = await getBooth(tx.boothId);
+    const cap = cur ? bookCapacity(cur.size, cur.kind) : 3;
+    const [p] = await db
+      .update(schema.booths)
+      .set({ bookSlots: sql`min(${cap}, ${schema.booths.bookSlots} + ${qty})`, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .where(eq(schema.booths.id, tx.boothId))
+      .returning();
+    await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} put ${qty} ${qty === 1 ? "book" : "books"} on display`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
     const pm = (meta as { paymentMethodId?: string }).paymentMethodId ?? null;
