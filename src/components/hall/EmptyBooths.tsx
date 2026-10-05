@@ -89,9 +89,10 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
         tmp.rotation.set(0, q.rot + Math.PI / 2, 0);
         tmp.position.set(q.x - q.nx * 1.6, 1.3, q.z - q.nz * 1.6); tmp.updateMatrix(); tables.current?.setMatrixAt(j, tmp.matrix);
         tmp.position.set(q.x - q.nx * 1.6, 2.66, q.z - q.nz * 1.6); tmp.updateMatrix(); tops.current?.setMatrixAt(j, tmp.matrix);
-        // banner centred behind the table
+        // banner centred behind the table, back against the drape so it's visible over the table
+        const back = island ? w / 2 - 1.2 : w - 1.0; // islands: just inside each edge; booths: in front of the back wall
         tmp.rotation.set(0, q.rot, 0);
-        tmp.position.set(q.x - q.nx * 4.4, bannerH / 2 + 0.3, q.z - q.nz * 4.4); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
+        tmp.position.set(q.x - q.nx * back, bannerH / 2 + 0.3, q.z - q.nz * back); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
       });
     });
     for (const m of [tape, floor, drape, rails, posts, card, tables, tops, banners]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
