@@ -15,7 +15,7 @@ export function Hero({ stats }: { stats: Stats }) {
           The comic convention<br /><span className="mk-gradient-text">that never closes.</span>
         </h1>
         <p className="mk-reveal on mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--mk-muted)] md:text-xl" data-delay="2">
-          One exhibit hall, laid out like San Diego&apos;s, open 24/7 in your browser. Publishers, artists and shops own real booths. Fans pick an avatar and walk the floor. Every banner is a door to the exhibitor&apos;s site.
+          One exhibit hall, laid out like the biggest shows, open 24/7 in your browser. Publishers, artists and shops own real booths. Fans pick an avatar and walk the floor. Every banner is a door to the exhibitor&apos;s site.
         </p>
         <div className="mk-reveal on mt-9 flex flex-wrap items-center justify-center gap-3" data-delay="3">
           <Link href="/app?claim=1" className="mk-btn mk-btn--primary">Get a booth from $5</Link>

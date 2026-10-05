@@ -10,7 +10,7 @@ const display = Syne({ variable: "--font-display", subsets: ["latin"], weight: [
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: `${SITE_NAME} — the comic convention that never closes`, template: `%s · ${SITE_NAME}` },
-  description: "A 3D comic convention that never closes. Publishers, artists and shops own booths on a show floor laid out like San Diego's, with real analytics: impressions, visits, clicks and conversions.",
+  description: "A 3D comic convention that never closes. Publishers, artists and shops own booths on a show floor laid out like a real convention, with real analytics: impressions, visits, clicks and conversions.",
   openGraph: { siteName: SITE_NAME, type: "website" },
   twitter: { card: "summary_large_image" },
 };

@@ -1,5 +1,5 @@
 /**
- * The show floor. One long exhibit hall laid out like San Diego's: aisles
+ * The show floor. One long exhibit hall laid out like a major show: aisles
  * numbered 100…3400 run front-to-back, booths line both sides of every aisle
  * (odd numbers west, even east), a wide cross aisle splits the hall in the
  * middle, Halls A–H are slices along the length, Artists' Alley fills the

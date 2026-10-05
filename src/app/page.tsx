@@ -13,7 +13,7 @@ import "@/components/marketing/marketing.css";
 export const revalidate = 60;
 export const metadata: Metadata = {
   title: `${SITE_NAME} — the comic convention that never closes`,
-  description: "A 3D exhibit hall laid out like San Diego's, open 24/7. Publishers, artists and shops own booths from $5. Fans pick an avatar and walk the floor.",
+  description: "A 3D exhibit hall laid out like a real convention floor, open 24/7. Publishers, artists and shops own booths from $5. Fans pick an avatar and walk the floor.",
   openGraph: { images: ["/marketing/hero.jpg"] },
 };
 

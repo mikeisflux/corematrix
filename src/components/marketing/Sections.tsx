@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Tilt } from "./Fx";
 
 const PILLARS = [
-  { k: "01", t: "A real floor plan", d: "Numbered aisles, Halls A–H, a cross aisle, island booths in the middle and Artists' Alley at the east end. If you've walked San Diego, you already know the way.", c: "#ff2bd6" },
+  { k: "01", t: "A real floor plan", d: "Numbered aisles, Halls A–H, a cross aisle, island booths in the middle and Artists' Alley at the east end. If you've walked a big show, you already know the way.", c: "#ff2bd6" },
   { k: "02", t: "Booths that work", d: "Your banner, logo, tagline and link on the show floor, 24/7. A visitor clicks the banner and your site opens in a new tab. Every impression, visit and click is counted.", c: "#00f5ff" },
   { k: "03", t: "An economy with stakes", d: "Any booth can be taken over for 1.25× its value and the seller profits. Boost to defend, upgrade signage, climb the rankings, win the weekly season.", c: "#ffcf5c" },
 ];

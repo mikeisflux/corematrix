@@ -11,7 +11,7 @@ export default function HowItWorks() {
         <header>
           <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">How it works</div>
           <h1 className="mt-2 text-4xl font-bold">{SITE_NAME}: the comic convention that never closes.</h1>
-          <p className="mt-2 text-lg text-slate-300">One exhibit hall, laid out like San Diego's, open 24/7. Every booth is a real publisher, artist, shop or fan project. Your booth is a permanent spot that sends people to your site, and you can see exactly who stopped by.</p>
+          <p className="mt-2 text-lg text-slate-300">One exhibit hall, laid out like a real convention floor, open 24/7. Every booth is a real publisher, artist, shop or fan project. Your booth is a permanent spot that sends people to your site, and you can see exactly who stopped by.</p>
         </header>
         <section className="space-y-2">
           <h2 className="text-2xl font-bold">1. Get a booth</h2>

@@ -1,7 +1,7 @@
 # ForeverComicCon
 
 A 3D comic convention that never closes. Publishers, artists, shops and fan projects own
-booths on a show floor laid out like San Diego's. Every booth is a permanent spot in the hall,
+booths on a show floor laid out like a real convention. Every booth is a permanent spot in the hall,
 with a banner, a logo, a link and **real analytics**:
 impressions, unique visitors, views, clicks, CTR, referrers and conversions.
 
