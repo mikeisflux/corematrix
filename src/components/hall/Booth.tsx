@@ -82,7 +82,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
           {[-7, 7].map((x) => <mesh key={x} position={[x, (CEILING - Math.min(CEILING - 4, th + 7)) / 2, 0]}><cylinderGeometry args={[0.06, 0.06, CEILING - Math.min(CEILING - 4, th + 7), 4]} /><meshStandardMaterial color="#9ca3af" /></mesh>)}
         </group>
         {/* tables on four sides + corner drape posts */}
-        {([[0, -7.5, 0], [0, 7.5, 0], [-7.5, 0, Math.PI / 2], [7.5, 0, Math.PI / 2]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} wide />)}
+        {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, Math.PI / 2], [-7.5, 0, 0], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} wide />)}
         {[[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <mesh key={i} position={[x, 4, z]}><cylinderGeometry args={[0.15, 0.15, 8, 6]} /><meshStandardMaterial color="#374151" /></mesh>)}
         {/* roll-up banner behind each table, facing out (3×6 by default, up to 8×16 when upgraded) */}
         {([[0, -5.6, Math.PI], [0, 5.6, 0], [-5.6, 0, -Math.PI / 2], [5.6, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
