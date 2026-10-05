@@ -6,7 +6,7 @@ const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } }
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-const login = async (email) => { const r = await page.request.post(`${base}/api/auth/request`, { data: { email } }); const { devLink } = await r.json(); await page.goto(devLink, { waitUntil: "networkidle" }); };
+const login = async (email) => { await page.request.post(`${base}/api/auth/register`, { data: { email, password: "smoke-test-pass-1" } }); await page.request.post(`${base}/api/auth/signout`).catch(() => null); const r = await page.request.post(`${base}/api/auth/password`, { data: { email, password: "smoke-test-pass-1" } }); if (!r.ok()) throw new Error("login failed " + email); };
 await login("buyer-smoke@example.com");
 const hall = await (await page.request.get(`${base}/api/hall`)).json();
 const claimedIds = new Set(hall.booths.map((b) => b.id));

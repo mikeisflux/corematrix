@@ -1,12 +1,11 @@
 import { chromium } from "playwright";
-const S = process.argv[2];
+const S = process.argv[2]; const base = "http://localhost:3000";
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
 const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
+const login = async (pg, email) => { await pg.request.post(`${base}/api/auth/register`, { data: { email, password: "smoke-test-pass-1" } }); const r = await pg.request.post(`${base}/api/auth/password`, { data: { email, password: "smoke-test-pass-1" } }); if (!r.ok()) throw new Error("login failed " + email); };
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-const r = await page.request.post("http://localhost:3000/api/auth/request", { data: { email: "owner1@example.com" } });
-const { devLink } = await r.json();
-await page.goto(devLink, { waitUntil: "networkidle" });
+await login(page, "owner1@example.com");
 await page.goto("http://localhost:3000/dashboard", { waitUntil: "networkidle", timeout: 120000 });
 await page.waitForTimeout(2500);
 await page.screenshot({ path: `${S}/dash.png`, fullPage: true });

@@ -5,6 +5,7 @@ import { api, useHall } from "@/lib/hall/store";
 import { formatMoney } from "@/lib/config";
 import { timeAgo } from "@/lib/util";
 import { PanelHeader, SignIn, Stat } from "./common";
+import { ChangePassword } from "@/components/ui/AuthForms";
 
 interface N { id: string; title: string; body: string | null; boothId: number | null; readAt: number | null; createdAt: number }
 
@@ -23,7 +24,7 @@ export function MePanel() {
     return (
       <>
         <PanelHeader title="Sign in" sub="Owners, players and advertisers" />
-        <div className="p-3"><SignIn note="One link to your inbox. No password." /></div>
+        <div className="p-3"><SignIn note="Sign in or create an account to claim a booth, earn coins and chat." /></div>
       </>
     );
   }
@@ -65,6 +66,7 @@ export function MePanel() {
             </ul>
           </div>
         )}
+        <details className="rounded-xl bg-white/[0.04] p-2 text-xs"><summary className="cursor-pointer text-slate-300">Change password</summary><div className="mt-2"><ChangePassword /></div></details>
         <form action="/api/auth/signout" method="post"><button className="w-full text-xs text-slate-400 hover:text-white">Sign out</button></form>
       </div>
     </>

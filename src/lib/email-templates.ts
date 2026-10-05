@@ -37,8 +37,8 @@ const table = (rows: string) => `<table role="presentation" width="100%" cellpad
 export interface DefaultTemplate { slug: string; name: string; description: string; subject: string; html: string; text?: string }
 
 export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
-  { slug: "magic_link", name: "Sign-in link", description: "Passwordless sign-in. Vars: link", subject: "Your {{siteName}} sign-in link",
-    html: shell("Sign in.", p("Click the button to sign in. The link works once and expires in 20 minutes.") + p("If you didn’t request this, ignore it."), { href: "{{link}}", label: "Sign in to {{siteName}}" }) },
+  { slug: "password_reset", name: "Password reset", description: "Sent from the forgot-password form. Vars: link", subject: "Reset your {{siteName}} password",
+    html: shell("Reset your password.", p("Click the button to choose a new password. The link works once and expires in 20 minutes.") + p("If you didn’t request this, ignore it; your password stays the same."), { href: "{{link}}", label: "Choose a new password" }) },
   { slug: "welcome", name: "Welcome (first booth)", description: "Sent after the first claim. Vars: name, boothName, boothId", subject: "{{boothName}} is live on {{siteName}}",
     html: shell("You’re on the floor.", p("Your booth is live. Three things that make the difference:") +
       `<ol style="margin:0 0 14px;padding-left:20px"><li style="margin-bottom:8px"><b>Share your card</b>: <a href="{{siteUrl}}/app/booth/{{boothId}}" style="color:#ffcf5c">{{siteUrl}}/app/booth/{{boothId}}</a> renders a card when posted.</li><li style="margin-bottom:8px"><b>Put the badge on your site</b>: visitors click through and raise your trending rank.</li><li><b>Add the conversion pixel</b> to your thank-you page to see sales next to clicks.</li></ol>` +
@@ -68,7 +68,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 ];
 
 export const SAMPLE_VARS: Record<string, unknown> = {
-  name: "Alex", email: "alex@example.com", link: "https://forevercomiccon.com/login/verify?token=example", boothName: "Harbor Coffee Co.", boothId: 5, description: "Claim #5 · Harbor Coffee Co.",
+  name: "Alex", email: "alex@example.com", link: "https://forevercomiccon.com/app/login/reset?token=example", boothName: "Harbor Coffee Co.", boothId: 5, description: "Claim #5 · Harbor Coffee Co.",
   amount: "$50.00", txId: "tx_example", price: "$125.00", payout: "$115.00", profit: "$15.00", rank: 1, views: "1,204", clicks: "88", season: "2026-W40", prize: 300,
   sectionsHtml: `<h3 style="margin:16px 0 6px;color:#fff">Harbor Coffee Co. · #5 · rank #12 (up 3)</h3><p>412 views · 61 clicks · 14.8% CTR</p>`,
   planName: "Pro", perks: "Full analytics · Rooftop sign · Weekly report", periodEnd: "Nov 4, 2026", reason: "card_declined", subject: "Question about booths",

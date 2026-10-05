@@ -4,13 +4,11 @@ const base = "http://localhost:3000";
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
 const page = await ctx.newPage();
+const login = async (pg, email) => { await pg.request.post(`${base}/api/auth/register`, { data: { email, password: "smoke-test-pass-1" } }); const r = await pg.request.post(`${base}/api/auth/password`, { data: { email, password: "smoke-test-pass-1" } }); if (!r.ok()) throw new Error("login failed " + email); };
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text().slice(0, 300)); });
-const r = await page.request.post(`${base}/api/auth/request`, { data: { email: "admin@example.com" } });
-const { devLink } = await r.json();
-console.log("devLink", !!devLink);
-await page.goto(devLink, { waitUntil: "networkidle" });
+await login(page, "admin@example.com");
 const pages = ["/admin", "/admin/transactions", "/admin/booths", "/admin/users", "/admin/plans", "/admin/billboards", "/admin/emails", "/admin/emails/templates", "/admin/emails/logs", "/admin/webhooks", "/admin/audit", "/admin/settings"];
 for (const p of pages) {
   const res = await page.goto(base + p, { waitUntil: "networkidle", timeout: 120000 });

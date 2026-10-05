@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { blob, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-/** Registered owners. Login is passwordless (magic link). */
+/** Registered accounts. Email + password sign-in; login_tokens are one-time password-reset tokens. */
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -19,6 +19,7 @@ export const users = sqliteTable("users", {
   cardIp: text("card_ip"),
   cardUserAgent: text("card_user_agent"),
   avatar: text("avatar"), // JSON AvatarConfig (body, skin, hair, hairColor, outfit)
+  passwordHash: text("password_hash"), // optional: scrypt hash for email+password sign-in (admins, mostly)
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),

@@ -75,34 +75,59 @@ export async function audit(adminId: string, action: string, resource: string, r
   } catch (err) { console.error("audit", err); }
 }
 
-export async function requestMagicLink(emailRaw: string, next?: string, ref?: string): Promise<{ devLink?: string }> {
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export const MIN_PASSWORD = 10;
+
+/** Create an account with a password and sign in. Referral codes still apply. */
+export async function register(emailRaw: string, password: string, displayName?: string, ref?: string): Promise<User> {
   await ensureMigrated();
   const email = emailRaw.trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Enter a valid email");
-  const token = newToken();
-  await db.insert(schema.loginTokens).values({ token, email, expiresAt: now() + LOGIN_TTL });
-  const params = new URLSearchParams({ token });
-  if (next) params.set("next", next);
-  if (ref) params.set("ref", ref);
-  const link = `${SITE_URL}/app/login/verify?${params.toString()}`;
-  await sendTemplate("magic_link", email, {
-    subject: `Your ${SITE_NAME} sign-in link`,
-    fallbackText: `Sign in to ${SITE_NAME}: ${link}\n\nThis link expires in 20 minutes.`,
-    fallbackHtml: `<p>Click to sign in to ${SITE_NAME}:</p><p><a href="${link}">${link}</a></p><p>This link expires in 20 minutes.</p>`,
-    link,
-  }, { channel: "system" });
-  const configured = !!(await getSetting("SENDGRID_API_KEY"));
-  return configured ? {} : { devLink: link };
+  if (!EMAIL_RE.test(email)) throw new Error("Enter a valid email");
+  if (password.length < MIN_PASSWORD) throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
+  const [existing] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  if (existing) throw new Error("That email already has an account. Sign in instead.");
+  const user = await findOrCreateUser(email, ref);
+  await db.update(schema.users).set({ passwordHash: hashPassword(password), displayName: displayName?.trim().slice(0, 40) || user.displayName }).where(eq(schema.users.id, user.id));
+  await createSession(user.id);
+  return user;
 }
 
-export async function consumeMagicLink(token: string, ref?: string): Promise<User | null> {
+/** Password reset: emails a one-time link (20 minutes). Always returns ok so emails can't be enumerated. */
+export async function requestPasswordReset(emailRaw: string): Promise<void> {
   await ensureMigrated();
+  const email = emailRaw.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new Error("Enter a valid email");
+  const [u] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  if (!u) return;
+  const token = newToken();
+  await db.insert(schema.loginTokens).values({ token, email, expiresAt: now() + LOGIN_TTL });
+  const link = `${SITE_URL}/app/login/reset?token=${token}`;
+  await sendTemplate("password_reset", email, {
+    subject: `Reset your ${SITE_NAME} password`,
+    fallbackText: `Reset your password: ${link}\n\nThis link expires in 20 minutes. If you didn't ask for it, ignore this email.`,
+    fallbackHtml: `<p>Reset your ${SITE_NAME} password:</p><p><a href="${link}">${link}</a></p><p>This link expires in 20 minutes.</p>`,
+    link,
+  }, { channel: "system", userId: u.id });
+}
+
+export async function resetPassword(token: string, password: string): Promise<User | null> {
+  await ensureMigrated();
+  if (password.length < MIN_PASSWORD) throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
   const [t] = await db.select().from(schema.loginTokens).where(eq(schema.loginTokens.token, token)).limit(1);
   if (!t || t.usedAt || t.expiresAt < now()) return null;
   await db.update(schema.loginTokens).set({ usedAt: now() }).where(eq(schema.loginTokens.token, token));
-  const user = await findOrCreateUser(t.email, ref);
-  await createSession(user.id);
-  return user;
+  const [u] = await db.select().from(schema.users).where(eq(schema.users.email, t.email)).limit(1);
+  if (!u) return null;
+  await db.update(schema.users).set({ passwordHash: hashPassword(password) }).where(eq(schema.users.id, u.id));
+  await createSession(u.id);
+  return u;
+}
+
+/** Signed-in user changes their own password. */
+export async function changePassword(userId: string, current: string, next: string): Promise<void> {
+  const [u] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+  if (!u || !verifyPassword(current, u.passwordHash)) throw new Error("Current password is wrong");
+  await setPassword(userId, next);
 }
 
 export async function findOrCreateUser(email: string, ref?: string): Promise<User> {
@@ -146,6 +171,33 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
 async function creditOf(userId: string): Promise<number> {
   const [u] = await db.select({ c: schema.users.creditCents }).from(schema.users).where(eq(schema.users.id, userId));
   return u?.c ?? 0;
+}
+
+/* ---------- optional password sign-in (scrypt, no extra deps) ---------- */
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  return `scrypt$${salt}$${scryptSync(password, salt, 64).toString("hex")}`;
+}
+export function verifyPassword(password: string, stored: string | null | undefined): boolean {
+  if (!stored) return false;
+  const [algo, salt, hash] = stored.split("$");
+  if (algo !== "scrypt" || !salt || !hash) return false;
+  const a = Buffer.from(hash, "hex"), b = scryptSync(password, salt, 64);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+export async function setPassword(userId: string, password: string | null): Promise<void> {
+  if (password !== null && password.length < MIN_PASSWORD) throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
+  await db.update(schema.users).set({ passwordHash: password ? hashPassword(password) : null }).where(eq(schema.users.id, userId));
+}
+/** Email + password sign-in. */
+export async function signInWithPassword(emailRaw: string, password: string): Promise<User | null> {
+  await ensureMigrated();
+  const email = emailRaw.trim().toLowerCase();
+  const [u] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  if (!u || !verifyPassword(password, u.passwordHash)) return null;
+  await createSession(u.id);
+  return u;
 }
 
 export async function createSession(userId: string): Promise<void> {

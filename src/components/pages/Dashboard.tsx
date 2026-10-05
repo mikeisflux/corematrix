@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
 import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
@@ -317,6 +318,7 @@ function Emails({ me, onChanged }: { me: Me; onChanged: () => void }) {
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Emails</div>
       <p className="mt-1 text-xs text-slate-300">A weekly report every Monday (views, clicks, CTR, rank movement), an email the moment you're bought out with your payout, a heads-up when someone opens your takeover page, and season results.</p>
       <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={me.notifyEmail} onChange={toggle} disabled={busy} /> Send me these</label>
+      <div className="mt-4 border-t border-white/10 pt-3"><div className="text-xs font-bold uppercase tracking-wider text-slate-400">Password</div><div className="mt-2 max-w-sm"><ChangePassword /></div></div>
     </div>
   );
 }

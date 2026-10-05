@@ -8,7 +8,7 @@ export default function UsersList() {
   const list = useJson<{ rows: Row[]; total: number; pages: number }>(`/api/admin/users?${qs({ q, page })}`);
   return (
     <>
-      <PageHead title="Users" sub="Everyone who signed in with a magic link. Credit is spendable at checkout; coins are the arcade currency.">
+      <PageHead title="Users" sub="Every account (email + password). Credit is spendable at checkout; coins are the arcade currency.">
         <SearchBox value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Email, name, handle…" />
         <a className="admBtn" href={`/api/admin/users?${qs({ q, export: "csv" })}`}>Export CSV</a>
       </PageHead>

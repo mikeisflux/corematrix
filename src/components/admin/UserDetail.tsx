@@ -12,7 +12,7 @@ export default function UserDetail({ id }: { id: string }) {
   const toast = useToast(); const router = useRouter();
   const u = d.data?.user;
   const f = form ?? (u ? { displayName: u.displayName ?? "", handle: u.handle ?? "", notifyEmail: u.notifyEmail } : null);
-  const patch = async (json: Record<string, unknown>, msg = "Saved") => { try { const r = await api<{ devLink?: string }>(`/api/admin/users/${id}`, { method: "PATCH", json }); toast.ok(r.devLink ? `Dev link (no SendGrid key): ${r.devLink}` : msg); d.reload(); setForm(null); } catch (e) { toast.err(e); } };
+  const patch = async (json: Record<string, unknown>, msg = "Saved") => { try { await api(`/api/admin/users/${id}`, { method: "PATCH", json }); toast.ok(msg); d.reload(); setForm(null); } catch (e) { toast.err(e); } };
   if (d.error) return <div className="admNote admNote--err">{d.error}</div>;
   if (!u || !f) return <div className="admMuted">Loading…</div>;
   return (
@@ -20,7 +20,7 @@ export default function UserDetail({ id }: { id: string }) {
       {toast.node}
       <PageHead title={u.email} sub={`User ${u.id} · joined ${new Date(u.createdAt).toLocaleDateString()} · ${d.data!.sessions} active session(s)`}>
         <Link className="admBtn" href={`/admin/emails?compose=1&to=${encodeURIComponent(u.email)}`}>Email</Link>
-        <button className="admBtn" onClick={() => patch({ action: "magic_link" }, "Sign-in link sent")}>Send sign-in link</button>
+        <button className="admBtn" onClick={() => patch({ action: "reset_password" }, "Password reset email sent")}>Send password reset</button>
         <ConfirmButton className="admBtn" message="Sign this user out everywhere?" onConfirm={() => patch({ action: "sign_out_all" }, "Signed out everywhere")}>Sign out all</ConfirmButton>
         <ConfirmButton className="admBtn admBtn--danger" message="Delete this user? Booths must be released first. This cannot be undone." onConfirm={async () => { try { await api(`/api/admin/users/${id}`, { method: "DELETE" }); toast.ok("Deleted"); router.push("/admin/users"); } catch (e) { toast.err(e); } }}>Delete</ConfirmButton>
       </PageHead>
@@ -42,6 +42,7 @@ export default function UserDetail({ id }: { id: string }) {
               <button className="admBtn admBtn--primary">Save</button>
               <ConfirmButton className="admBtn" message={u.isAdmin ? "Remove admin access?" : "Grant admin access to this user?"} onConfirm={() => patch({ isAdmin: !u.isAdmin }, u.isAdmin ? "Admin removed" : "Admin granted")}>{u.isAdmin ? "Remove admin" : "Make admin"}</ConfirmButton>
               {u.dcPaymentMethodId && <ConfirmButton className="admBtn" message="Forget the saved card? Plan renewals will fail until they add a new one." onConfirm={() => patch({ action: "clear_card" }, "Card cleared")}>Forget card</ConfirmButton>}
+              <button type="button" className="admBtn" onClick={() => { const p = window.prompt("New password (10+ characters). Leave empty to remove password sign-in for this user."); if (p === null) return; patch({ action: "set_password", password: p }, p ? "Password set" : "Password removed"); }}>Set password</button>
             </div>
           </form>
         </div>

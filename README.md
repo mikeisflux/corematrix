@@ -52,12 +52,14 @@ npx tsx scripts/dev/seed-demo.ts   # optional, LOCAL DEV ONLY: a fictional floor
 npm run dev                     # http://localhost:3000
 ```
 
-Sign in with any email: without `SENDGRID_API_KEY` the magic link is printed to the server
-console and returned in the sign-in response (dev mode). With `DIVINITYCOIN_TEST_MODE=true` the
+Accounts are email + password. Make the first admin from the shell:
+`npx tsx scripts/create-admin.ts you@example.com 'a long password'` (or put the password in
+`ADMIN_PASSWORD` to keep it out of shell history). Password resets go out by email once
+SendGrid is configured. With `DIVINITYCOIN_TEST_MODE=true` the
 checkout frame loads a local simulator that posts a signed webhook to the site, so claims,
 takeovers, plan setup, declines and refunds all run end to end without a DivinityCoin account.
 
-Admin: put your email in `ADMIN_EMAILS` before signing in the first time, then manage keys at
+Admin: `scripts/create-admin.ts` above (or list emails in `ADMIN_EMAILS`), then manage keys at
 `/admin/settings` (values in the database override `.env`).
 
 ## Production
@@ -114,7 +116,7 @@ src/lib/subscriptions.ts plan lifecycle: activate, renew, cancel, expire, MRR
 src/lib/seasons.ts       weekly close, prizes, featured winners, rank snapshots
 src/lib/emails.ts        welcome, sold, nudge, weekly digest
 src/lib/analytics.ts     per-booth daily rollups, referrers, site KPIs
-src/lib/auth.ts          magic links, sessions, referrals, admin audit
+src/lib/auth.ts          email + password auth (scrypt), resets, sessions, referrals, admin audit
 src/lib/divinitycoin.ts  DivinityCoin partner API client + webhook signatures
 src/lib/payments.ts      checkout sessions, confirm, refunds (DivinityCoin only)
 src/lib/sendgrid.ts      SendGrid send + mail log, template rendering

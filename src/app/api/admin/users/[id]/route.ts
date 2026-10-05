@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { audit, requestMagicLink } from "@/lib/auth";
+import { audit, requestPasswordReset, setPassword } from "@/lib/auth";
 import { addCoins } from "@/lib/arcade";
 import { guard, bad, notFound, readJson, int, optStr } from "../../_lib";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   ]);
   return NextResponse.json({ user: { ...user, stripeCustomerId: undefined }, booths, txs, coins, mail, sessions: Number(sessions.n) });
 }
-/* PATCH { displayName?, handle?, notifyEmail?, isAdmin?, creditDeltaCents?, coinsDelta?, reason?, action?: "magic_link" | "sign_out_all" | "clear_card" } */
+/* PATCH { displayName?, handle?, notifyEmail?, isAdmin?, creditDeltaCents?, coinsDelta?, reason?, action?: "reset_password" | "set_password" | "sign_out_all" | "clear_card" } */
 export async function PATCH(req: Request, ctx: Ctx) {
   const g = await guard(); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
@@ -28,8 +28,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (!u) return notFound();
   const b = await readJson(req);
   const reason = optStr(b.reason, 300) || "admin";
-  if (b.action === "magic_link") { const r = await requestMagicLink(u.email); await audit(g.id, "user.magic_link", "user", id, undefined, { email: u.email }, g.email); return NextResponse.json({ ok: true, devLink: r.devLink }); }
+  if (b.action === "reset_password") { await requestPasswordReset(u.email); await audit(g.id, "user.reset_password", "user", id, undefined, { email: u.email }, g.email); return NextResponse.json({ ok: true }); }
   if (b.action === "sign_out_all") { await db.delete(schema.sessions).where(eq(schema.sessions.userId, id)); await audit(g.id, "user.sign_out_all", "user", id, undefined, undefined, g.email); return NextResponse.json({ ok: true }); }
+  if (b.action === "set_password") {
+    try { await setPassword(id, typeof b.password === "string" && b.password ? b.password : null); } catch (e) { return bad((e as Error).message); }
+    await audit(g.id, "user.set_password", "user", id, undefined, { cleared: !b.password }, g.email);
+    return NextResponse.json({ ok: true });
+  }
   if (b.action === "clear_card") { await db.update(schema.users).set({ dcPaymentMethodId: null }).where(eq(schema.users.id, id)); await audit(g.id, "user.clear_card", "user", id, { dcPaymentMethodId: u.dcPaymentMethodId }, undefined, g.email); return NextResponse.json({ ok: true }); }
   const data: Partial<typeof schema.users.$inferInsert> = {};
   if (typeof b.displayName === "string") data.displayName = optStr(b.displayName, 60);
