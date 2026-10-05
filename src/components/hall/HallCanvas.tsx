@@ -52,9 +52,9 @@ export function HallCanvas() {
   return (
     <Canvas
       shadows
-      dpr={[1, 1.75]}
+      dpr={[1, 1.25]}
       camera={{ position: [0, 150, 180], fov: 45, near: 0.5, far: 2200 }}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
+      gl={{ antialias: false, powerPreference: "high-performance" }}
       onPointerMissed={() => { if (useHall.getState().mode === "map") useHall.getState().select(null); }}
       className="h-full w-full"
     >

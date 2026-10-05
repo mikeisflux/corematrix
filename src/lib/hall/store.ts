@@ -100,6 +100,7 @@ interface HallState {
   avatar: AvatarConfig;
   walkTarget: number | null;
   near: number | null;
+  quality: Quality;
   previewDraft: { boothId: number; color: string; style: string; cloth: string; name: string } | null;
   setBooths: (p: HallBooth[]) => void;
   upsertBooth: (p: Partial<HallBooth> & { id: number }) => void;
@@ -120,6 +121,13 @@ interface HallState {
   setAvatar: (a: Partial<AvatarConfig>) => void;
   setWalkTarget: (id: number | null) => void;
   setNear: (id: number | null) => void;
+  setQuality: (q: Quality) => void;
+}
+export type Quality = "high" | "medium" | "low";
+/** First guess before the frame-rate monitor takes over: phones start low, everything else medium and climbs if the GPU keeps up. */
+export function guessQuality(): Quality {
+  if (typeof navigator === "undefined") return "medium";
+  return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? "low" : "medium";
 }
 
 export interface AvatarConfig {
@@ -155,6 +163,7 @@ export const useHall = create<HallState>((set) => ({
   avatar: DEFAULT_AVATAR,
   walkTarget: null,
   near: null,
+  quality: "medium",
   previewDraft: null,
   setBooths: (booths) => set({ booths: new Map(booths.map((p) => [p.id, p])), loaded: true }),
   upsertBooth: (p) =>
@@ -181,6 +190,7 @@ export const useHall = create<HallState>((set) => ({
   setAvatar: (a) => set((s) => { const avatar = { ...s.avatar, ...a }; try { localStorage.setItem("fcc_avatar", JSON.stringify(avatar)); } catch {} return { avatar }; }),
   setWalkTarget: (walkTarget) => set({ walkTarget }),
   setNear: (near) => set({ near }),
+  setQuality: (quality) => set({ quality }),
 }));
 
 function emptyBooth(id: number): HallBooth {

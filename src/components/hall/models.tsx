@@ -6,7 +6,7 @@
  */
 import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
-import { useGLTF, useAnimations } from "@react-three/drei";
+import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { create } from "zustand";
 import type { AvatarConfig } from "@/lib/hall/store";
@@ -80,16 +80,26 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, colorKey]);
   const ref = useRef<THREE.Object3D>(null);
-  const { actions, mixer } = useAnimations(animations, ref);
+  const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
+  const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
   const current = useRef<string>("");
-  useEffect(() => { Object.values(actions).forEach((a) => a?.stop()); current.current = ""; }, [actions, obj]);
-  useFrame(() => {
+  const frame = useRef(0);
+  useEffect(() => () => { mixer.stopAllAction(); }, [mixer]);
+  useFrame(({ camera }, dt) => {
+    const o = ref.current; if (!o) return;
+    // skip hidden or distant figures entirely: no mixer update, no bone transforms
+    if (!o.visible || (o.parent && !o.parent.visible)) return;
+    const p = o.parent ?? o;
+    const dist = Math.hypot(camera.position.x - p.position.x, camera.position.z - p.position.z);
+    if (dist > 220) return;
+    frame.current++;
+    if (dist > 90 && frame.current % 2) return; // far figures animate at half rate
     const want = motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
     if (want !== current.current) {
       const next = actions[want]; const prev = actions[current.current];
       if (next) { next.reset().setEffectiveWeight(1).fadeIn(0.18).play(); if (prev) prev.fadeOut(0.18); current.current = want; }
     }
-    void mixer;
+    mixer.update(dist > 90 ? dt * 2 : dt);
   });
   return <primitive ref={ref} object={obj} />;
 }

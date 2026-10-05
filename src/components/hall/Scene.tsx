@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment } from "@react-three/drei";
+import { OrbitControls, Environment, PerformanceMonitor } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, SMAA, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Booth } from "./Booth";
@@ -13,7 +13,7 @@ import { Player, Crowd } from "./Avatar";
 import { Mascot } from "./Mascot";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
-import { useHall, track, type HallBooth } from "@/lib/hall/store";
+import { useHall, track, guessQuality, type HallBooth, type Quality } from "@/lib/hall/store";
 import { boothSpace, boothPosition, CEILING, HALLS, HALL_LENGTH, X0, Z_CROSS0, Z_CROSS1, Z0 } from "@/lib/hall/layout";
 
 export function Scene() {
@@ -23,9 +23,21 @@ export function Scene() {
   const selected = useHall((s) => s.selected);
   const billboards = useHall((s) => s.billboards);
   const mode = useHall((s) => s.mode);
+  const quality = useHall((s) => s.quality);
+  const setQuality = useHall((s) => s.setQuality);
   const list = useMemo(() => Array.from(booths.values()), [booths]);
+  const { setDpr } = useThree();
+  useEffect(() => { setQuality(guessQuality()); }, [setQuality]);
+  useEffect(() => { setDpr(quality === "high" ? Math.min(1.75, window.devicePixelRatio) : quality === "medium" ? Math.min(1.25, window.devicePixelRatio) : 1); }, [quality, setDpr]);
+  const crowd = { high: [110, 140], medium: [60, 80], low: [28, 40] }[quality];
   return (
     <>
+      <PerformanceMonitor
+        bounds={() => [40, 58]}
+        flipflops={3}
+        onDecline={() => setQuality(step(quality, -1))}
+        onIncline={() => setQuality(step(quality, 1))}
+      />
       <Lighting night={night} />
       <Hall night={night} />
       <Arcade night={night} />
@@ -34,21 +46,26 @@ export function Scene() {
       <PreviewBooth />
       <AisleBanners billboards={billboards} night={night} />
       <EntranceBanner billboards={billboards} night={night} />
-      <Crowd count={mode === "walk" ? 140 : 110} />
+      <Crowd count={mode === "walk" ? crowd[1] : crowd[0]} />
       <Mascot />
       <Player />
       <CameraRig />
       <Impressions />
-      <EffectComposer multisampling={0}>
-        <SMAA />
-        <Bloom intensity={night ? 0.9 : 0.25} luminanceThreshold={night ? 0.6 : 0.95} luminanceSmoothing={0.3} mipmapBlur />
-        <BrightnessContrast brightness={0.02} contrast={0.1} />
-        <HueSaturation saturation={0.1} />
-        <Vignette eskil={false} offset={0.2} darkness={night ? 0.7 : 0.4} />
-      </EffectComposer>
+      {quality !== "low" && (
+        <EffectComposer multisampling={0}>
+          {quality === "high" ? <SMAA /> : <></>}
+          <Bloom intensity={night ? 0.9 : 0.25} luminanceThreshold={night ? 0.6 : 0.95} luminanceSmoothing={0.3} mipmapBlur />
+          <BrightnessContrast brightness={0.02} contrast={0.1} />
+          <HueSaturation saturation={0.1} />
+          <Vignette eskil={false} offset={0.2} darkness={night ? 0.7 : 0.4} />
+        </EffectComposer>
+      )}
     </>
   );
 }
+
+const ORDER: Quality[] = ["low", "medium", "high"];
+function step(q: Quality, d: number): Quality { return ORDER[Math.max(0, Math.min(ORDER.length - 1, ORDER.indexOf(q) + d))]; }
 
 function Lighting({ night }: { night: boolean }) {
   return (

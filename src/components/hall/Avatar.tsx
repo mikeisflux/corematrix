@@ -97,7 +97,7 @@ export function Player() {
   const booths = useHall((s) => s.booths);
   const { camera } = useThree();
   const group = useRef<THREE.Group>(null);
-  const pos = useRef(new THREE.Vector3(0, 0, Z0 + 18));
+  const pos = useRef(new THREE.Vector3(0, 0, Z0 + 28));
   const heading = useRef(0); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
   const yaw = useRef(0);
   const motion = useRef<Motion>({ speed: 0 }).current;
@@ -161,7 +161,9 @@ export function Player() {
     group.current.rotation.y = heading.current;
     // camera
     const back = fp.current ? 0 : 20, up = fp.current ? 5.6 : 10;
-    const cx = pos.current.x - Math.sin(yaw.current) * back, cz = pos.current.z - Math.cos(yaw.current) * back;
+    // keep the camera inside the building so it never ends up looking at the back of a wall
+    const cx = THREE.MathUtils.clamp(pos.current.x - Math.sin(yaw.current) * back, X0 + 3, X0 + HALL_LENGTH - 3);
+    const cz = THREE.MathUtils.clamp(pos.current.z - Math.cos(yaw.current) * back, Z0 + 3, Z0 + HALL_DEPTH - 3);
     camera.position.lerp(new THREE.Vector3(cx, up, cz), Math.min(1, d * 6));
     camera.lookAt(pos.current.x + Math.sin(yaw.current) * 20, 4.5, pos.current.z + Math.cos(yaw.current) * 20);
     // nearest claimed booth in front of us, every 0.25s
@@ -219,7 +221,7 @@ export function Crowd({ count = 110 }: { count?: number }) {
       if (g) {
         g.position.set(n.x, 0, n.z); g.rotation.y = n.dz > 0 ? 0 : Math.PI;
         // only draw people near the camera; the rest keep walking unseen
-        g.visible = Math.hypot(camera.position.x - n.x, camera.position.z - n.z) < 240;
+        g.visible = Math.hypot(camera.position.x - n.x, camera.position.z - n.z) < 170;
       }
     });
   });
