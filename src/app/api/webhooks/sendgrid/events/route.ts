@@ -16,7 +16,7 @@ function keyOk(provided: string | null, expected: string) {
   const a = Buffer.from(provided), b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }
-interface SgEvent { event?: string; sg_event_id?: string; sg_message_id?: string; aoc_log_id?: string; email?: string; timestamp?: number; reason?: string; response?: string; url?: string; status?: string; [k: string]: unknown }
+interface SgEvent { event?: string; sg_event_id?: string; sg_message_id?: string; fcc_log_id?: string; email?: string; timestamp?: number; reason?: string; response?: string; url?: string; status?: string; [k: string]: unknown }
 
 /* SendGrid Event Webhook: delivered / open / click / bounce / dropped / spamreport → message status + timeline. */
 export async function POST(req: Request) {
@@ -28,13 +28,13 @@ export async function POST(req: Request) {
   let handled = 0, skipped = 0;
   for (const ev of events) {
     if (!ev || typeof ev !== "object" || !ev.event) { skipped++; continue; }
-    const eventId = String(ev.sg_event_id || `${ev.sg_message_id || ev.aoc_log_id || "x"}-${ev.event}-${ev.timestamp || Date.now()}`);
+    const eventId = String(ev.sg_event_id || `${ev.sg_message_id || ev.fcc_log_id || "x"}-${ev.event}-${ev.timestamp || Date.now()}`);
     const recId = await recordWebhook("sendgrid", eventId, String(ev.event), ev);
     if (!recId) { skipped++; continue; }
     try {
       const sgId = ev.sg_message_id ? String(ev.sg_message_id).split(".")[0] : null;
-      const [msg] = ev.aoc_log_id
-        ? await db.select().from(schema.mailMessages).where(eq(schema.mailMessages.id, String(ev.aoc_log_id))).limit(1)
+      const [msg] = ev.fcc_log_id
+        ? await db.select().from(schema.mailMessages).where(eq(schema.mailMessages.id, String(ev.fcc_log_id))).limit(1)
         : sgId ? await db.select().from(schema.mailMessages).where(or(eq(schema.mailMessages.sendgridMessageId, sgId), sql`${schema.mailMessages.sendgridMessageId} LIKE ${sgId + "%"}`)).limit(1) : [];
       if (!msg) { await finishWebhook(recId, "ignored", "no matching message"); skipped++; continue; }
       const prev = msg.events ? (JSON.parse(msg.events) as unknown[]) : [];

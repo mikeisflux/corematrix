@@ -1,4 +1,4 @@
-/* Default transactional templates for AlwaysOnCon. Dark navy, amber accent,
+/* Default transactional templates for ForeverComicCon. Dark navy, amber accent,
    table layout, inline CSS. {{var}} escapes, {{{var}}} is raw. Seeded from
    Admin → Emails → Templates → "Create default templates". */
 const F = "Inter, Arial, Helvetica, sans-serif";
@@ -68,9 +68,9 @@ export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
 ];
 
 export const SAMPLE_VARS: Record<string, unknown> = {
-  name: "Alex", email: "alex@example.com", link: "https://alwaysoncon.app/login/verify?token=example", boothName: "Harbor Coffee Co.", boothId: 5, description: "Claim #5 · Harbor Coffee Co.",
+  name: "Alex", email: "alex@example.com", link: "https://forevercomiccon.com/login/verify?token=example", boothName: "Harbor Coffee Co.", boothId: 5, description: "Claim #5 · Harbor Coffee Co.",
   amount: "$50.00", txId: "tx_example", price: "$125.00", payout: "$115.00", profit: "$15.00", rank: 1, views: "1,204", clicks: "88", season: "2026-W40", prize: 300,
   sectionsHtml: `<h3 style="margin:16px 0 6px;color:#fff">Harbor Coffee Co. · #5 · rank #12 (up 3)</h3><p>412 views · 61 clicks · 14.8% CTR</p>`,
   planName: "Pro", perks: "Full analytics · Rooftop sign · Weekly report", periodEnd: "Nov 4, 2026", reason: "card_declined", subject: "Question about booths",
-  siteName: "AlwaysOnCon", siteUrl: "https://alwaysoncon.app", supportEmail: "hello@alwaysoncon.app", currentYear: new Date().getFullYear(),
+  siteName: "ForeverComicCon", siteUrl: "https://forevercomiccon.com", supportEmail: "hello@forevercomiccon.com", currentYear: new Date().getFullYear(),
 };

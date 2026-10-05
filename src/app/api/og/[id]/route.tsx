@@ -14,7 +14,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const claimed = new Map(all.map((b) => [b.id, b.color]));
   const rank = p ? all.filter((x) => x.valueCents > p.valueCents).length + 1 : 0;
   const color = p?.color ?? "#3a86ff";
-  const name = p?.name ?? (space ? `${space.kind === "artist" ? "Table" : "Booth"} ${space.label} is open` : "AlwaysOnCon");
+  const name = p?.name ?? (space ? `${space.kind === "artist" ? "Table" : "Booth"} ${space.label} is open` : "ForeverComicCon");
   const scale = 1080 / HALL_LENGTH;
   const mapH = HALL_DEPTH * scale;
   const cells = hallLayout().filter((b) => b.size !== "6x10" || b.id % 3 === 0).slice(0, 900);

@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+const S = process.argv[2];
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+const page = await browser.newPage({ viewport: { width: 1400, height: 800 } });
+const errors = []; page.on("pageerror", (e) => errors.push(e.message));
+await page.goto("http://localhost:3000/dev/models", { waitUntil: "networkidle", timeout: 180000 });
+await page.waitForTimeout(4000);
+await page.screenshot({ path: `${S}/models_a.png` });
+await page.click("text=body b"); await page.click("text=long"); await page.click("text=idle"); await page.click("text=cabinet"); await page.waitForTimeout(1500);
+await page.screenshot({ path: `${S}/models_b.png` });
+await page.click("text=curly"); await page.click("text=run"); await page.click("text=banner_stand"); await page.waitForTimeout(1200);
+await page.screenshot({ path: `${S}/models_c.png` });
+console.log(errors.join("\n") || "no errors");
+await browser.close();

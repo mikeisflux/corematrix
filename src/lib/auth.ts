@@ -7,7 +7,7 @@ import { SITE_NAME, SITE_URL, REFERRAL_CREDIT_CENTS } from "@/lib/config";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { getSetting } from "@/lib/settings";
 
-const SESSION_COOKIE = "aoc_session";
+const SESSION_COOKIE = "fcc_session";
 const SESSION_TTL = 90 * 86_400_000;
 const LOGIN_TTL = 20 * 60_000;
 
@@ -171,7 +171,7 @@ export async function signOut(): Promise<void> {
 /** Stable, privacy-preserving visitor id derived from a first-party cookie. */
 export async function visitorId(): Promise<string> {
   const jar = await cookies();
-  const existing = jar.get("aoc_vid")?.value;
+  const existing = jar.get("fcc_vid")?.value;
   if (existing) return existing;
   const h = await headers();
   // Can't set cookies from a server component render; the client sets it. Fall back to a hash of UA+IP.

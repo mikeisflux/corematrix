@@ -18,9 +18,9 @@ export const SETTING_GROUPS = ["Site", "DivinityCoin", "SendGrid", "Economy", "S
 
 export const SETTING_KEYS: SettingDef[] = [
   // Site
-  { key: "SITE_URL", label: "Public site URL", group: "Site", hint: "https://alwaysoncon.app" },
-  { key: "SITE_NAME", label: "Site name", group: "Site", hint: "AlwaysOnCon" },
-  { key: "SUPPORT_EMAIL", label: "Support email", group: "Site", hint: "hello@alwaysoncon.app" },
+  { key: "SITE_URL", label: "Public site URL", group: "Site", hint: "https://forevercomiccon.com" },
+  { key: "SITE_NAME", label: "Site name", group: "Site", hint: "ForeverComicCon" },
+  { key: "SUPPORT_EMAIL", label: "Support email", group: "Site", hint: "hello@forevercomiccon.com" },
   { key: "ANNOUNCEMENT", label: "Announcement bar text", group: "Site", hint: "optional — shown on the home page HUD" },
   { key: "MAINTENANCE_MODE", label: "Maintenance mode", group: "Site", hint: "true / false — checkout is paused, admins can still sign in" },
 
@@ -28,7 +28,7 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "DIVINITYCOIN_API_URL", label: "DivinityCoin API base URL", group: "DivinityCoin", hint: "https://divinitycoin.com (default) — public HTTPS, no VPN or allow-list needed" },
   { key: "DIVINITYCOIN_API_KEY", label: "DivinityCoin partner API key", group: "DivinityCoin", secret: true, hint: "sk_… from the partner page; sent as Authorization: Bearer <key>" },
   { key: "DIVINITYCOIN_AUTH_HEADER", label: "API key header name", group: "DivinityCoin", hint: "Authorization (default)" },
-  { key: "DIVINITYCOIN_PARTNER_SLUG", label: "Partner slug registered on DivinityCoin", group: "DivinityCoin", hint: "alwaysoncon" },
+  { key: "DIVINITYCOIN_PARTNER_SLUG", label: "Partner slug registered on DivinityCoin", group: "DivinityCoin", hint: "forevercomiccon" },
   { key: "DIVINITYCOIN_WEBHOOK_SECRET", label: "DivinityCoin webhook signing secret", group: "DivinityCoin", secret: true, hint: "HMAC-SHA256 secret DivinityCoin uses to sign deliveries. In test mode any long random string works." },
   { key: "DIVINITYCOIN_WEBHOOK_URL", label: "Webhook URL (paste into DivinityCoin partner settings)", group: "DivinityCoin", readonly: true, hint: "https://<site>/api/webhooks/divinitycoin" },
   { key: "DIVINITYCOIN_INTERNAL_PATH", label: "Internal API path prefix", group: "DivinityCoin", hint: "/internal (default). Calls are POST <prefix>?action=…" },
@@ -37,8 +37,8 @@ export const SETTING_KEYS: SettingDef[] = [
 
   // SendGrid
   { key: "SENDGRID_API_KEY", label: "SendGrid API key", group: "SendGrid", secret: true, hint: "SG.… — blank = emails are logged to the server console and recorded as failed" },
-  { key: "MAIL_FROM", label: "Outgoing from address", group: "SendGrid", hint: "hello@alwaysoncon.app (verified sender)" },
-  { key: "MAIL_FROM_NAME", label: "Outgoing from name", group: "SendGrid", hint: "AlwaysOnCon" },
+  { key: "MAIL_FROM", label: "Outgoing from address", group: "SendGrid", hint: "hello@forevercomiccon.com (verified sender)" },
+  { key: "MAIL_FROM_NAME", label: "Outgoing from name", group: "SendGrid", hint: "ForeverComicCon" },
   { key: "MAIL_REPLY_TO", label: "Reply-to address", group: "SendGrid" },
   { key: "MAIL_BCC_ADMIN", label: "BCC admin on payment emails", group: "SendGrid", hint: "optional" },
   { key: "MAIL_FOOTER", label: "Email footer text", group: "SendGrid" },
@@ -105,5 +105,5 @@ export async function siteUrl(): Promise<string> {
 }
 
 export async function siteName(): Promise<string> {
-  return (await getSetting("SITE_NAME")) || process.env.NEXT_PUBLIC_SITE_NAME || "AlwaysOnCon";
+  return (await getSetting("SITE_NAME")) || process.env.NEXT_PUBLIC_SITE_NAME || "ForeverComicCon";
 }

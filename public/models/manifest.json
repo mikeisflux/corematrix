@@ -1,0 +1,51 @@
+{
+  "models": {
+    "avatar-a": {
+      "file": "/models/avatar-a.glb",
+      "bytes": 317020,
+      "generated": true
+    },
+    "avatar-b": {
+      "file": "/models/avatar-b.glb",
+      "bytes": 317056,
+      "generated": true
+    },
+    "table": {
+      "file": "/models/table.glb",
+      "bytes": 25884,
+      "generated": true
+    },
+    "table_wide": {
+      "file": "/models/table_wide.glb",
+      "bytes": 29372,
+      "generated": true
+    },
+    "chair": {
+      "file": "/models/chair.glb",
+      "bytes": 13272,
+      "generated": true
+    },
+    "banner_stand": {
+      "file": "/models/banner_stand.glb",
+      "bytes": 7392,
+      "generated": true
+    },
+    "cabinet": {
+      "file": "/models/cabinet.glb",
+      "bytes": 29600,
+      "generated": true
+    },
+    "light": {
+      "file": "/models/light.glb",
+      "bytes": 8156,
+      "generated": true
+    },
+    "robot": {
+      "file": "/models/robot.glb",
+      "bytes": 463988,
+      "generated": false,
+      "license": "CC0 — RobotExpressive by Tomás Laulhé"
+    }
+  },
+  "generatedAt": "2026-10-05T01:51:41.375Z"
+}

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { newId } from "@/lib/util";
 
-export const VID_COOKIE = "aoc_vid";
+export const VID_COOKIE = "fcc_vid";
 
 /** Reads the visitor cookie; if missing, generates one and attaches it to `res`. */
 export async function getOrSetVisitor(res?: NextResponse): Promise<string> {

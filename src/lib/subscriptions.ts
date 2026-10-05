@@ -79,7 +79,7 @@ async function chargeFirstPeriod(tx: Tx, paymentMethodId: string): Promise<{ ok:
   const ref = periodReference(tx.boothId, now());
   const s = await getSettings(["SITE_NAME"]);
   const charge = await divinitycoin.chargeSavedCard({
-    customerId: buyer.id, paymentMethodId, amountCents: tx.amountCents, reference: ref, description: `${s.SITE_NAME || "AlwaysOnCon"} — ${TIERS[tier].name} plan, #${tx.boothId}`, idempotencyKey: `${ref}:${tx.id}`,
+    customerId: buyer.id, paymentMethodId, amountCents: tx.amountCents, reference: ref, description: `${s.SITE_NAME || "ForeverComicCon"} — ${TIERS[tier].name} plan, #${tx.boothId}`, idempotencyKey: `${ref}:${tx.id}`,
     origin: { ip: buyer.cardIp, userAgent: buyer.cardUserAgent },
   });
   if (!charge.success) {
@@ -108,7 +108,7 @@ export async function chargeRenewal(boothId: number, periodStart: number): Promi
   if (!pm) { await recordFailedPeriod(boothId, "no saved card on file"); return { ok: false, error: "no saved card" }; }
   const s = await getSettings(["SITE_NAME"]);
   const charge = await divinitycoin.chargeSavedCard({
-    customerId: user.id, paymentMethodId: pm, amountCents: TIERS[tier].priceCents, reference: ref, description: `${s.SITE_NAME || "AlwaysOnCon"} — ${TIERS[tier].name} plan renewal, #${boothId}`, idempotencyKey: ref,
+    customerId: user.id, paymentMethodId: pm, amountCents: TIERS[tier].priceCents, reference: ref, description: `${s.SITE_NAME || "ForeverComicCon"} — ${TIERS[tier].name} plan renewal, #${boothId}`, idempotencyKey: ref,
     origin: { ip: user.cardIp, userAgent: user.cardUserAgent },
   });
   if (!charge.success) {

@@ -58,7 +58,7 @@ export type DivinityEventType =
   | "checkout.completed" | "checkout.failed" | "checkout.expired" | "checkout.canceled"
   | "payment.succeeded" | "payment.failed" | "refund.completed" | "dispute.created" | "test.ping";
 
-export const DC_PROJECT_ID = "alwaysoncon-city";
+export const DC_PROJECT_ID = "forevercomiccon";
 
 async function config() {
   const s = await getSettings(["DIVINITYCOIN_API_URL", "DIVINITYCOIN_API_KEY", "DIVINITYCOIN_WEBHOOK_SECRET", "DIVINITYCOIN_PARTNER_SLUG", "DIVINITYCOIN_INTERNAL_PATH", "DIVINITYCOIN_AUTH_HEADER", "DIVINITYCOIN_TEST_MODE", "DIVINITYCOIN_ALLOW_CREDITS", "SITE_URL"]);
@@ -67,7 +67,7 @@ async function config() {
     baseUrl: (s.DIVINITYCOIN_API_URL || "https://divinitycoin.com").replace(/\/$/, ""),
     apiKey: s.DIVINITYCOIN_API_KEY,
     webhookSecret: s.DIVINITYCOIN_WEBHOOK_SECRET,
-    partner: s.DIVINITYCOIN_PARTNER_SLUG || "alwaysoncon",
+    partner: s.DIVINITYCOIN_PARTNER_SLUG || "forevercomiccon",
     internalPath: (s.DIVINITYCOIN_INTERNAL_PATH || "/internal").replace(/\/$/, ""),
     authHeader: s.DIVINITYCOIN_AUTH_HEADER || "Authorization",
     testMode: flag(s.DIVINITYCOIN_TEST_MODE),

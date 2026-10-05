@@ -1,4 +1,4 @@
-# AlwaysOnCon
+# ForeverComicCon
 
 A 3D comic convention that never closes. Publishers, artists, shops and fan projects own
 booths on a show floor laid out like San Diego's. Every booth is a permanent spot in the hall,
@@ -51,7 +51,7 @@ Admin: put your email in `ADMIN_EMAILS` before signing in the first time, then m
 
 ## Production
 
-- **Database**: libSQL. `DATABASE_URL=file:./data/alwaysoncon.db` locally; point it at a Turso
+- **Database**: libSQL. `DATABASE_URL=file:./data/forevercomiccon.db` locally; point it at a Turso
   URL + `DATABASE_AUTH_TOKEN` for production. Migrations in `drizzle/` run automatically on boot.
 - **Payments (DivinityCoin only)**: in `/admin/settings → DivinityCoin` set the API URL, partner
   API key, partner slug and webhook secret, then register the webhook URL shown on
@@ -72,6 +72,23 @@ Admin: put your email in `ADMIN_EMAILS` before signing in the first time, then m
   schedules both on Vercel; anywhere else, hit them from any scheduler. Seasons also close lazily
   on the first request after the boundary, so nothing breaks without cron.
 - Deploy on anything that runs Node 20+ (`npm run build && npm start`).
+
+## Models
+
+The 3D props and avatars are real `.glb` files in `public/models/`, listed in `manifest.json`.
+The scene loads whatever the manifest lists and falls back to built-in primitives for anything
+missing, so you can swap models one at a time.
+
+- `npm run models` regenerates the procedural set (avatars with idle/walk/run clips, tables,
+  chair, banner stand, arcade cabinet, truss light) from `src/lib/hall/modelkit/` through the
+  dev page `/dev/models` (dev server must be running). Open that page to preview and download them.
+- To replace one with your own model (Blender, an AI text-to-3D tool like Meshy or Tripo, a
+  CC0 pack from Kenney or Quaternius), export a `.glb` with the same **node names** (avatars:
+  `hips`, `torso`, `head`, `shoulder_l/r`, `forearm_l/r`, `thigh_l/r`, `shin_l/r`, `hair_*`) and
+  **material names** (`skin`, `hair`, `shirt`, `pants`, `cloth`, `banner`, `screen`…), drop it in
+  `public/models/`, and add it to `manifest.json`. Recoloring and animation pick it up by name.
+- Avatars need three looping clips named `idle`, `walk` and `run`.
+- `robot.glb` (the mascot) and `hdri/warehouse.hdr` (lighting) are CC0; see `public/models/LICENSES.md`.
 
 ## Layout
 

@@ -1,4 +1,4 @@
-export const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "AlwaysOnCon";
+export const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? "ForeverComicCon";
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 /** Booth sizes on the show floor. Prices are the base claim price per size. */

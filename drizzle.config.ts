@@ -5,7 +5,7 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "turso",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "file:./data/alwaysoncon.db",
+    url: process.env.DATABASE_URL ?? "file:./data/forevercomiccon.db",
     authToken: process.env.DATABASE_AUTH_TOKEN,
   },
 });

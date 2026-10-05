@@ -6,6 +6,7 @@ import { bannerTexture, drapeTexture, logoTexture, signTexture, luminance } from
 import { useHall, track, type HallBooth } from "@/lib/hall/store";
 import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
 import { formatMoney } from "@/lib/config";
+import { Prop } from "./models";
 
 interface Props { booth: HallBooth; night: boolean; hovered: boolean; selected: boolean; preview?: boolean }
 
@@ -90,11 +91,9 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* print rack on the table */}
         {[-1.6, 0, 1.6].map((z) => <mesh key={z} position={[w / 2 - 2.2, 3.1, z]} rotation={[-0.35, 0, 0]}><boxGeometry args={[0.1, 1.3, 1.1]} /><meshStandardMaterial color={booth.accent} /></mesh>)}
         {/* retractable banner stand */}
-        <group position={[-w / 2 + 1.2, 3.4, d / 2 - 1.5]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}><TwoSided w={2.6} h={6.4}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>
-        <mesh position={[-w / 2 + 1.2, 0.2, d / 2 - 1.5]}><boxGeometry args={[0.9, 0.2, 2.8]} /><meshStandardMaterial color="#374151" /></mesh>
+        <Prop name="banner_stand" position={[-w / 2 + 1.2, 0, d / 2 - 1.5]} rotation={[0, Math.PI / 2, 0]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, 3.4, 0]} onClick={bannerClick}><TwoSided w={2.6} h={6.4}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
         {/* chair */}
-        <mesh position={[w / 2 - 4.2, 1.1, 0]}><boxGeometry args={[1.4, 0.2, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh>
-        <mesh position={[w / 2 - 4.8, 2, 0]}><boxGeometry args={[0.2, 1.8, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh>
+        <Prop name="chair" position={[w / 2 - 4.4, 0, 0]} rotation={[0, Math.PI / 2, 0]} fallback={<><mesh position={[0, 1.1, 0]}><boxGeometry args={[1.4, 0.2, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh><mesh position={[-0.6, 2, 0]}><boxGeometry args={[0.2, 1.8, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh></>} />
         {sign.level >= 2 && <HangingSign tex={hang} y={sign.height} w={9} night={night} onClick={bannerClick} />}
         {tip}
       </group>
@@ -127,7 +126,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       {/* tables */}
       {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} />}
       {/* retractable banner at the open corner */}
-      <group position={[w / 2 - 1.2, 3.4, d / 2 - 1.6]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}><TwoSided w={2.6} h={6.4}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>
+      <Prop name="banner_stand" position={[w / 2 - 1.2, 0, d / 2 - 1.6]} rotation={[0, Math.PI / 2, 0]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, 3.4, 0]} onClick={bannerClick}><TwoSided w={2.6} h={6.4}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
       {night && sign.level >= 3 && <pointLight position={[0, 8, 0]} intensity={40} distance={24} color={booth.accent} />}
       {tip}
     </group>
@@ -147,8 +146,11 @@ export function TwoSided({ w, h, children }: { w: number; h: number; children: R
 
 function Table({ x, z, rot, cloth, wide }: { x: number; z: number; rot: number; cloth: string; wide?: boolean }) {
   const len = wide ? 8 : 6;
+  return <Prop name={wide ? "table_wide" : "table"} position={[x, 0, z]} rotation={[0, rot, 0]} colors={{ cloth }} fallback={<TableFallback len={len} cloth={cloth} />} />;
+}
+function TableFallback({ len, cloth }: { len: number; cloth: string }) {
   return (
-    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+    <group>
       <mesh position={[0, 1.3, 0]}><boxGeometry args={[2.6, 2.6, len]} /><meshStandardMaterial color={cloth} roughness={0.9} /></mesh>
       <mesh position={[0, 2.65, 0]}><boxGeometry args={[2.7, 0.1, len + 0.1]} /><meshStandardMaterial color="#f8fafc" /></mesh>
       {/* a few products */}

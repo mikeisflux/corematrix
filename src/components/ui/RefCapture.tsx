@@ -5,7 +5,7 @@ export function RefCapture() {
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) {
-      try { localStorage.setItem("aoc_ref", ref.toUpperCase()); } catch { /* ignore */ }
+      try { localStorage.setItem("fcc_ref", ref.toUpperCase()); } catch { /* ignore */ }
     }
   }, []);
   return null;

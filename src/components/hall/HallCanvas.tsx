@@ -28,7 +28,7 @@ export function HallCanvas() {
       setBillboards(d.billboards);
       setFeatured(d.featured);
     });
-    try { const saved = localStorage.getItem("aoc_avatar"); if (saved) useHall.getState().setAvatar(JSON.parse(saved)); } catch {}
+    try { const saved = localStorage.getItem("fcc_avatar"); if (saved) useHall.getState().setAvatar(JSON.parse(saved)); } catch {}
     api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => {
       if (!alive) return;
       setMe(d.user, d.booths);

@@ -7,6 +7,7 @@ import { ARCADE } from "@/lib/hall/layout";
 import { CABINET_ROWS } from "./Avatar";
 import { useHall } from "@/lib/hall/store";
 import { TwoSided } from "./Booth";
+import { Prop, useModelUrl } from "./models";
 
 const tmp = new THREE.Object3D();
 const SCREEN_COLORS = ["#ff2bd6", "#00f5ff", "#ffd166", "#5ee6c3", "#8338ec", "#ff6b6b"];
@@ -48,17 +49,20 @@ export function Arcade({ night }: { night: boolean }) {
   });
   const board = useMemo(() => signTexture(["TOP SCORES", "play for coins · 100 coins = $1 of booth value"], { bg: "#0a0a14", fg: "#00f5ff", w: 1024, h: 320, size: 72 }), []);
   const ride = useMemo(() => signTexture(["HALL FLYOVER", "drone ride · 5 coins"], { bg: "#1a1208", fg: "#ffd166", w: 512, h: 200, size: 52 }), []);
+  const cabinetGlb = useModelUrl("cabinet");
   return (
     <group onClick={(e) => { e.stopPropagation(); setPanel("arcade"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ARCADE.x, 0.03, ARCADE.z]}><planeGeometry args={[ARCADE.w, ARCADE.d]} /><meshStandardMaterial map={carpet} roughness={1} /></mesh>
-      <instancedMesh ref={cab} args={[undefined, undefined, cabinets.length]}>
-        <boxGeometry args={[2.6, 6, 2.6]} />
-        <meshStandardMaterial color="#1b1b2f" roughness={0.6} metalness={0.2} />
-      </instancedMesh>
-      <instancedMesh ref={screen} args={[undefined, undefined, cabinets.length]}>
-        <planeGeometry args={[2, 1.6]} />
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1.5} toneMapped={false} />
-      </instancedMesh>
+      {cabinetGlb ? cabinets.map((k, i) => <Prop key={i} name="cabinet" position={[k.x, 0, k.z]} rotation={[0, k.rot, 0]} emissive={{ screen: SCREEN_COLORS[i % SCREEN_COLORS.length] }} />) : (<>
+        <instancedMesh ref={cab} args={[undefined, undefined, cabinets.length]}>
+          <boxGeometry args={[2.6, 6, 2.6]} />
+          <meshStandardMaterial color="#1b1b2f" roughness={0.6} metalness={0.2} />
+        </instancedMesh>
+        <instancedMesh ref={screen} args={[undefined, undefined, cabinets.length]}>
+          <planeGeometry args={[2, 1.6]} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1.5} toneMapped={false} />
+        </instancedMesh>
+      </>)}
       {/* neon pillars at the corners */}
       {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], i) => (
         <mesh key={i} position={[ARCADE.x + (sx * ARCADE.w) / 2, 7, ARCADE.z + (sz * ARCADE.d) / 2]}>

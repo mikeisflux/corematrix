@@ -1,6 +1,6 @@
-# AlwaysOnCon: revenue, growth and engagement plan
+# ForeverComicCon: revenue, growth and engagement plan
 
-## The pivot: AlwaysOnCon
+## The pivot: ForeverComicCon
 
 The city became a comic convention hall. Same economy (claim, takeover, boost, plans, coins),
 but the thing people buy is a booth on a floor plan they already understand: 10×10 inline,
@@ -27,7 +27,7 @@ Three structural problems:
 3. **No reason to return.** A visitor sees the hall once. There's no daily hook, no
    season, no progression.
 
-## What AlwaysOnCon does instead
+## What ForeverComicCon does instead
 
 ### Revenue: five streams, two of them recurring
 
@@ -77,7 +77,7 @@ Owner gets something measurable, every day:
 - **Embed badge**: an SVG badge for owners' sites that links back (and counts as a
   referrer). Every owner becomes a distribution channel.
 - **SEO**: a server-rendered public page per booth and a directory. "Harbor Coffee Co.
-  on AlwaysOnCon" is indexable; Claim Avenue's booth pages are thin.
+  on ForeverComicCon" is indexable; Claim Avenue's booth pages are thin.
 - **Billboard advertisers** bring their own audience to check their numbers.
 
 ### Trust (because "is this a scam" is the top objection)

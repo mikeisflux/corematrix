@@ -22,9 +22,9 @@ export async function seedTemplates(force: boolean, by: string | null): Promise<
   return { created, updated };
 }
 
-const g = globalThis as unknown as { __aocTemplatesSeeded?: Promise<void> };
+const g = globalThis as unknown as { __fccTemplatesSeeded?: Promise<void> };
 /** Once per process: make sure the default templates exist (cheap no-op afterwards). */
 export function ensureDefaultTemplates(): Promise<void> {
-  if (!g.__aocTemplatesSeeded) g.__aocTemplatesSeeded = seedTemplates(false, null).then(() => undefined).catch((e) => { g.__aocTemplatesSeeded = undefined; console.error("[templates] seed failed", e); });
-  return g.__aocTemplatesSeeded;
+  if (!g.__fccTemplatesSeeded) g.__fccTemplatesSeeded = seedTemplates(false, null).then(() => undefined).catch((e) => { g.__fccTemplatesSeeded = undefined; console.error("[templates] seed failed", e); });
+  return g.__fccTemplatesSeeded;
 }

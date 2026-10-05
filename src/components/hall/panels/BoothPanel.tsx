@@ -114,7 +114,7 @@ export function BoothPanel() {
           <button className="btn-ghost flex-1 text-xs" onClick={() => { if (mode !== "walk") setMode("walk"); setFlyTo(id); useHall.getState().setPanel("none"); }}>🚶 Walk here</button>
           <Link href={`/booth/${id}`} className="btn-ghost flex-1 text-xs">Public page</Link>
           <button className="btn-ghost flex-1 text-xs" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/booth/${id}`); useHall.getState().setToast("Link copied"); }}>Copy link</button>
-          <a className="btn-ghost flex-1 text-xs" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${booth.name} is exhibiting at AlwaysOnCon, booth ${space.label}`)}&url=${encodeURIComponent(`${typeof window !== "undefined" ? window.location.origin : ""}/booth/${id}`)}`}>Share</a>
+          <a className="btn-ghost flex-1 text-xs" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${booth.name} is exhibiting at ForeverComicCon, booth ${space.label}`)}&url=${encodeURIComponent(`${typeof window !== "undefined" ? window.location.origin : ""}/booth/${id}`)}`}>Share</a>
         </div>
         {detail && detail.history.length > 0 && (
           <div>

@@ -38,7 +38,7 @@ export function Hall({ night }: { night: boolean }) {
   }, [trussRows, trussCols, aisleCount]);
   const pillarCount = (Math.floor(aisleCount / 4) + 1) * 2;
   const wall = night ? "#141a2a" : "#2b3140";
-  const entranceSign = useMemo(() => signTexture(["ALWAYSONCON", "EXHIBIT HALL"], { bg: "#0b0f1a", fg: "#ffd166", w: 1024, h: 256, size: 86 }), []);
+  const entranceSign = useMemo(() => signTexture(["FOREVERCOMICCON", "EXHIBIT HALL"], { bg: "#0b0f1a", fg: "#ffd166", w: 1024, h: 256, size: 86 }), []);
   return (
     <group>
       {/* floor */}

@@ -125,7 +125,7 @@ interface HallState {
 export interface AvatarConfig {
   body: "a" | "b"; // a: broader shoulders, b: narrower shoulders / wider hips
   skin: string;
-  hair: "short" | "long" | "buzz" | "bun" | "bald";
+  hair: "short" | "long" | "buzz" | "bun" | "curly" | "bald";
   hairColor: string;
   shirt: string;
   pants: string;
@@ -178,7 +178,7 @@ export const useHall = create<HallState>((set) => ({
   setBillboards: (billboards) => set({ billboards }),
   setFeatured: (featured) => set({ featured }),
   setMode: (mode) => set({ mode }),
-  setAvatar: (a) => set((s) => { const avatar = { ...s.avatar, ...a }; try { localStorage.setItem("aoc_avatar", JSON.stringify(avatar)); } catch {} return { avatar }; }),
+  setAvatar: (a) => set((s) => { const avatar = { ...s.avatar, ...a }; try { localStorage.setItem("fcc_avatar", JSON.stringify(avatar)); } catch {} return { avatar }; }),
   setWalkTarget: (walkTarget) => set({ walkTarget }),
   setNear: (near) => set({ near }),
 }));

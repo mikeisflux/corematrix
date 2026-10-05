@@ -4,6 +4,8 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, type BoothSpace } from "@/lib/hall/layout";
+import { AvatarRig, useModelUrl, type Motion } from "./models";
+import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
 export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0 };
@@ -44,36 +46,41 @@ export const CABINET_ROWS = [
 export function isBlocked(x: number, z: number) { return blocked(x, z); }
 
 /* ---------- the figure ---------- */
-export function AvatarModel({ config, phase, idle }: { config: AvatarConfig; phase: React.RefObject<number>; idle?: boolean }) {
+/** An avatar: the rigged GLB from public/models when present (idle/walk/run, recolored by material name), else primitives. */
+export function AvatarModel({ config, motion, idle }: { config: AvatarConfig; motion?: Motion; idle?: boolean }) {
+  const url = useModelUrl(`avatar-${config.body}`);
+  const still = useMemo<Motion>(() => ({ speed: 0 }), []);
+  const m = idle || !motion ? still : motion;
+  if (url) return <Suspense fallback={<PrimitiveAvatar config={config} motion={m} />}><AvatarRig config={config} motion={m} url={url} /></Suspense>;
+  return <PrimitiveAvatar config={config} motion={m} />;
+}
+
+/** Fallback figure built from primitives; swings limbs from the shared motion state. */
+function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Motion }) {
   const wide = config.body === "a";
   const shoulders = wide ? 2.1 : 1.7, hips = wide ? 1.7 : 1.9;
   const lArm = useRef<THREE.Mesh>(null), rArm = useRef<THREE.Mesh>(null), lLeg = useRef<THREE.Mesh>(null), rLeg = useRef<THREE.Mesh>(null);
-  useFrame(() => {
-    const p = idle ? 0 : phase.current ?? 0;
-    const s = Math.sin(p) * 0.55;
+  const phase = useRef(0);
+  useFrame((_, dt) => {
+    phase.current += dt * (motion.speed >= 2 ? 14 : motion.speed >= 1 ? 9 : 0);
+    const s = motion.speed > 0 ? Math.sin(phase.current) * 0.55 : 0;
     if (lArm.current) lArm.current.rotation.x = s; if (rArm.current) rArm.current.rotation.x = -s;
     if (lLeg.current) lLeg.current.rotation.x = -s; if (rLeg.current) rLeg.current.rotation.x = s;
   });
   const hairColor = config.hairColor;
   return (
     <group>
-      {/* legs */}
       <group position={[0, 2.9, 0]}>
-        <mesh ref={lLeg} position={[-0.45, 0, 0]}><group /><cylinderGeometry args={[0.36, 0.3, 2.9, 8]} /><meshStandardMaterial color={config.pants} /></mesh>
+        <mesh ref={lLeg} position={[-0.45, 0, 0]}><cylinderGeometry args={[0.36, 0.3, 2.9, 8]} /><meshStandardMaterial color={config.pants} /></mesh>
         <mesh ref={rLeg} position={[0.45, 0, 0]}><cylinderGeometry args={[0.36, 0.3, 2.9, 8]} /><meshStandardMaterial color={config.pants} /></mesh>
       </group>
-      {/* torso */}
       <mesh position={[0, 4.1, 0]}><cylinderGeometry args={[shoulders / 2, hips / 2, 2.3, 10]} /><meshStandardMaterial color={config.shirt} /></mesh>
-      {/* arms */}
       <mesh ref={lArm} position={[-(shoulders / 2 + 0.3), 4.6, 0]}><cylinderGeometry args={[0.24, 0.2, 2.4, 6]} /><meshStandardMaterial color={config.skin} /></mesh>
       <mesh ref={rArm} position={[shoulders / 2 + 0.3, 4.6, 0]}><cylinderGeometry args={[0.24, 0.2, 2.4, 6]} /><meshStandardMaterial color={config.skin} /></mesh>
-      {/* head */}
       <mesh position={[0, 5.95, 0]}><sphereGeometry args={[0.72, 14, 12]} /><meshStandardMaterial color={config.skin} /></mesh>
-      {config.hair === "short" && <mesh position={[0, 6.25, -0.08]}><sphereGeometry args={[0.74, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.1]} /><meshStandardMaterial color={hairColor} /></mesh>}
-      {config.hair === "buzz" && <mesh position={[0, 6.2, 0]}><sphereGeometry args={[0.73, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.6]} /><meshStandardMaterial color={hairColor} /></mesh>}
-      {config.hair === "long" && <><mesh position={[0, 6.2, -0.05]}><sphereGeometry args={[0.76, 12, 8, 0, Math.PI * 2, 0, Math.PI / 1.9]} /><meshStandardMaterial color={hairColor} /></mesh><mesh position={[0, 5.2, -0.45]}><boxGeometry args={[1.3, 1.9, 0.6]} /><meshStandardMaterial color={hairColor} /></mesh></>}
-      {config.hair === "bun" && <><mesh position={[0, 6.25, -0.05]}><sphereGeometry args={[0.74, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.1]} /><meshStandardMaterial color={hairColor} /></mesh><mesh position={[0, 6.7, -0.5]}><sphereGeometry args={[0.32, 8, 8]} /><meshStandardMaterial color={hairColor} /></mesh></>}
-      {/* lanyard badge */}
+      {config.hair !== "bald" && <mesh position={[0, 6.25, -0.08]}><sphereGeometry args={[0.74, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.1]} /><meshStandardMaterial color={hairColor} /></mesh>}
+      {config.hair === "long" && <mesh position={[0, 5.2, -0.45]}><boxGeometry args={[1.3, 1.9, 0.6]} /><meshStandardMaterial color={hairColor} /></mesh>}
+      {config.hair === "bun" && <mesh position={[0, 6.7, -0.5]}><sphereGeometry args={[0.32, 8, 8]} /><meshStandardMaterial color={hairColor} /></mesh>}
       <mesh position={[0, 4.2, hips / 2 + 0.05]}><boxGeometry args={[0.6, 0.8, 0.05]} /><meshStandardMaterial color="#f8fafc" /></mesh>
     </group>
   );
@@ -93,7 +100,7 @@ export function Player() {
   const pos = useRef(new THREE.Vector3(0, 0, Z0 + 18));
   const heading = useRef(0); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
   const yaw = useRef(0);
-  const phase = useRef(0);
+  const motion = useRef<Motion>({ speed: 0 }).current;
   const near = useRef<number | null>(null);
   const lastNear = useRef(0);
   const [firstPerson, setFirstPerson] = useState(false);
@@ -134,6 +141,7 @@ export function Player() {
     yaw.current += input.yawDrag; input.yawDrag = 0;
     const run = keys.has("shift") || input.run;
     const len = Math.hypot(fx, fz);
+    if (len <= 0.01) motion.speed = 0;
     if (len > 0.01) {
       const nx = fx / Math.max(1, len), nz = fz / Math.max(1, len);
       // camera-relative: forward is the direction the camera looks (yaw)
@@ -144,7 +152,7 @@ export function Player() {
       if (!blocked(nxp, pos.current.z)) pos.current.x = nxp;
       if (!blocked(pos.current.x, nzp)) pos.current.z = nzp;
       heading.current = Math.atan2(dx, dz);
-      phase.current += d * (run ? 14 : 9);
+      motion.speed = run ? 2 : 1;
       // the camera yaw eases toward the heading so the player sees where they go
       let diff = heading.current - yaw.current; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       yaw.current += diff * Math.min(1, d * 1.5);
@@ -172,14 +180,14 @@ export function Player() {
   if (mode !== "walk") return null;
   return (
     <group ref={group}>
-      {!firstPerson && <AvatarModel config={avatar} phase={phase} />}
+      {!firstPerson && <AvatarModel config={avatar} motion={motion} />}
       <pointLight position={[0, 7, 0]} intensity={6} distance={14} color="#ffffff" />
     </group>
   );
 }
 
 /* ---------- NPC crowd wandering the aisles ---------- */
-interface Npc { config: AvatarConfig; x: number; z: number; dz: number; speed: number; phase: number; corridor: number }
+interface Npc { config: AvatarConfig; x: number; z: number; dz: number; speed: number; corridor: number }
 function rnd(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
 export function Crowd({ count = 36 }: { count?: number }) {
   const npcs = useMemo<Npc[]>(() => {
@@ -190,21 +198,20 @@ export function Crowd({ count = 36 }: { count?: number }) {
       const corridor = unique[Math.floor(r() * unique.length)];
       return {
         config: { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "bald"] as const)[Math.floor(r() * 5)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)] },
-        x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), dz: r() < 0.5 ? 1 : -1, speed: 4 + r() * 4, phase: r() * 6, corridor: i,
+        x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), dz: r() < 0.5 ? 1 : -1, speed: 4 + r() * 4, corridor: i,
       };
     });
   }, [count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
-  const phases = useMemo(() => npcs.map((n) => ({ current: n.phase })), [npcs]);
+  const motions = useMemo<Motion[]>(() => npcs.map(() => ({ speed: 1 })), [npcs]);
   useFrame((_, dt) => {
     const d = Math.min(dt, 0.05);
     npcs.forEach((n, i) => {
       n.z += n.dz * n.speed * d;
       if (n.z > Z_BACK + 6 || n.z < Z_FRONT - 6) n.dz *= -1;
-      phases[i].current += d * 8;
       const g = refs.current[i];
       if (g) { g.position.set(n.x, 0, n.z); g.rotation.y = n.dz > 0 ? 0 : Math.PI; }
     });
   });
-  return <>{npcs.map((n, i) => <group key={i} ref={(el) => { refs.current[i] = el; }}><AvatarModel config={n.config} phase={phases[i]} /></group>)}</>;
+  return <>{npcs.map((n, i) => <group key={i} ref={(el) => { refs.current[i] = el; }}><AvatarModel config={n.config} motion={motions[i]} /></group>)}</>;
 }

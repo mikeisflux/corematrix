@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   }
   const s = await getSettings(["MAIL_FROM", "MAIL_FROM_NAME", "SITE_NAME"]);
   const id = newId();
-  await db.insert(schema.mailMessages).values({ id, direction: "out", channel: fields.threadId ? "reply" : "email", status: "draft", read: true, fromEmail: s.MAIL_FROM || "no-reply@alwaysoncon.app", fromName: s.MAIL_FROM_NAME || s.SITE_NAME || "AlwaysOnCon", createdAt: now(), ...fields });
+  await db.insert(schema.mailMessages).values({ id, direction: "out", channel: fields.threadId ? "reply" : "email", status: "draft", read: true, fromEmail: s.MAIL_FROM || "no-reply@forevercomiccon.com", fromName: s.MAIL_FROM_NAME || s.SITE_NAME || "ForeverComicCon", createdAt: now(), ...fields });
   if (b.copyAttachmentsFrom) {
     const src = await db.select().from(schema.mailAttachments).where(and(eq(schema.mailAttachments.messageId, String(b.copyAttachmentsFrom)), eq(schema.mailAttachments.inline, false)));
     let total = 0;

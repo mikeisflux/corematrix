@@ -27,7 +27,7 @@ export function SignIn({ next, note }: { next?: string; note?: string }) {
     setBusy(true);
     setErr(null);
     try {
-      const ref = typeof window !== "undefined" ? localStorage.getItem("aoc_ref") ?? undefined : undefined;
+      const ref = typeof window !== "undefined" ? localStorage.getItem("fcc_ref") ?? undefined : undefined;
       const r = await api<{ devLink?: string }>("/api/auth/request", { method: "POST", body: JSON.stringify({ email, next: next ?? window.location.pathname, ref }) });
       setSent(r);
     } catch (e) {

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Environment } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, SMAA, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Booth } from "./Booth";
@@ -10,6 +10,7 @@ import { Hall } from "./Hall";
 import { EmptyBooths } from "./EmptyBooths";
 import { Arcade, flyoverCurve } from "./Arcade";
 import { Player, Crowd } from "./Avatar";
+import { Mascot } from "./Mascot";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
 import { useHall, track, type HallBooth } from "@/lib/hall/store";
@@ -34,6 +35,7 @@ export function Scene() {
       <AisleBanners billboards={billboards} night={night} />
       <EntranceBanner billboards={billboards} night={night} />
       <Crowd count={mode === "walk" ? 48 : 30} />
+      <Mascot />
       <Player />
       <CameraRig />
       <Impressions />
@@ -51,7 +53,8 @@ export function Scene() {
 function Lighting({ night }: { night: boolean }) {
   return (
     <>
-      <ambientLight intensity={night ? 0.22 : 0.75} color={night ? "#7c86ff" : "#ffffff"} />
+      <Environment files="/hdri/warehouse.hdr" environmentIntensity={night ? 0.25 : 0.9} />
+      <ambientLight intensity={night ? 0.15 : 0.35} color={night ? "#7c86ff" : "#ffffff"} />
       <hemisphereLight intensity={night ? 0.25 : 0.7} color={night ? "#2a2a55" : "#ffffff"} groundColor={night ? "#0a0a14" : "#6b7280"} />
       <directionalLight position={[120, 200, 80]} intensity={night ? 0.2 : 1.1} color={night ? "#8a8aff" : "#fff8ea"} />
       <directionalLight position={[-200, 160, -120]} intensity={night ? 0.1 : 0.5} color="#dbe7ff" />
@@ -96,7 +99,7 @@ function AisleBanners({ billboards, night }: { billboards: Ad[]; night: boolean 
 /** The giant banner over the main entrance: the premium "airship" slot. */
 function EntranceBanner({ billboards, night }: { billboards: Ad[]; night: boolean }) {
   const ad = billboards.find((b) => b.slot === "airship");
-  const tex = useMemo(() => signTexture(ad ? [ad.headline, ad.body ?? ""] : ["WELCOME TO ALWAYSONCON", "the convention that never closes"], { bg: ad?.color ?? "#111827", fg: "#ffffff", w: 2048, h: 512, size: ad ? 150 : 120 }), [ad]);
+  const tex = useMemo(() => signTexture(ad ? [ad.headline, ad.body ?? ""] : ["WELCOME TO FOREVERCOMICCON", "the convention that never closes"], { bg: ad?.color ?? "#111827", fg: "#ffffff", w: 2048, h: 512, size: ad ? 150 : 120 }), [ad]);
   const setPanel = useHall((s) => s.setPanel);
   return (
     <group position={[0, CEILING - 7, Z0 + 14]} onClick={(e) => { e.stopPropagation(); if (ad) track({ kind: "billboard", id: ad.id, metric: "opens" }); setPanel("billboards"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>

@@ -43,7 +43,7 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!t) return notFound();
   const b = await readJson<{ action?: string; vars?: Record<string, unknown>; versionId?: string; subject?: string; html?: string; text?: string }>(req);
   const s = await getSettings(["SITE_NAME", "SITE_URL", "SUPPORT_EMAIL"]);
-  const vars = { ...SAMPLE_VARS, siteName: s.SITE_NAME || "AlwaysOnCon", siteUrl: s.SITE_URL || "http://localhost:3000", supportEmail: s.SUPPORT_EMAIL || "hello@alwaysoncon.app", ...(b.vars || {}) };
+  const vars = { ...SAMPLE_VARS, siteName: s.SITE_NAME || "ForeverComicCon", siteUrl: s.SITE_URL || "http://localhost:3000", supportEmail: s.SUPPORT_EMAIL || "hello@forevercomiccon.com", ...(b.vars || {}) };
   const subjectSrc = b.subject ?? t.subject, htmlSrc = b.html ?? t.html, textSrc = b.text ?? t.text;
   switch (b.action) {
     case "preview":

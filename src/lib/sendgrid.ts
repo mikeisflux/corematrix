@@ -20,8 +20,8 @@ export interface MailResult { ok: boolean; error?: string; messageId?: string; l
 export async function sendMail(input: MailInput): Promise<MailResult> {
   await ensureMigrated();
   const s = await getSettings(["SENDGRID_API_KEY", "MAIL_FROM", "MAIL_FROM_NAME", "MAIL_REPLY_TO", "MAIL_BCC_ADMIN", "MAIL_FOOTER", "SENDGRID_TRACKING", "SITE_NAME"]);
-  const from = s.MAIL_FROM || "no-reply@alwaysoncon.app";
-  const fromName = s.MAIL_FROM_NAME || s.SITE_NAME || "AlwaysOnCon";
+  const from = s.MAIL_FROM || "no-reply@forevercomiccon.com";
+  const fromName = s.MAIL_FROM_NAME || s.SITE_NAME || "ForeverComicCon";
   const toList = (Array.isArray(input.to) ? input.to : [input.to]).filter(Boolean);
   const text = s.MAIL_FOOTER ? `${input.text}\n\n—\n${s.MAIL_FOOTER}` : input.text;
   const html = input.html
@@ -51,7 +51,7 @@ export async function sendMail(input: MailInput): Promise<MailResult> {
       to: toList.map((email) => ({ email })),
       ...(input.cc?.length ? { cc: input.cc.map((email) => ({ email })) } : {}),
       ...(bcc.length ? { bcc: bcc.map((email) => ({ email })) } : {}),
-      custom_args: { aoc_log_id: logId },
+      custom_args: { fcc_log_id: logId },
     }],
     from: { email: from, name: fromName },
     ...((input.replyTo || s.MAIL_REPLY_TO) ? { reply_to: { email: input.replyTo || s.MAIL_REPLY_TO } } : {}),
@@ -120,9 +120,9 @@ export async function sendTemplate(slug: string, to: string, vars: Record<string
   await ensureDefaultTemplates();
   const [t] = await db.select().from(schema.emailTemplates).where(eq(schema.emailTemplates.slug, slug)).limit(1);
   const base = {
-    siteName: (await getSetting("SITE_NAME")) || process.env.NEXT_PUBLIC_SITE_NAME || "AlwaysOnCon",
+    siteName: (await getSetting("SITE_NAME")) || process.env.NEXT_PUBLIC_SITE_NAME || "ForeverComicCon",
     siteUrl: ((await getSetting("SITE_URL")) || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, ""),
-    supportEmail: (await getSetting("SUPPORT_EMAIL")) || "hello@alwaysoncon.app",
+    supportEmail: (await getSetting("SUPPORT_EMAIL")) || "hello@forevercomiccon.com",
     currentYear: new Date().getFullYear(),
   };
   const all = { ...base, ...vars };

@@ -1,5 +1,5 @@
 {
-  "name": "alwaysoncon",
+  "name": "forevercomiccon",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,8 @@
     "seed": "tsx scripts/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "models": "node scripts/export-models.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
