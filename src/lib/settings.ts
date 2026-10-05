@@ -26,10 +26,10 @@ export const SETTING_KEYS: SettingDef[] = [
 
   // DivinityCoin
   { key: "DIVINITYCOIN_API_URL", label: "DivinityCoin API base URL", group: "DivinityCoin", hint: "https://divinitycoin.com (default) — public HTTPS, no VPN or allow-list needed" },
-  { key: "DIVINITYCOIN_API_KEY", label: "DivinityCoin partner API key", group: "DivinityCoin", secret: true, hint: "sk_… from the partner page; sent as Authorization: Bearer <key>" },
+  { key: "DIVINITYCOIN_API_KEY", label: "DivinityCoin secret API key (sk_…)", group: "DivinityCoin", secret: true, hint: "The SECRET key from DivinityCoin → Partners → API keys (starts sk_). Sent as Authorization: Bearer <key>. The public key (pk_…) is for browser SDKs only and is not used here: every call is server to server." },
   { key: "DIVINITYCOIN_AUTH_HEADER", label: "API key header name", group: "DivinityCoin", hint: "Authorization (default)" },
-  { key: "DIVINITYCOIN_PARTNER_SLUG", label: "Partner slug registered on DivinityCoin", group: "DivinityCoin", hint: "forevercomiccon" },
-  { key: "DIVINITYCOIN_WEBHOOK_SECRET", label: "DivinityCoin webhook signing secret", group: "DivinityCoin", secret: true, hint: "HMAC-SHA256 secret DivinityCoin uses to sign deliveries. In test mode any long random string works." },
+  { key: "DIVINITYCOIN_PARTNER_SLUG", label: "Partner slug registered on DivinityCoin", group: "DivinityCoin", hint: "forevercomiccon — the slug in your sk_<slug>_… key" },
+  { key: "DIVINITYCOIN_WEBHOOK_SECRET", label: "DivinityCoin webhook signing secret", group: "DivinityCoin", secret: true, hint: "From DivinityCoin → Partners → Settings → Webhook secret (generate one there and paste it here). HMAC-SHA256 over the raw body. In test mode any long random string works." },
   { key: "DIVINITYCOIN_WEBHOOK_URL", label: "Webhook URL (paste into DivinityCoin partner settings)", group: "DivinityCoin", readonly: true, hint: "https://<site>/api/webhooks/divinitycoin" },
   { key: "DIVINITYCOIN_INTERNAL_PATH", label: "Internal API path prefix", group: "DivinityCoin", hint: "/internal (default). Calls are POST <prefix>?action=…" },
   { key: "DIVINITYCOIN_ALLOW_CREDITS", label: "Allow paying with DivinityCoin credit balance", group: "DivinityCoin", hint: "true / false" },

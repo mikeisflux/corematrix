@@ -54,7 +54,13 @@ export default function DivinityCheckoutFrame({ checkoutUrl, sessionId, confirmP
     return () => window.removeEventListener("message", onMessage);
   }, [origin, sessionId, confirm]);
 
-  useEffect(() => { const t = setTimeout(() => { if (!ready) setSlow(true); }, 8000); return () => clearTimeout(t); }, [ready]);
+  /* If the frame never says ready (our origin missing from DivinityCoin's
+     CHECKOUT_FRAME_ANCESTORS, or a privacy extension blocking it), show the
+     hint at 6 s and open the same checkout full-page at 12 s so nobody is
+     stuck looking at a spinner. */
+  useEffect(() => { const t = setTimeout(() => { if (!ready) setSlow(true); }, 6000); return () => clearTimeout(t); }, [ready]);
+  useEffect(() => { if (ready) return; const t = setTimeout(() => { if (!ready && !done.current) void reopen(); }, 12000); return () => clearTimeout(t); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
   useEffect(() => {
     if (!ready) return;
     let stop = false;
@@ -88,7 +94,7 @@ export default function DivinityCheckoutFrame({ checkoutUrl, sessionId, confirmP
             <div>{verifying ? "Confirming your payment…" : "Loading secure checkout…"}</div>
             {slow && !ready && (
               <div className="flex flex-col items-center gap-2 text-xs text-slate-400">
-                <div>Taking a while? Your browser may be blocking the embedded checkout.</div>
+                <div>Taking a while? Your browser may be blocking the embedded checkout. Opening it in this tab shortly…</div>
                 <button type="button" className="btn-ghost text-xs" onClick={() => void reopen()}>Open the secure checkout in this tab</button>
               </div>
             )}

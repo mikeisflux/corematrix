@@ -15,7 +15,7 @@ export default async function CheckoutPage({ params, searchParams }: { params: P
   const sp = await searchParams;
   await ensureMigrated();
   const user = await currentUser();
-  if (!user) redirect(`/app/login?next=/checkout/${txId}`);
+  if (!user) redirect(`/app/login?next=/app/checkout/${txId}`);
   const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
   if (!tx || tx.buyerId !== user.id) redirect("/");
   if (tx.status === "paid") redirect(`/app/checkout/done?tx=${tx.id}`);

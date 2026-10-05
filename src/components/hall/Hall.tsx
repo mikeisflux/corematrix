@@ -93,7 +93,7 @@ export function Hall({ night }: { night: boolean }) {
       ))}
       <group position={[0, 24, Z0 + 1.2]}><TwoSided w={150} h={37}><meshBasicMaterial map={entranceSign} toneMapped={false} /></TwoSided></group>
       <CeilingRig night={night} trussRows={trussRows} trussCols={trussCols} refs={{ trussRef, trussRef2, lightRef }} />
-      <instancedMesh ref={pillarRef} args={[undefined, undefined, pillarCount]}>
+      <instancedMesh frustumCulled={false} ref={pillarRef} args={[undefined, undefined, pillarCount]}>
         <cylinderGeometry args={[1.4, 1.4, CEILING, 10]} />
         <meshStandardMaterial color="#8a93a3" roughness={0.6} />
       </instancedMesh>
@@ -113,15 +113,15 @@ function CeilingRig({ night, trussRows, trussCols, refs }: { night: boolean; tru
         <planeGeometry args={[HALL_LENGTH + 4, HALL_DEPTH + 4]} />
         <meshStandardMaterial color={night ? "#07090f" : "#161a24"} roughness={1} />
       </mesh>
-      <instancedMesh ref={trussRef} args={[undefined, undefined, trussRows]}>
+      <instancedMesh frustumCulled={false} ref={trussRef} args={[undefined, undefined, trussRows]}>
         <boxGeometry args={[HALL_LENGTH, 1.6, 1.6]} />
         <meshStandardMaterial color="#5b6472" metalness={0.6} roughness={0.5} />
       </instancedMesh>
-      <instancedMesh ref={trussRef2} args={[undefined, undefined, trussCols]}>
+      <instancedMesh frustumCulled={false} ref={trussRef2} args={[undefined, undefined, trussCols]}>
         <boxGeometry args={[1.6, 1.6, HALL_DEPTH]} />
         <meshStandardMaterial color="#5b6472" metalness={0.6} roughness={0.5} />
       </instancedMesh>
-      <instancedMesh ref={lightRef} args={[undefined, undefined, trussRows * trussCols]}>
+      <instancedMesh frustumCulled={false} ref={lightRef} args={[undefined, undefined, trussRows * trussCols]}>
         <boxGeometry args={[6, 0.6, 2]} />
         <meshStandardMaterial color="#f8fafc" emissive={night ? "#ffd27a" : "#ffffff"} emissiveIntensity={night ? 0.9 : 2.2} toneMapped={false} />
       </instancedMesh>

@@ -141,7 +141,7 @@ class DivinityCoinClient {
         pledgeId: input.reference, projectId: DC_PROJECT_ID,
         returnUrl: input.returnUrl, cancelUrl: input.cancelUrl, description: input.description,
         expiresInMinutes: input.expiresInMinutes ?? 60,
-        partnerLogoUrl: `${c.site}/icon.png`,
+        partnerLogoUrl: `${c.site}/icon-512.png`,
         ...(input.embed ? { disableAutoRedirect: true } : {}),
         ...originFields(input.origin),
       });
@@ -160,7 +160,7 @@ class DivinityCoinClient {
       const d = await this.call<{ success: boolean; sessionId: string; checkoutUrl: string; expiresAt: string }>("create-checkout-session", {
         platformUserId: input.customerId, email: input.email, mode: "setup",
         returnUrl: input.returnUrl, cancelUrl: input.cancelUrl, description: input.description, expiresInMinutes: 60,
-        partnerLogoUrl: `${c.site}/icon.png`,
+        partnerLogoUrl: `${c.site}/icon-512.png`,
         ...(input.embed ? { disableAutoRedirect: true } : {}),
         ...originFields(input.origin),
       });

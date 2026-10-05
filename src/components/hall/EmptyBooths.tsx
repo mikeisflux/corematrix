@@ -115,45 +115,45 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
   return (
     <group>
       {/* taped outline of the exact footprint */}
-      <instancedMesh ref={tape} args={[tapeGeo, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
+      <instancedMesh frustumCulled={false} ref={tape} args={[tapeGeo, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <meshStandardMaterial color={night ? "#b45309" : "#f59e0b"} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </instancedMesh>
-      <instancedMesh ref={floor} args={[floorGeo, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
+      <instancedMesh frustumCulled={false} ref={floor} args={[floorGeo, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <meshStandardMaterial color="#9ca3af" roughness={1} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
       </instancedMesh>
       {!island && (
-        <instancedMesh ref={drape} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
+        <instancedMesh frustumCulled={false} ref={drape} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
           <boxGeometry args={[0.5, table ? 3.2 : 8, d]} />
           <meshStandardMaterial color={drapeColor} roughness={0.95} />
         </instancedMesh>
       )}
       {!island && !table && (
-        <instancedMesh ref={rails} args={[undefined, undefined, n * 2]} onPointerOver={over} onPointerOut={out} onClick={click}>
+        <instancedMesh frustumCulled={false} ref={rails} args={[undefined, undefined, n * 2]} onPointerOver={over} onPointerOut={out} onClick={click}>
           <boxGeometry args={[w * 0.7, 3, 0.3]} />
           <meshStandardMaterial color={drapeColor} roughness={0.95} />
         </instancedMesh>
       )}
       {island && (
-        <instancedMesh ref={posts} args={[undefined, undefined, n * 4]} onPointerOver={over} onPointerOut={out} onClick={click}>
+        <instancedMesh frustumCulled={false} ref={posts} args={[undefined, undefined, n * 4]} onPointerOver={over} onPointerOut={out} onClick={click}>
           <boxGeometry args={[0.4, 8, 0.4]} />
           <meshStandardMaterial color={night ? "#6b7280" : "#9ca3af"} metalness={0.6} roughness={0.4} />
         </instancedMesh>
       )}
-      <instancedMesh ref={card} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
+      <instancedMesh frustumCulled={false} ref={card} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <boxGeometry args={[2.2, 1.7, 0.1]} />
         <meshStandardMaterial map={cardTex} emissive="#fff" emissiveMap={cardTex} emissiveIntensity={night ? 0.4 : 0.05} />
       </instancedMesh>
       {/* skirted tables along the open edge, white top */}
-      <instancedMesh ref={tables} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
+      <instancedMesh frustumCulled={false} ref={tables} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <boxGeometry args={[2.5, 2.6, L]} />
         <meshStandardMaterial color={night ? "#374151" : "#4b5563"} roughness={0.95} />
       </instancedMesh>
-      <instancedMesh ref={tops} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
+      <instancedMesh frustumCulled={false} ref={tops} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <boxGeometry args={[2.6, 0.12, L + 0.1]} />
         <meshStandardMaterial color="#f8fafc" roughness={0.6} />
       </instancedMesh>
       {/* roll-up banner behind each table */}
-      <instancedMesh ref={banners} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
+      <instancedMesh frustumCulled={false} ref={banners} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <boxGeometry args={[bannerW, bannerH, 0.08]} />
         <meshStandardMaterial map={bannerTex} emissive="#fff" emissiveMap={bannerTex} emissiveIntensity={night ? 0.35 : 0.08} />
       </instancedMesh>

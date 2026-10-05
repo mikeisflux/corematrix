@@ -54,11 +54,11 @@ export function Arcade({ night }: { night: boolean }) {
     <group onClick={(e) => { e.stopPropagation(); setPanel("arcade"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ARCADE.x, 0.05, ARCADE.z]}><planeGeometry args={[ARCADE.w, ARCADE.d]} /><meshStandardMaterial map={carpet} roughness={1} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
       {cabinetGlb ? cabinets.map((k, i) => <Prop key={i} name="cabinet" position={[k.x, 0, k.z]} rotation={[0, k.rot, 0]} emissive={{ screen: SCREEN_COLORS[i % SCREEN_COLORS.length] }} />) : (<>
-        <instancedMesh ref={cab} args={[undefined, undefined, cabinets.length]}>
+        <instancedMesh frustumCulled={false} ref={cab} args={[undefined, undefined, cabinets.length]}>
           <boxGeometry args={[2.6, 6, 2.6]} />
           <meshStandardMaterial color="#1b1b2f" roughness={0.6} metalness={0.2} />
         </instancedMesh>
-        <instancedMesh ref={screen} args={[undefined, undefined, cabinets.length]}>
+        <instancedMesh frustumCulled={false} ref={screen} args={[undefined, undefined, cabinets.length]}>
           <planeGeometry args={[2, 1.6]} />
           <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1.5} toneMapped={false} />
         </instancedMesh>
