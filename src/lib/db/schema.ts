@@ -420,3 +420,24 @@ export const boothArt = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.boothId, t.slot] })],
 );
+
+/** Cash-out requests: credit leaves the user's balance when requested; an admin pays by PayPal and marks it paid, or rejects it and the credit comes back. */
+export const payouts = sqliteTable(
+  "payouts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    method: text("method").notNull().default("paypal"),
+    paypalEmail: text("paypal_email").notNull(),
+    legalName: text("legal_name").notNull(), // for the 1099 at $600+/yr
+    address: text("address").notNull(),
+    status: text("status").notNull().default("pending"), // pending | paid | rejected
+    reference: text("reference"), // PayPal transaction id once paid
+    note: text("note"), // rejection reason / admin note
+    adminId: text("admin_id"),
+    createdAt: integer("created_at").notNull(),
+    resolvedAt: integer("resolved_at"),
+  },
+  (t) => [index("payouts_user_idx").on(t.userId, t.createdAt), index("payouts_status_idx").on(t.status, t.createdAt)],
+);

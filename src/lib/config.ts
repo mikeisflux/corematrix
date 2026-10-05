@@ -62,6 +62,9 @@ export const HOUSE_BOOTH_ID = 442;
 export const bannerWidth = (height: number) => Math.round((height / 2) * 10) / 10;
 export const bannerUpgradeCents = (from: number, to: number) => Math.max(0, to - from) * BANNER.perFootCents;
 export const REFERRAL_CREDIT_CENTS = 200; // both sides
+/** Cash-outs: credit → PayPal, paid by hand from Admin → Payouts. */
+export const PAYOUT_MIN_CENTS = 2500;
+export const PAYOUT_MAX_CENTS = 500000;
 
 export const TIERS = {
   free: { name: "Exhibitor", priceCents: 0, perks: ["Permanent booth number", "Logo, banner + link", "Basic stats (7 days)"] },

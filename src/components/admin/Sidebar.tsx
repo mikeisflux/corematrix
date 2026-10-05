@@ -9,6 +9,7 @@ const NAV: { href: string; label: string; sub?: { href: string; label: string }[
   { href: "/admin/booths", label: "Booths" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/plans", label: "Plans" },
+  { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/billboards", label: "Billboards" },
   { href: "/admin/emails", label: "Emails", sub: [
     { href: "/admin/emails", label: "Inbox" },

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, type ArtSlot } from "@/lib/config";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, type ArtSlot } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
@@ -59,8 +59,10 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
         <Link href="/app?claim=1" className="btn-primary mt-6">Claim a booth →</Link>
         <div className="mt-8 rounded-2xl border border-white/10 p-4 text-left text-sm">
           <div className="font-bold">Your balances</div>
-          <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover)</div>
+          <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover, or cash it out)</div>
           <div className="mt-2 text-xs text-slate-500">Referral link: <span className="mono">{origin}/?ref={me.referralCode}</span></div>
+          <Cashout me={me} setMsg={setMsg} onDone={() => void load()} />
+          {msg && <p className="mt-2 text-xs text-amber-300">{msg}</p>}
         </div>
       </div>
     );
@@ -76,7 +78,8 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your balances</div>
           <div className="mt-1 flex items-baseline gap-3"><span className="mono text-2xl font-bold text-amber-300">{me.coins}</span><span className="text-xs text-slate-400">coins · {me.streak}-day streak</span></div>
           <div className="mono text-lg">{formatMoney(me.creditCents)} <span className="text-xs text-slate-400">credit</span></div>
-          <p className="mt-1 text-[11px] text-slate-500">Credit comes from takeover payouts and referrals. Spend it on any claim, takeover, boost or billboard. Payouts to your bank: email us.</p>
+          <p className="mt-1 text-[11px] text-slate-500">Credit comes from takeover payouts and referrals. Spend it on any claim, takeover, boost or banner, or cash it out to PayPal.</p>
+          <Cashout me={me} setMsg={setMsg} onDone={() => void load()} />
         </div>
         <div className="rounded-2xl border border-white/10 p-2">
           <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Your booths</div>
@@ -507,6 +510,52 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
           );
         })}
       </div>
+    </div>
+  );
+}
+
+interface PayoutRow { id: string; amountCents: number; paypalEmail: string; status: string; reference: string | null; note: string | null; createdAt: number; resolvedAt: number | null }
+/** Credit → PayPal. Sent by hand from the admin panel; the credit leaves the balance when the request is made. */
+function Cashout({ me, setMsg, onDone }: { me: Me; setMsg: (s: string) => void; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<PayoutRow[] | null>(null);
+  const [f, setF] = useState({ amount: Math.max(PAYOUT_MIN_CENTS, me.creditCents) / 100, paypalEmail: "", legalName: "", address: "" });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api<{ payouts: PayoutRow[] }>("/api/payouts").then((r) => setRows(r.payouts)).catch(() => setRows([])); }, [me.creditCents]);
+  const can = me.creditCents >= PAYOUT_MIN_CENTS;
+  const pending = rows?.find((r) => r.status === "pending");
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ payouts: PayoutRow[] }>("/api/payouts", { method: "POST", body: JSON.stringify({ amountCents: Math.round(f.amount * 100), paypalEmail: f.paypalEmail, legalName: f.legalName, address: f.address }) });
+      setRows(r.payouts); setOpen(false); setMsg("Payout requested. We'll email you when it's sent, usually within 3 business days."); onDone();
+    } catch (e) { setMsg((e as Error).message); }
+    setBusy(false);
+  };
+  return (
+    <div className="mt-3 border-t border-white/10 pt-3">
+      {pending ? (
+        <div className="text-[11px] text-slate-300">Payout of <b>{formatMoney(pending.amountCents)}</b> to {pending.paypalEmail} is being sent. Requested <span className="mono">{new Date(pending.createdAt).toLocaleDateString()}</span>.</div>
+      ) : !open ? (
+        <button className="btn-ghost w-full text-xs" disabled={!can} onClick={() => setOpen(true)}>{can ? "Cash out to PayPal" : `Cash out from ${formatMoney(PAYOUT_MIN_CENTS)} credit`}</button>
+      ) : (
+        <div className="space-y-2">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Cash out to PayPal</div>
+          <div><label className="label">Amount (USD)</label><input type="number" min={PAYOUT_MIN_CENTS / 100} max={me.creditCents / 100} step={1} className="input" value={f.amount} onChange={(e) => setF({ ...f, amount: Number(e.target.value) })} /></div>
+          <div><label className="label">PayPal email</label><input type="email" className="input" placeholder="you@paypal.com" value={f.paypalEmail} onChange={(e) => setF({ ...f, paypalEmail: e.target.value })} /></div>
+          <div><label className="label">Legal name</label><input className="input" value={f.legalName} onChange={(e) => setF({ ...f, legalName: e.target.value })} /></div>
+          <div><label className="label">Mailing address</label><textarea className="input" rows={2} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></div>
+          <p className="text-[11px] text-slate-500">Sent by a person from our PayPal, usually within 3 business days. Name and address are needed for tax forms if you receive $600 or more in a year. The amount leaves your credit now and comes back if we can't send it.</p>
+          <div className="flex gap-2"><button className="btn-primary text-xs" disabled={busy || f.amount * 100 < PAYOUT_MIN_CENTS || f.amount * 100 > me.creditCents} onClick={submit}>Request {formatMoney(Math.round(f.amount * 100))}</button><button className="btn-ghost text-xs" onClick={() => setOpen(false)}>Cancel</button></div>
+        </div>
+      )}
+      {rows && rows.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {rows.slice(0, 5).map((r) => (
+            <div key={r.id} className="flex items-center justify-between text-[11px] text-slate-400"><span>{new Date(r.createdAt).toLocaleDateString()} · {formatMoney(r.amountCents)}</span><span className={r.status === "paid" ? "text-emerald-300" : r.status === "rejected" ? "text-rose-300" : "text-amber-300"}>{r.status}{r.status === "paid" && r.reference ? ` · ${r.reference}` : ""}{r.status === "rejected" && r.note ? ` · ${r.note}` : ""}</span></div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

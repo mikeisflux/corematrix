@@ -6,6 +6,7 @@ import { divinitycoin } from "@/lib/divinitycoin";
 import { currentMrrCents } from "@/lib/subscriptions";
 import { siteSeries } from "@/lib/analytics";
 import { guard } from "../_lib";
+import { payoutTotals } from "@/lib/payouts";
 export const dynamic = "force-dynamic";
 export async function GET() {
   const g = await guard(); if (g instanceof NextResponse) return g;
@@ -34,6 +35,7 @@ export async function GET() {
     revenue: { today: today.sum, week: week.sum, month: month.sum, lifetime: lifetime.sum, txToday: today.n, txLifetime: lifetime.n },
     pending: Number(pending.n), disputes: Number(disputes.n), booths: Number(booths.n), boothValue: Number(booths.v), users: Number(users.n), unread: Number(unread.n), failedEmails: Number(failedEmails.n), webhookFailures: Number(whFail.n),
     mrr, plans: Object.fromEntries(tierCounts.map((r) => [r.tier, Number(r.n)])),
+    payouts: await payoutTotals(),
     divinity: dc, testMode,
     visits7d: series.slice(-7).reduce((a, r) => a + r.visits, 0), clicks7d: series.slice(-7).reduce((a, r) => a + r.outboundClicks, 0), signups7d: series.slice(-7).reduce((a, r) => a + r.signups, 0),
     checks: [
