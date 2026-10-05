@@ -156,7 +156,7 @@ export function Player() {
   const report = (leave = false) => {
     const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: motion.speed, n: me?.displayName || "Visitor", a: avatar };
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
-      .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id) live.me = j.id; }).catch(() => {});
+      .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
   };
   // tell the floor when we leave walk mode or the page
   useEffect(() => {
