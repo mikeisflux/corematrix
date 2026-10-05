@@ -4,6 +4,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import path from "node:path";
 import fs from "node:fs";
 import * as schema from "./schema";
+import { seedSuperadmin } from "./seed-admin";
 
 const url = process.env.DATABASE_URL ?? "file:./data/forevercomiccon.db";
 const authToken = process.env.DATABASE_AUTH_TOKEN;
@@ -30,7 +31,7 @@ export function ensureMigrated(): Promise<void> {
   if (!globalForDb.__forevercomicconMigrated) {
     globalForDb.__forevercomicconMigrated = migrate(db, {
       migrationsFolder: path.join(process.cwd(), "drizzle"),
-    }).catch((e) => {
+    }).then(() => seedSuperadmin(db)).catch((e) => {
       globalForDb.__forevercomicconMigrated = undefined;
       throw e;
     });
