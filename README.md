@@ -9,9 +9,9 @@ Built as a direct answer to Claim Avenue, with the mechanics people actually wan
 and the parts it is missing: owners get something measurable back, the economy has
 recurring revenue, and there are reasons to come back every day.
 
-![show floor](docs/hall.png)
+![show floor](docs/hall.jpg)
 
-![walking the floor](docs/walk.png)
+![walking the floor](docs/walk.jpg)
 
 ## What's in the box
 
@@ -48,7 +48,7 @@ recurring revenue, and there are reasons to come back every day.
 ```bash
 cp .env.example .env.local      # defaults work out of the box (DivinityCoin test mode, console email)
 npm install
-npm run seed                    # ~260 demo exhibitors, 30 days of metrics, a feed
+npx tsx scripts/dev/seed-demo.ts   # optional, LOCAL DEV ONLY: a fictional floor to look at while coding
 npm run dev                     # http://localhost:3000
 ```
 
@@ -124,11 +124,11 @@ src/app/api/admin/       admin JSON routes (guarded by requireAdmin)
 src/lib/hall/layout.ts   the floor plan: every space, its size, zone, hall, aisle and price
 src/components/hall/     Three.js scene (Hall, Booth, EmptyBooths, Avatar, Arcade), HUD, panels, FloorPlan
 src/app/                 pages + API routes
-scripts/seed.ts          demo data
+scripts/dev/seed-demo.ts  fictional floor for local development only
 docs/STRATEGY.md         revenue, growth and engagement plan
 ```
 
 ## Scripts
 
-`npm run dev` · `npm run build` · `npm start` · `npm run seed [-- --force]` ·
+`npm run dev` · `npm run build` · `npm start` · `npm run models` ·
 `npm run typecheck` · `npm run lint` · `npm run db:generate` (after schema changes)

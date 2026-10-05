@@ -47,7 +47,7 @@ export function Footer() {
         <nav className="flex flex-wrap gap-5">
           <Link className="hover:text-white" href="/app">The hall</Link><Link className="hover:text-white" href="/app/directory">Exhibitors</Link><Link className="hover:text-white" href="/app/rankings">Rankings</Link><Link className="hover:text-white" href="/app/seasons">Seasons</Link><Link className="hover:text-white" href="/app/arcade">Arcade</Link><Link className="hover:text-white" href="/app/how-it-works">Rules &amp; refunds</Link><Link className="hover:text-white" href="/app/login">Sign in</Link>
         </nav>
-        <div>© {new Date().getFullYear()} {SITE_NAME}. Not affiliated with any convention or the exhibitors shown in demos.</div>
+        <div>© {new Date().getFullYear()} {SITE_NAME}. Not affiliated with any convention.</div>
       </div>
     </footer>
   );

@@ -1,75 +1,79 @@
 /**
- * Seeds a believable demo show floor: ~260 exhibitors and artists across the
- * halls, 30 days of metrics, a sales history and an activity feed. Run: npm run seed
+ * LOCAL DEVELOPMENT ONLY. Fills a local database with a fictional show floor so the
+ * 3D scene and dashboards have something to render while you work. Never run this
+ * against a production database: the site launches with an empty hall on purpose.
+ *
+ * Seeds a fictional show floor: ~260 exhibitors and artists across the
+ * halls, 30 days of metrics, a sales history and an activity feed. Run: npx tsx scripts/dev/seed-demo.ts [--force]
  * Idempotent-ish: skips if booths already exist unless --force.
  */
 import "dotenv/config";
 import { sql } from "drizzle-orm";
-import { db, ensureMigrated, schema } from "../src/lib/db";
-import { claimPriceCents, spaceColumns } from "../src/lib/economy";
-import { newCode, newId, seeded, dayKey } from "../src/lib/util";
-import { splitTakeover, BANNER_STYLES } from "../src/lib/config";
-import { hallLayout, boothSpace } from "../src/lib/hall/layout";
-import { closeSeason } from "../src/lib/seasons";
-import { weekBounds } from "../src/lib/util";
+import { db, ensureMigrated, schema } from "../../src/lib/db";
+import { claimPriceCents, spaceColumns } from "../../src/lib/economy";
+import { newCode, newId, seeded, dayKey } from "../../src/lib/util";
+import { splitTakeover, BANNER_STYLES } from "../../src/lib/config";
+import { hallLayout, boothSpace } from "../../src/lib/hall/layout";
+import { closeSeason } from "../../src/lib/seasons";
+import { weekBounds } from "../../src/lib/util";
 
 const force = process.argv.includes("--force");
 
 const NAMES: Array<[string, string, string, string]> = [
-  // name, tagline, category, website
-  ["Marvel Comics", "Earth's mightiest booth", "comics", "marvel.com"],
-  ["DC", "Home of the Justice League", "comics", "dc.com"],
-  ["Image Comics", "Creator-owned since 1992", "comics", "imagecomics.com"],
-  ["Dark Horse", "The best in illustrated storytelling", "comics", "darkhorse.com"],
-  ["IDW Publishing", "TMNT, Sonic, Star Trek", "comics", "idwpublishing.com"],
-  ["BOOM! Studios", "Something, Something, Something Comics", "comics", "boom-studios.com"],
-  ["Oni Press", "Scott Pilgrim lives here", "comics", "onipress.com"],
-  ["Fantagraphics", "Publisher of the world's greatest cartoonists", "comics", "fantagraphics.com"],
-  ["Hasbro Pulse", "Fan-first exclusives", "toys", "hasbropulse.com"],
-  ["Funko", "Pop! Everything.", "toys", "funko.com"],
-  ["Mattel Creations", "Masters of the Universe & more", "toys", "creations.mattel.com"],
-  ["Sideshow", "Collectible statues", "toys", "sideshow.com"],
-  ["Hot Toys", "1/6 scale perfection", "toys", "hottoys.com.hk"],
-  ["Super7", "ReAction figures", "toys", "super7.com"],
-  ["Wizards of the Coast", "Magic: The Gathering · D&D", "games", "wizards.com"],
-  ["Bandai Namco", "Gunpla, Dragon Ball, Tekken", "games", "bandainamcoent.com"],
-  ["Nintendo", "Play has no limits", "games", "nintendo.com"],
-  ["Pokémon Center", "Gotta catch 'em all", "games", "pokemoncenter.com"],
-  ["Crunchyroll", "Anime, every season", "media", "crunchyroll.com"],
-  ["Adult Swim", "[as]", "media", "adultswim.com"],
-  ["Nerdist", "Podcasts, news, nerds", "media", "nerdist.com"],
-  ["Lucasfilm", "A galaxy far, far away", "media", "starwars.com"],
-  ["Legendary", "Monsterverse", "media", "legendary.com"],
-  ["Loot Crate", "Monthly fandom boxes", "retail", "lootcrate.com"],
-  ["Mile High Comics", "The biggest back-issue dealer", "retail", "milehighcomics.com"],
-  ["Graphitti Designs", "Tees since 1982", "retail", "graphittidesigns.com"],
-  ["BoxLunch", "Give back, geek out", "retail", "boxlunch.com"],
-  ["Entertainment Earth", "Collectibles delivered", "retail", "entertainmentearth.com"],
-  ["Hero Initiative", "Helping comic creators in need", "fan", "heroinitiative.org"],
-  ["501st Legion", "Bad guys doing good", "fan", "501st.com"],
+  // name, tagline, category, website — all fictional; the demo floor never names real companies or people
+  ["Meridian Comics", "Heroes for a new century", "comics", "meridiancomics.example"],
+  ["Nightfall Press", "Crime, noir and the occasional ghost", "comics", "nightfallpress.example"],
+  ["Paper Rocket", "Creator-owned since 2014", "comics", "paperrocket.example"],
+  ["Ironwood Books", "The best in illustrated storytelling", "comics", "ironwoodbooks.example"],
+  ["Tidal Wave Comics", "Sea monsters, every Wednesday", "comics", "tidalwavecomics.example"],
+  ["Lantern Hill", "Something, something, something comics", "comics", "lanternhill.example"],
+  ["Quarter Moon", "Slice-of-life, one slice at a time", "comics", "quartermoon.example"],
+  ["Gutterworks", "Publisher of the world's strangest cartoonists", "comics", "gutterworks.example"],
+  ["Kaboom Toys", "Fan-first exclusives", "toys", "kaboomtoys.example"],
+  ["Pop Shelf", "Vinyl figures of everyone", "toys", "popshelf.example"],
+  ["Forge & Form", "Masters of the resin statue", "toys", "forgeandform.example"],
+  ["Sixth Scale Co.", "1/6 scale perfection", "toys", "sixthscale.example"],
+  ["Retro Reaction", "Carded figures like it's 1984", "toys", "retroreaction.example"],
+  ["Model Depot", "Kits, decals and airbrush supplies", "toys", "modeldepot.example"],
+  ["Spellbound Games", "The card game with a thousand decks", "games", "spellboundgames.example"],
+  ["Pixel Harbor", "Indie games, played here first", "games", "pixelharbor.example"],
+  ["Dungeon Door", "Tabletop RPGs and dice by the pound", "games", "dungeondoor.example"],
+  ["Deckbuilders Guild", "Trade, sleeve, shuffle", "games", "deckbuilders.example"],
+  ["Nightstream", "Streaming the shows comics became", "media", "nightstream.example"],
+  ["Late Night Toons", "Cartoons for grown-ups", "media", "latenighttoons.example"],
+  ["Nerd Signal", "Podcasts, news, nerds", "media", "nerdsignal.example"],
+  ["Starfall Studios", "A galaxy of our own", "media", "starfallstudios.example"],
+  ["Titan Pictures", "Monsters, mostly", "media", "titanpictures.example"],
+  ["Loot Vault", "Monthly fandom boxes", "retail", "lootvault.example"],
+  ["Mile Long Comics", "The biggest back-issue dealer", "retail", "milelongcomics.example"],
+  ["Ink & Thread", "Tees since 1982", "retail", "inkandthread.example"],
+  ["Lunchbox", "Give back, geek out", "retail", "lunchbox.example"],
+  ["Collectors' Crate", "Collectibles delivered", "retail", "collectorscrate.example"],
+  ["Creators Relief Fund", "Helping comic creators in need", "fan", "creatorsrelief.example"],
+  ["The 404th Legion", "Bad guys doing good", "fan", "404thlegion.example"],
   ["Cosplay Central", "Builds, foam, LEDs", "fan", "cosplaycentral.example"],
   ["Golden Age Pavilion", "Pre-code and pedigree books", "retail", "goldenagepavilion.example"],
-  ["Comic Book Legal Defense Fund", "Protecting the freedom to read", "fan", "cbldf.org"],
-  ["Skottie Young", "I Hate Fairyland · sketch covers", "art", "skottieyoung.com"],
-  ["Fiona Staples", "Saga", "art", "fionastaples.example"],
-  ["Jim Lee", "DC Publisher & artist", "art", "jimlee.example"],
-  ["Peach Momoko", "Demon Days", "art", "peachmomoko.example"],
-  ["Artgerm", "Prints & lithographs", "art", "artgerm.com"],
-  ["Mondo", "Posters, vinyl, collectibles", "art", "mondoshop.com"],
-  ["Webtoon", "Vertical scroll comics", "comics", "webtoons.com"],
-  ["Tapas", "Comics and novels", "comics", "tapas.io"],
-  ["Kickstarter Comics", "Launch your book", "comics", "kickstarter.com"],
-  ["Heritage Auctions", "Key issues, graded", "retail", "ha.com"],
-  ["CGC", "Comics grading", "retail", "cgccomics.com"],
-  ["Weta Workshop", "Props and miniatures", "toys", "wetanz.com"],
-  ["Square Enix", "Final Fantasy & Kingdom Hearts", "games", "square-enix.com"],
-  ["Capcom", "Street Fighter · Resident Evil", "games", "capcom.com"],
-  ["Titan Comics", "Doctor Who, Blade Runner", "comics", "titan-comics.com"],
-  ["Archie Comics", "Riverdale since 1941", "comics", "archiecomics.com"],
-  ["Viz Media", "Manga, anime, more", "comics", "viz.com"],
+  ["Freedom to Read Fund", "Protecting the freedom to read", "fan", "freedomtoread.example"],
+  ["Ava Okafor", "Sketch covers and sticker sheets", "art", "avaokafor.example"],
+  ["Kenji Tanaka", "Space opera, in ink", "art", "kenjitanaka.example"],
+  ["Mara Lindqvist", "Character designer", "art", "maralindqvist.example"],
+  ["Theo Reyes", "Demon-haunted watercolor", "art", "theoreyes.example"],
+  ["Yuki Haddad", "Prints & lithographs", "art", "yukihaddad.example"],
+  ["Poster Moon", "Posters, vinyl, collectibles", "art", "postermoon.example"],
+  ["Scrollcomics", "Vertical scroll comics", "comics", "scrollcomics.example"],
+  ["Tapestry", "Comics and novels", "comics", "tapestry.example"],
+  ["Launchpad Comics", "Crowdfund your book", "comics", "launchpadcomics.example"],
+  ["Keystone Auctions", "Key issues, graded", "retail", "keystoneauctions.example"],
+  ["Slab Lab", "Comics grading", "retail", "slablab.example"],
+  ["Prop Shop", "Props and miniatures", "toys", "propshop.example"],
+  ["Crystal Quest", "Fantasy RPGs since forever", "games", "crystalquest.example"],
+  ["Street Brawler", "Fighting games, arcade exclusives", "games", "streetbrawler.example"],
+  ["Crown Comics", "Time travel, blade runners", "comics", "crowncomics.example"],
+  ["Riverside Comics", "Small-town teens since 1941", "comics", "riversidecomics.example"],
+  ["Harbor Comics", "Graphic novels for every shelf", "comics", "harborcomics.example"],
 ];
 
-const ADJ = ["Ink", "Panel", "Gutter", "Splash", "Vortex", "Neon", "Retro", "Moon", "Lunar", "Pulp", "Kaiju", "Hero", "Rogue", "Cosmic", "Shadow", "Pixel", "Atomic", "Vinyl", "Onyx", "Ember"];
+const ADJ = ["Ink", "Panel", "Gutter", "Splash", "Vortex", "Neon", "Retro", "Moon", "Lunar", "Pulp", "Crimson", "Hero", "Rogue", "Cosmic", "Shadow", "Pixel", "Atomic", "Vinyl", "Onyx", "Ember"];
 const NOUN = ["Press", "Studio", "Comics", "Collective", "Illustration", "Prints", "Zines", "Toys", "Games", "Guild", "Forge", "Foundry", "Workshop", "Art", "Club", "Gallery", "Lab", "Co.", "Books", "Tales"];
 const STYLES = BANNER_STYLES;
 const CLOTHS = ["#111827", "#7f1d1d", "#1e3a8a", "#065f46", "#4c1d95", "#9a3412", "#3f3f46"];
@@ -253,9 +257,9 @@ async function main() {
     ["Harbor Coffee Co.", 4, "Morning everyone, fresh batch on the site today ☕"],
     ["$ORBIT", 3, "orbit holders assemble, we're climbing the rankings"],
     ["Pixel & Pine", 2, "Just moved our logo to the rooftop sign. looks so good at night"],
-    ["Marvel Comics", 1, "Got 400 banner clicks this week. Not bad for a booth."],
+    ["Meridian Comics", 1, "Got 400 banner clicks this week. Not bad for a booth."],
     ["Looma", 6, "Anyone else notice booth #20 keeps changing hands lol"],
-    ["Oni Press", 7, "signing at our booth right now, link on the banner"],
+    ["Quarter Moon", 7, "signing at our booth right now, link on the banner"],
   ];
   const chatOwner = owners[0];
   let ct = nowTs - 6 * 3600_000;

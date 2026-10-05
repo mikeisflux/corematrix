@@ -187,30 +187,40 @@ export function Player() {
 }
 
 /* ---------- NPC crowd wandering the aisles ---------- */
-interface Npc { config: AvatarConfig; x: number; z: number; dz: number; speed: number; corridor: number }
+interface Npc { config: AvatarConfig; x: number; z: number; dz: number; speed: number; corridor: number; pauseUntil: number; nextPause: number }
 function rnd(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
-export function Crowd({ count = 36 }: { count?: number }) {
+export function Crowd({ count = 110 }: { count?: number }) {
   const npcs = useMemo<Npc[]>(() => {
     const r = rnd(42);
-    const corridors = hallLayout().filter((b) => b.kind === "exhibitor" && b.facing === 1).map((b) => b.x + b.w / 2 + 5);
+    const corridors = hallLayout().filter((b) => b.facing === 1).map((b) => b.x + b.w / 2 + 5);
     const unique = Array.from(new Set(corridors.map((x) => Math.round(x))));
     return Array.from({ length: count }, (_, i) => {
       const corridor = unique[Math.floor(r() * unique.length)];
       return {
         config: { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "bald"] as const)[Math.floor(r() * 5)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)] },
-        x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), dz: r() < 0.5 ? 1 : -1, speed: 4 + r() * 4, corridor: i,
+        x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), dz: r() < 0.5 ? 1 : -1, speed: 3.5 + r() * 5, corridor: i, pauseUntil: 0, nextPause: 4 + r() * 20,
       };
     });
   }, [count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const motions = useMemo<Motion[]>(() => npcs.map(() => ({ speed: 1 })), [npcs]);
-  useFrame((_, dt) => {
+  useFrame(({ camera, clock }, dt) => {
     const d = Math.min(dt, 0.05);
+    const t = clock.elapsedTime;
     npcs.forEach((n, i) => {
-      n.z += n.dz * n.speed * d;
+      // stop at a booth now and then, then move on
+      if (t < n.pauseUntil) { motions[i].speed = 0; }
+      else {
+        if (t > n.nextPause) { n.pauseUntil = t + 2 + Math.random() * 5; n.nextPause = n.pauseUntil + 6 + Math.random() * 25; motions[i].speed = 0; }
+        else { motions[i].speed = n.speed > 7.5 ? 2 : 1; n.z += n.dz * n.speed * d; }
+      }
       if (n.z > Z_BACK + 6 || n.z < Z_FRONT - 6) n.dz *= -1;
       const g = refs.current[i];
-      if (g) { g.position.set(n.x, 0, n.z); g.rotation.y = n.dz > 0 ? 0 : Math.PI; }
+      if (g) {
+        g.position.set(n.x, 0, n.z); g.rotation.y = n.dz > 0 ? 0 : Math.PI;
+        // only draw people near the camera; the rest keep walking unseen
+        g.visible = Math.hypot(camera.position.x - n.x, camera.position.z - n.z) < 240;
+      }
     });
   });
   return <>{npcs.map((n, i) => <group key={i} ref={(el) => { refs.current[i] = el; }}><AvatarModel config={n.config} motion={motions[i]} /></group>)}</>;

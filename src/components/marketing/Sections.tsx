@@ -69,7 +69,7 @@ export function Arcade() {
   );
 }
 
-const ROW = ["Marvel", "DC", "Image", "Dark Horse", "IDW", "BOOM!", "Oni Press", "Fantagraphics", "Hasbro Pulse", "Funko", "Sideshow", "Hot Toys", "Wizards of the Coast", "Bandai Namco", "Crunchyroll", "Mondo", "Webtoon", "Viz", "Artists' Alley", "Small Press", "Cosplay", "Golden Age"];
+const ROW = ["Publishers", "Artists' Alley", "Small Press", "Toys & Collectibles", "Tabletop", "Video Games", "Film & TV", "Podcasts", "Cosplay", "Back Issues", "Golden Age", "Webcomics", "Prints & Commissions", "Fan Clubs", "Retailers"];
 export function Marquee() {
   const items = [...ROW, ...ROW];
   return (
@@ -77,7 +77,7 @@ export function Marquee() {
       <div className="mk-marquee gap-10 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
         {items.map((t, i) => <span key={i} className="whitespace-nowrap">{t} <span className="mx-4 text-[#ffcf5c]">✦</span></span>)}
       </div>
-      <p className="sr-only">Demo exhibitors on the floor include publishers, toy makers, studios and artists.</p>
+      <p className="sr-only">Who exhibits: publishers, artists, small press, toy makers, game studios, media, retailers and fan communities.</p>
     </div>
   );
 }

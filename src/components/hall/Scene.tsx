@@ -34,7 +34,7 @@ export function Scene() {
       <PreviewBooth />
       <AisleBanners billboards={billboards} night={night} />
       <EntranceBanner billboards={billboards} night={night} />
-      <Crowd count={mode === "walk" ? 48 : 30} />
+      <Crowd count={mode === "walk" ? 140 : 110} />
       <Mascot />
       <Player />
       <CameraRig />

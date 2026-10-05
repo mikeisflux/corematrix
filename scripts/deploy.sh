@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Pull, install, build, migrate and reload the app under pm2.
 #   sudo -u fcc /srv/fcc/app/scripts/deploy.sh            # normal deploy
-#   sudo -u fcc /srv/fcc/app/scripts/deploy.sh --seed     # also (re)seed the demo floor
 #   sudo -u fcc /srv/fcc/app/scripts/deploy.sh --no-pull  # rebuild what is checked out
 # Safe to run as root too: it re-executes itself as the app user.
 set -euo pipefail
@@ -9,8 +8,8 @@ set -euo pipefail
 APP_USER="${APP_USER:-fcc}"
 APP_DIR="${APP_DIR:-/srv/fcc/app}"
 PORT="${PORT:-3000}"
-PULL=1; SEED=0
-for a in "$@"; do case "$a" in --no-pull) PULL=0;; --seed) SEED=1;; *) echo "unknown flag $a"; exit 2;; esac; done
+PULL=1
+for a in "$@"; do case "$a" in --no-pull) PULL=0;; *) echo "unknown flag $a"; exit 2;; esac; done
 
 if [ "$(id -un)" != "$APP_USER" ]; then
   exec sudo -u "$APP_USER" -H env APP_DIR="$APP_DIR" PORT="$PORT" "$APP_DIR/scripts/deploy.sh" "$@"
@@ -41,8 +40,6 @@ npm ci --no-audit --no-fund
 
 log "next build"
 npm run build
-
-if [ "$SEED" = 1 ]; then log "seed"; npm run seed -- --force; fi
 
 # Migrations run automatically when the app boots (ensureMigrated); nothing to do here.
 log "pm2 reload"
