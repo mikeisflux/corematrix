@@ -46,25 +46,25 @@ export function Hall({ night }: { night: boolean }) {
         <planeGeometry args={[HALL_LENGTH + 2, HALL_DEPTH + 2]} />
         <meshStandardMaterial map={concrete} color={night ? "#8a8f9a" : "#ffffff"} roughness={0.95} />
       </mesh>
-      {/* aisle carpets */}
-      {Array.from({ length: aisleCount }, (_, a) => (
-        <mesh key={a} rotation={[-Math.PI / 2, 0, 0]} position={[X0 + a * PITCH + SLOT + AISLE_W / 2, 0.02, (Z_FRONT + Z_BACK) / 2]}>
-          <planeGeometry args={[AISLE_W, Z_BACK - Z_FRONT]} />
-          <meshStandardMaterial map={carpet} color={a >= EXHIBIT_AISLES ? "#b06ad8" : night ? "#9aa8ff" : "#ffffff"} roughness={1} />
+      {/* aisle carpets: two runs per aisle, stopping at the cross aisle so no two carpets overlap */}
+      {Array.from({ length: aisleCount }, (_, a) => [[Z_FRONT, Z_CROSS0], [Z_CROSS1, Z_BACK]].map(([z0, z1], h) => (
+        <mesh key={`${a}-${h}`} rotation={[-Math.PI / 2, 0, 0]} position={[X0 + a * PITCH + SLOT + AISLE_W / 2, 0.02, (z0 + z1) / 2]}>
+          <planeGeometry args={[AISLE_W, z1 - z0]} />
+          <meshStandardMaterial map={carpet} color={a >= EXHIBIT_AISLES ? "#b06ad8" : night ? "#9aa8ff" : "#ffffff"} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
         </mesh>
-      ))}
+      )))}
       {/* cross aisle + concourses */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, (Z_CROSS0 + Z_CROSS1) / 2]}>
         <planeGeometry args={[HALL_LENGTH, CROSS]} />
-        <meshStandardMaterial map={cross} roughness={1} />
+        <meshStandardMaterial map={cross} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, Z0 + FRONT / 2]}>
         <planeGeometry args={[HALL_LENGTH, FRONT - 2]} />
-        <meshStandardMaterial map={cross} roughness={1} />
+        <meshStandardMaterial map={cross} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, Z_BACK + BACK / 2]}>
         <planeGeometry args={[HALL_LENGTH, BACK - 2]} />
-        <meshStandardMaterial color={night ? "#3b4252" : "#6b7280"} roughness={1} />
+        <meshStandardMaterial color={night ? "#3b4252" : "#6b7280"} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
       {/* walls */}
       {([[0, Z0 - 1, HALL_LENGTH + 4, 2, 0], [0, Z0 + HALL_DEPTH + 1, HALL_LENGTH + 4, 2, 0], [X0 - 1, 0, 2, HALL_DEPTH + 4, 0], [X0 + HALL_LENGTH + 1, 0, 2, HALL_DEPTH + 4, 0]] as const).map(([x, z, w, d], i) => (

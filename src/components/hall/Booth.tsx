@@ -5,7 +5,7 @@ import { Html } from "@react-three/drei";
 import { bannerTexture, drapeTexture, logoTexture, signTexture, luminance } from "./textures";
 import { useHall, track, type HallBooth } from "@/lib/hall/store";
 import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
-import { formatMoney } from "@/lib/config";
+import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
 import { Prop } from "./models";
 
 interface Props { booth: HallBooth; night: boolean; hovered: boolean; selected: boolean; preview?: boolean }
@@ -36,6 +36,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const island = space.size === "20x20";
   const artist = space.kind === "artist";
   const glow = night ? 0.35 : 0;
+  const bh = Math.min(artist ? BANNER.artistMaxHeight : BANNER.maxHeight, Math.max(BANNER.defaultHeight, booth.bannerHeight || BANNER.defaultHeight)), bw = bannerWidth(bh);
   const bannerClick = (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { if (!openSite(booth.id, booth.website, "banner")) select(booth.id); else select(booth.id); } };
   const tip = (hovered || selected) && !preview && (
     <Html position={[0, (island ? sign.height : 9) + 3, 0]} center zIndexRange={[50, 0]} style={{ pointerEvents: "none" }}>
@@ -57,7 +58,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     const th = Math.max(14, sign.height);
     return (
       <group position={[space.x, 0, space.z]} {...common}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
         {/* tower with a banner on each face */}
         <mesh position={[0, th / 2, 0]} castShadow><boxGeometry args={[8, th, 8]} /><meshStandardMaterial map={drape} color="#ffffff" roughness={0.9} /></mesh>
         {([0, Math.PI / 2, Math.PI, -Math.PI / 2] as const).map((r, i) => (
@@ -84,14 +85,14 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   if (artist) {
     return (
       <group position={[space.x, 0, space.z]} rotation={[0, rotY, 0]} {...common}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={0.55} /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={0.55} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
         {/* low drape behind the table */}
         <mesh position={[-w / 2 + 0.3, 1.6, 0]}><boxGeometry args={[0.3, 3.2, d]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>
         <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} />
         {/* print rack on the table */}
         {[-1.6, 0, 1.6].map((z) => <mesh key={z} position={[w / 2 - 2.2, 3.1, z]} rotation={[-0.35, 0, 0]}><boxGeometry args={[0.1, 1.3, 1.1]} /><meshStandardMaterial color={booth.accent} /></mesh>)}
         {/* retractable banner stand */}
-        <Prop name="banner_stand" position={[-w / 2 + 1.2, 0, d / 2 - 1.5]} rotation={[0, Math.PI / 2, 0]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, 3.4, 0]} onClick={bannerClick}><TwoSided w={2.6} h={6.4}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
+        <Prop name="banner_stand" position={[-w / 2 + 1.2, 0, d / 2 - 1.5]} rotation={[0, Math.PI / 2, 0]} scale={[3 / 2.6, 6 / 6.4, 1]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, 3.2, 0]} onClick={bannerClick}><TwoSided w={3} h={6}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
         {/* chair */}
         <Prop name="chair" position={[w / 2 - 4.4, 0, 0]} rotation={[0, Math.PI / 2, 0]} fallback={<><mesh position={[0, 1.1, 0]}><boxGeometry args={[1.4, 0.2, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh><mesh position={[-0.6, 2, 0]}><boxGeometry args={[0.2, 1.8, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh></>} />
         {sign.level >= 2 && <HangingSign tex={hang} y={sign.height} w={9} night={night} onClick={bannerClick} />}
@@ -104,7 +105,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const wide = d >= 20;
   return (
     <group position={[space.x, 0, space.z]} rotation={[0, rotY, 0]} {...common}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
       {/* pipe and drape: back wall 8ft, side rails 3ft */}
       <mesh position={[-w / 2 + 0.25, 4, 0]}><boxGeometry args={[0.5, 8, d]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>
       {[-d / 2 + 0.15, d / 2 - 0.15].map((z) => <mesh key={z} position={[-w / 2 + w * 0.35, 1.5, z]}><boxGeometry args={[w * 0.7, 3, 0.3]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>)}
@@ -125,8 +126,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
       {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} />}
-      {/* retractable banner at the open corner */}
-      <Prop name="banner_stand" position={[w / 2 - 1.2, 0, d / 2 - 1.6]} rotation={[0, Math.PI / 2, 0]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, 3.4, 0]} onClick={bannerClick}><TwoSided w={2.6} h={6.4}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
+      {/* retractable banner at the open corner: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
+      <Prop name="banner_stand" position={[w / 2 - 1.2, 0, d / 2 - 0.6 - bw / 2]} rotation={[0, Math.PI / 2, 0]} scale={[bw / 3, bh / 6, 1]} maps={{ banner: portrait }} onClick={bannerClick} fallback={<group position={[0, bh / 2 + 0.2, 0]} onClick={bannerClick}><TwoSided w={bw} h={bh}><meshStandardMaterial map={portrait} emissiveMap={portrait} emissive="#fff" emissiveIntensity={glow} /></TwoSided></group>} />
       {night && sign.level >= 3 && <pointLight position={[0, 8, 0]} intensity={40} distance={24} color={booth.accent} />}
       {tip}
     </group>

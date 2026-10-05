@@ -88,7 +88,7 @@ function PreviewBooth() {
   if (!draft) return null;
   const sp = boothSpace(draft.boothId);
   if (!sp) return null;
-  const booth: HallBooth = { id: draft.boothId, name: draft.name || "Your booth", tagline: null, website: null, hasLogo: false, color: draft.color, accent: "#ffffff", style: draft.style, cloth: draft.cloth, category: "comics", size: sp.size, kind: sp.kind, label: sp.label, hall: sp.hall, tier: "free", valueCents: sp.priceCents, totalViews: 0, totalClicks: 0, claimedAt: null, salesCount: 0 };
+  const booth: HallBooth = { id: draft.boothId, name: draft.name || "Your booth", tagline: null, website: null, hasLogo: false, color: draft.color, accent: "#ffffff", style: draft.style, cloth: draft.cloth, bannerHeight: 6, category: "comics", size: sp.size, kind: sp.kind, label: sp.label, hall: sp.hall, tier: "free", valueCents: sp.priceCents, totalViews: 0, totalClicks: 0, claimedAt: null, salesCount: 0 };
   return <Booth booth={booth} night={night} hovered={false} selected={false} preview />;
 }
 

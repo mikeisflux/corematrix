@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
-import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, type BoothSpace } from "@/lib/hall/layout";
+import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, useModelUrl, type Motion } from "./models";
 import { Suspense } from "react";
 
@@ -104,7 +104,7 @@ export function Player() {
   const booths = useHall((s) => s.booths);
   const { camera, gl } = useThree();
   const group = useRef<THREE.Group>(null);
-  const pos = useRef(new THREE.Vector3(0, 0, Z0 + 28));
+  const pos = useRef(new THREE.Vector3(X0 + 17 * PITCH + SLOT + AISLE_W / 2, 0, Z0 + 28)); // centre of aisle 1800, by the middle entrance
   const heading = useRef(0); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
   const yaw = useRef(0);
   const pitch = useRef(0); // mouse tilt, radians; + looks up

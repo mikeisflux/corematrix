@@ -3,14 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES } from "@/lib/config";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string }
 interface Detail {
-  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -236,6 +236,18 @@ function Grow({ p, me, onDone, setMsg }: { p: Detail["booth"]; me: Me; onDone: (
     } catch (e) { setMsg((e as Error).message); }
     setBusy(false);
   };
+  const [height, setHeight] = useState<number>(0);
+  const bannerMax = p.kind === "artist" ? BANNER.artistMaxHeight : BANNER.maxHeight;
+  const bannerNow = p.bannerHeight || BANNER.defaultHeight;
+  const bannerChoices = BANNER.heights.filter((h) => h > bannerNow && h <= bannerMax);
+  const banner = async () => {
+    if (!height) return;
+    setBusy(true);
+    try {
+      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: "banner", boothId: p.id, height }) });
+      window.location.href = r.url;
+    } catch (e) { setMsg((e as Error).message); setBusy(false); }
+  };
   const tier = async (t: "pro" | "landmark") => {
     setBusy(true);
     try {
@@ -251,6 +263,23 @@ function Grow({ p, me, onDone, setMsg }: { p: Detail["booth"]; me: Me; onDone: (
         <button className="btn-primary whitespace-nowrap" disabled={busy} onClick={boost}>Boost +{formatMoney(amt)}</button>
       </div>
       <p className="mt-1 text-[11px] text-slate-500">Adds to your value (and height). Raises the takeover price to {formatMoney(splitTakeover(p.valueCents + amt).price)} and what you'd get paid.</p>
+      <div className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Roll-up banner · {bannerWidth(bannerNow)}×{bannerNow} ft</div>
+      {bannerChoices.length > 0 ? (
+        <>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {bannerChoices.map((h) => (
+              <button key={h} type="button" onClick={() => setHeight(h)} className={`rounded-xl border px-3 py-2 text-left text-sm ${height === h ? "border-amber-300 bg-amber-300/10" : "border-white/10 hover:border-white/30"}`}>
+                <div className="font-semibold">{bannerWidth(h)}×{h} ft</div>
+                <div className="text-[11px] text-slate-400">{formatMoney(bannerUpgradeCents(bannerNow, h))} one-time</div>
+              </button>
+            ))}
+            <button className="btn-primary whitespace-nowrap self-center" disabled={busy || !height} onClick={banner}>Upgrade banner</button>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">A taller retractable banner at your booth, up to {bannerMax} ft. The spend also counts toward your value.</p>
+        </>
+      ) : (
+        <p className="mt-1 text-[11px] text-slate-500">{p.kind === "artist" ? `Artists' Alley banners are ${bannerWidth(BANNER.artistMaxHeight)}×${BANNER.artistMaxHeight} ft.` : "Your banner is at the maximum height."}</p>
+      )}
       <div className="mt-3 flex items-center gap-2">
         <input type="number" min={100} step={100} className="input" value={coins} onChange={(e) => setCoins(Number(e.target.value))} />
         <button className="btn-ghost whitespace-nowrap" disabled={busy || me.coins < 100} onClick={convert}>Convert coins</button>

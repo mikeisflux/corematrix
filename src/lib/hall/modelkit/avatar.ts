@@ -37,7 +37,7 @@ function faceTexture(): THREE.CanvasTexture {
   g.beginPath(); g.moveTo(cx - 10, cy + 18); g.quadraticCurveTo(cx, cy + 27, cx + 10, cy + 18); g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.flipY = false;
+  // default flipY: canvas top = top of the sphere; GLTFExporter flips it into glTF's convention on export
   return t;
 }
 

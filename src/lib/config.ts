@@ -24,6 +24,20 @@ export const TAKEOVER_MULTIPLIER = Number(process.env.TAKEOVER_MULTIPLIER ?? 1.2
 /** Share of the takeover premium that goes to the seller (rest is platform). */
 export const SELLER_PREMIUM_SHARE = Number(process.env.SELLER_PREMIUM_SHARE ?? 0.6);
 export const MIN_BOOST_CENTS = 100;
+/**
+ * Roll-up banner at the booth. Every booth starts with a 3×6 ft banner for the
+ * price of the booth; exhibitor booths can pay for a taller one up to 16 ft.
+ * Artists' Alley tables are capped at the default. Width follows height (1:2).
+ */
+export const BANNER = {
+  defaultHeight: 6,
+  maxHeight: 16,
+  artistMaxHeight: 6,
+  perFootCents: 200, // one-time, per foot above the default
+  heights: [6, 8, 10, 12, 16] as const,
+};
+export const bannerWidth = (height: number) => Math.round((height / 2) * 10) / 10;
+export const bannerUpgradeCents = (from: number, to: number) => Math.max(0, to - from) * BANNER.perFootCents;
 export const REFERRAL_CREDIT_CENTS = 200; // both sides
 
 export const TIERS = {

@@ -63,6 +63,7 @@ export const booths = sqliteTable(
     accent: text("accent").notNull().default("#ffffff"),
     style: text("style").notNull().default("classic"), // banner style: classic | neon | comic | minimal | retro
     cloth: text("cloth").notNull().default("#111827"), // table cloth / drape color
+    bannerHeight: integer("banner_height").notNull().default(6), // roll-up banner height in feet (6 default, 16 max)
     category: text("category").notNull().default("comics"), // comics | art | toys | games | publisher | media | retail | fan
     tier: text("tier").notNull().default("free"), // free | pro | landmark
     tierUntil: integer("tier_until"),

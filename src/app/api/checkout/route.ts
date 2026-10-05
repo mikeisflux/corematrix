@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft } from "@/lib/economy";
+import { startBannerHeight, startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft } from "@/lib/economy";
 import { nextStepUrl } from "@/lib/payments";
 import { COIN_RULES } from "@/lib/arcade";
 
@@ -22,6 +22,7 @@ const Body = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("claim"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
   z.object({ kind: z.literal("takeover"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
   z.object({ kind: z.literal("boost"), boothId: z.number().int().positive(), amountCents: z.number().int().positive() }),
+  z.object({ kind: z.literal("banner"), boothId: z.number().int().positive(), height: z.number().int().min(6).max(16) }),
   z.object({ kind: z.literal("tier"), boothId: z.number().int().positive(), tier: z.enum(["pro", "landmark"]) }),
   z.object({ kind: z.literal("coins"), packId: z.string().max(30) }),
   z.object({
@@ -55,6 +56,10 @@ export async function POST(req: Request) {
     }
     if (b.kind === "boost") {
       const tx = await startBoost(b.boothId, u.id, b.amountCents);
+      return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
+    }
+    if (b.kind === "banner") {
+      const tx = await startBannerHeight(b.boothId, u.id, b.height);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "tier") {

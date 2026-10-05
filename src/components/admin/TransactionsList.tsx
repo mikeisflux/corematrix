@@ -15,7 +15,7 @@ export default function TransactionsList({ initialStatus = "" }: { initialStatus
       <div className="admCard">
         <div className="admFilters">
           <Select value={status} onChange={(e) => { setStatus(e.target.value); reset(); }} options={[{ value: "", label: "All statuses" }, "pending", "paid", "failed", "refunded", "disputed"]} />
-          <Select value={kind} onChange={(e) => { setKind(e.target.value); reset(); }} options={[{ value: "", label: "All kinds" }, "claim", "takeover", "boost", "tier", "coins", "billboard"]} />
+          <Select value={kind} onChange={(e) => { setKind(e.target.value); reset(); }} options={[{ value: "", label: "All kinds" }, "claim", "takeover", "boost", "banner", "tier", "coins", "billboard"]} />
           <Select value={provider} onChange={(e) => { setProvider(e.target.value); reset(); }} options={[{ value: "", label: "All providers" }, "divinitycoin", "comp", "sandbox"]} />
           <SearchBox value={q} onChange={(v) => { setQ(v); reset(); }} placeholder="Tx id, booth #, email, pi_…" />
           {list.data && <span className="admLabel">paid total <Money cents={list.data.paidSumCents} /></span>}

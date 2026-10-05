@@ -27,6 +27,7 @@ export default function HowItWorks() {
           <p>Any booth can be bought by anyone for <b>{TAKEOVER_MULTIPLIER}× its value</b>. When that happens the previous exhibitor gets their full value back plus <b>{Math.round(SELLER_PREMIUM_SHARE * 100)}% of the premium</b> as instant credit, and a notification.</p>
           <p>Example: your $100 booth is taken for $125. You receive ${100 + 25 * SELLER_PREMIUM_SHARE}. The buyer's booth is now worth $125, so the next takeover costs $156.25. Credit can be spent on any claim, takeover, boost or banner.</p>
           <p>Don't want to be bought? <b>Boost</b> your booth: every dollar you add raises both the price and your payout. Headliner booths get a 7-day shield and a notice before takeovers.</p>
+          <p>Every booth comes with a 3×6 ft retractable banner. Exhibitor booths can upgrade to a taller one, up to 8×16 ft, for $2 per extra foot (one-time, and it counts toward your value). Artists' Alley tables keep the 3×6.</p>
         </section>
         <section className="space-y-2">
           <h2 className="text-2xl font-bold">3. Numbers that matter</h2>

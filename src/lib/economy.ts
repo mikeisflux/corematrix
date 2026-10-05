@@ -5,7 +5,7 @@
  */
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
-import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES } from "@/lib/config";
+import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents } from "@/lib/config";
 import { clampStr, isHexColor, newId, normalizeUrl, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
@@ -195,6 +195,33 @@ export async function startBoost(boothId: number, buyerId: string, amountCents: 
     valueBefore: p.valueCents,
     valueAfter: p.valueCents + amt,
     status: "pending",
+    createdAt: now(),
+  };
+  await db.insert(schema.transactions).values(tx);
+  await bumpSiteDaily({ checkoutStarts: 1 });
+  return tx as Tx;
+}
+
+/** A taller roll-up banner: one-time, priced per foot above the default; the spend also counts toward booth value. */
+export async function startBannerHeight(boothId: number, buyerId: string, height: number) {
+  await ensureMigrated();
+  const p = await getBooth(boothId);
+  if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only upgrade a booth you own");
+  const max = p.kind === "artist" ? BANNER.artistMaxHeight : BANNER.maxHeight;
+  if (!(BANNER.heights as readonly number[]).includes(height) || height > max) throw new Error(p.kind === "artist" ? `Artists' Alley banners are capped at ${BANNER.artistMaxHeight} ft` : `Banners go up to ${BANNER.maxHeight} ft`);
+  if (height <= p.bannerHeight) throw new Error(`Your banner is already ${p.bannerHeight} ft`);
+  const amt = bannerUpgradeCents(p.bannerHeight, height);
+  const tx: typeof schema.transactions.$inferInsert = {
+    id: newId(),
+    boothId,
+    kind: "banner",
+    buyerId,
+    amountCents: amt,
+    platformCents: amt,
+    valueBefore: p.valueCents,
+    valueAfter: p.valueCents + amt,
+    status: "pending",
+    meta: JSON.stringify({ height, from: p.bannerHeight }),
     createdAt: now(),
   };
   await db.insert(schema.transactions).values(tx);
@@ -406,6 +433,15 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       .where(eq(schema.booths.id, tx.boothId))
       .returning();
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} upgraded its signage`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
+    await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
+  } else if (tx.kind === "banner") {
+    const height = Number((meta as { height?: number }).height) || BANNER.defaultHeight;
+    const [p] = await db
+      .update(schema.booths)
+      .set({ bannerHeight: height, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .where(eq(schema.booths.id, tx.boothId))
+      .returning();
+    await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} raised its banner to ${height} ft`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
     const pm = (meta as { paymentMethodId?: string }).paymentMethodId ?? null;

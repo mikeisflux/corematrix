@@ -21,6 +21,7 @@ export async function GET() {
         accent: p.accent,
         style: p.style,
         cloth: p.cloth,
+        bannerHeight: p.bannerHeight,
         category: p.category,
         size: p.size,
         kind: p.kind,

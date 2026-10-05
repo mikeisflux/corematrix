@@ -34,6 +34,7 @@ export function describeTx(tx: Tx): string {
     case "claim": return `Claim Booth #${tx.boothId}${meta.draft?.name ? ` · ${meta.draft.name}` : ""}`;
     case "takeover": return `Take over Booth #${tx.boothId}`;
     case "boost": return `Boost Booth #${tx.boothId}`;
+    case "banner": return `${(meta as { height?: number }).height ?? ""} ft banner for Booth #${tx.boothId}`;
     case "tier": return `${TIERS[meta.tier ?? "pro"].name} plan for Booth #${tx.boothId} (30 days)`;
     case "coins": return `${meta.coins ?? ""} arcade coins`;
     case "billboard": return `Billboard campaign`;

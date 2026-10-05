@@ -11,6 +11,7 @@ export interface HallBooth {
   accent: string;
   style: string;
   cloth: string;
+  bannerHeight: number;
   category: string;
   size: string;
   kind: string;
@@ -194,7 +195,7 @@ export const useHall = create<HallState>((set) => ({
 }));
 
 function emptyBooth(id: number): HallBooth {
-  return { id, name: null, tagline: null, website: null, hasLogo: false, color: "#5b8def", accent: "#fff", style: "classic", cloth: "#111827", category: "comics", size: "10x10", kind: "exhibitor", label: String(id), hall: "A", tier: "free", valueCents: 0, totalViews: 0, totalClicks: 0, claimedAt: null, salesCount: 0 };
+  return { id, name: null, tagline: null, website: null, hasLogo: false, color: "#5b8def", accent: "#fff", style: "classic", cloth: "#111827", bannerHeight: 6, category: "comics", size: "10x10", kind: "exhibitor", label: String(id), hall: "A", tier: "free", valueCents: 0, totalViews: 0, totalClicks: 0, claimedAt: null, salesCount: 0 };
 }
 function emptyStats(): HallStats {
   return { totalSalesCents: 0, claimed: 0, totalViews: 0, totalBoothViews: 0, totalImpressions: 0, totalValueCents: 0, online: 0, totalBooths: 0 };
