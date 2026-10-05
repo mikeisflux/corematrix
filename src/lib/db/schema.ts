@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { blob, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /** Registered accounts. Email + password sign-in; login_tokens are one-time password-reset tokens. */
 export const users = sqliteTable("users", {
@@ -404,4 +404,19 @@ export const adminAuditLog = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("audit_admin_idx").on(t.adminId), index("audit_created_idx").on(t.createdAt)],
+);
+
+/** Uploaded banner artwork, one row per booth per slot, kept out of `booths` so floor reads stay light. */
+export const boothArt = sqliteTable(
+  "booth_art",
+  {
+    boothId: integer("booth_id").notNull(),
+    slot: text("slot").notNull(), // portrait (roll-up, 1:2) | wide (back wall / hanging, 4:1)
+    mime: text("mime").notNull(),
+    data: text("data").notNull(), // base64 (no data: prefix)
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.boothId, t.slot] })],
 );

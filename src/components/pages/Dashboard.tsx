@@ -3,14 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents } from "@/lib/config";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, type ArtSlot } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string }
 interface Detail {
-  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: { portrait?: number; wide?: number }; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -161,6 +161,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           </div>
 
           <Edit p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
+          <Artwork p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Code title="Conversion pixel" blurb="Put this on your thank-you / signup success page. Pass the order value in cents with ?v= to see revenue next to clicks." code={`<img src="${origin}/api/px/${p.id}?v=0" width="1" height="1" alt="" />`} />
@@ -424,6 +425,88 @@ function Code({ title, blurb, code }: { title: string; blurb: string; code: stri
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{title}</div>
       <p className="mt-1 text-xs text-slate-400">{blurb}</p>
       <textarea readOnly className="input mono mt-2 text-[11px]" rows={3} value={code} onFocus={(e) => e.target.select()} />
+    </div>
+  );
+}
+
+/** Full-size banner artwork: PNG/JPG/WebP straight up, PDFs rendered to an image here in the browser first. */
+function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: { portrait?: number; wide?: number }) => void }) {
+  const [busy, setBusy] = useState<ArtSlot | null>(null);
+  const slots = Object.keys(ART_SLOTS) as ArtSlot[];
+  const toImage = async (file: File, slot: ArtSlot): Promise<File> => {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return file;
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const want = ART_SLOTS[slot];
+    const scale = Math.min(6, Math.max(want.width / base.width, want.height / base.height));
+    const vp = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("render failed"))), "image/png"));
+    return new File([blob], file.name.replace(/\.pdf$/i, "") + ".png", { type: "image/png" });
+  };
+  const upload = async (slot: ArtSlot, file: File) => {
+    setBusy(slot);
+    try {
+      if (file.size > ART_MAX_UPLOAD) throw new Error("Keep the file under 12 MB");
+      const img = await toImage(file, slot);
+      const fd = new FormData(); fd.append("file", img); fd.append("slot", slot);
+      const r = await fetch("/api/art/upload", { method: "POST", body: fd });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || "Upload failed");
+      const saved = await api<{ art: { portrait?: number; wide?: number } }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: j.url }) });
+      onChanged(saved.art);
+      setMsg(`${ART_SLOTS[slot].name} updated. It's on the floor now.`);
+    } catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  const remove = async (slot: ArtSlot) => {
+    setBusy(slot);
+    try { const saved = await api<{ art: { portrait?: number; wide?: number } }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: null }) }); onChanged(saved.art); setMsg("Back to the generated banner."); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  return (
+    <div className="rounded-2xl border border-white/10 p-4">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Banner artwork · free</div>
+      <p className="mt-1 text-[11px] text-slate-500">Upload your own full-size art and it replaces the generated banner on the floor instantly. {ART_FORMATS}, up to 12 MB. We fit it to the exact size below (centre crop), so design at that ratio.</p>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {slots.map((slot) => {
+          const spec = ART_SLOTS[slot];
+          const v = p.art?.[slot];
+          const portrait = slot === "portrait";
+          return (
+            <div key={slot} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold">{spec.name}</div>
+                  <div className="text-[11px] text-slate-400">{spec.where}</div>
+                </div>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">{spec.ratio}</span>
+              </div>
+              <div className="mt-3 flex gap-3">
+                <div className={`shrink-0 overflow-hidden rounded-lg border border-white/10 bg-slate-900 ${portrait ? "h-28 w-14" : "h-14 w-56"}`}>
+                  {v ? <img src={`/api/art/${p.id}/${slot}?v=${v}`} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[10px] text-slate-500">{spec.width}×{spec.height}</div>}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  <div><b className="text-slate-200">Recommended:</b> {spec.width} × {spec.height} px ({spec.ratio}), 150 px per foot.</div>
+                  <div className="mt-1"><b className="text-slate-200">Minimum:</b> {spec.width / 2} × {spec.height / 2} px. Larger is fine; we downscale.</div>
+                  <div className="mt-1">{spec.tip}</div>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className={`btn-primary cursor-pointer text-xs ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === slot ? "Uploading…" : v ? "Replace" : "Upload"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(slot, f); e.target.value = ""; }} /></label>
+                {v && <button className="btn-ghost text-xs" disabled={!!busy} onClick={() => remove(slot)}>Remove</button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

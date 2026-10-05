@@ -12,6 +12,8 @@ export interface HallBooth {
   style: string;
   cloth: string;
   bannerHeight: number;
+  house?: boolean; // the show's own booth: flagship build
+  art?: { portrait?: number; wide?: number }; // uploaded banner art, slot → version
   category: string;
   size: string;
   kind: string;

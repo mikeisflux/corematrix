@@ -36,6 +36,29 @@ export const BANNER = {
   perFootCents: 200, // one-time, per foot above the default
   heights: [6, 8, 10, 12, 16] as const,
 };
+/** Banner artwork slots owners can upload to. Sizes are what we store; uploads are fitted to them. */
+export const ART_SLOTS = {
+  portrait: {
+    name: "Roll-up banner",
+    ratio: "1:2",
+    width: 1200, height: 2400,
+    where: "The retractable banner behind your table. 3×6 ft by default; taller upgrades keep the same shape.",
+    tip: "Keep text inside the middle 80% and make headline letters at least 1/15 of the height so they read from the aisle.",
+  },
+  wide: {
+    name: "Wide banner",
+    ratio: "4:1",
+    width: 2000, height: 500,
+    where: "Across the back wall, the header on posts and the hanging sign (all four faces of an island tower).",
+    tip: "Logo left or centred, one line of text. Avoid thin strokes: it is seen from 20+ ft away.",
+  },
+} as const;
+export type ArtSlot = keyof typeof ART_SLOTS;
+export const ART_MAX_UPLOAD = 12 * 1024 * 1024;
+export const ART_FORMATS = "PNG, JPG, WebP or PDF (first page)";
+
+/** The house booth: the first 20×20 island inside the main entrance (label 1702), owned by the superadmin. */
+export const HOUSE_BOOTH_ID = 442;
 export const bannerWidth = (height: number) => Math.round((height / 2) * 10) / 10;
 export const bannerUpgradeCents = (from: number, to: number) => Math.max(0, to - from) * BANNER.perFootCents;
 export const REFERRAL_CREDIT_CENTS = 200; // both sides

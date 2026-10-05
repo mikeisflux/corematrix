@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { getBooth, boothHistory, updateBooth } from "@/lib/economy";
+import { artFlagsFor } from "@/lib/art";
 import { boothReferrerRows, boothSeries, sumSeries } from "@/lib/analytics";
 import { lastWeekRank } from "@/lib/seasons";
 import { claimedBooths } from "@/lib/economy";
@@ -22,7 +23,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const all = await claimedBooths();
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
   const prevRank = await lastWeekRank(boothId);
-  return NextResponse.json({ booth: { ...p, isOwner }, series, totals: sumSeries(series), history, referrers, rank, prevRank });
+  return NextResponse.json({ booth: { ...p, isOwner, art: await artFlagsFor(boothId) }, series, totals: sumSeries(series), history, referrers, rank, prevRank });
 }
 
 const Patch = z.object({

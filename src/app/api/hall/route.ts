@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { HOUSE_BOOTH_ID } from "@/lib/config";
+import { artFlags } from "@/lib/art";
 import { activeBillboards, claimedBooths, recentEvents, siteStats } from "@/lib/economy";
 import { onlineCount } from "@/lib/realtime";
 import { TOTAL_BOOTHS } from "@/lib/economy";
@@ -8,7 +10,7 @@ import { featuredBooths } from "@/lib/seasons";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [booths, stats, events, billboards, trend, featured] = await Promise.all([claimedBooths(), siteStats(), recentEvents(40), activeBillboards(), trendingScores(7), featuredBooths(6)]);
+  const [booths, stats, events, billboards, trend, featured, art] = await Promise.all([claimedBooths(), siteStats(), recentEvents(40), activeBillboards(), trendingScores(7), featuredBooths(6), artFlags()]);
   return NextResponse.json(
     {
       booths: booths.map((p) => ({
@@ -22,6 +24,8 @@ export async function GET() {
         style: p.style,
         cloth: p.cloth,
         bannerHeight: p.bannerHeight,
+        house: p.id === HOUSE_BOOTH_ID,
+        art: art.get(p.id),
         category: p.category,
         size: p.size,
         kind: p.kind,

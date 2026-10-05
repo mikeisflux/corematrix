@@ -18,6 +18,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       });
     }
   }
+  if (p.logoUrl?.startsWith("/")) return NextResponse.redirect(new URL(p.logoUrl, _req.url), 307);
   if (p.logoUrl?.startsWith("http")) {
     // Proxy remote logos so textures stay same-origin. Small timeout, cached.
     try {
