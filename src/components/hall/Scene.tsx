@@ -9,7 +9,7 @@ import { Booth } from "./Booth";
 import { Hall } from "./Hall";
 import { EmptyBooths } from "./EmptyBooths";
 import { Arcade, flyoverCurve } from "./Arcade";
-import { Player, Crowd } from "./Avatar";
+import { Player, Crowd, Others } from "./Avatar";
 import { Mascot } from "./Mascot";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
@@ -49,6 +49,7 @@ export function Scene() {
       <Crowd count={mode === "walk" ? crowd[1] : crowd[0]} />
       <Mascot />
       <Player />
+      <Others />
       <CameraRig />
       <Impressions />
       {quality !== "low" && (

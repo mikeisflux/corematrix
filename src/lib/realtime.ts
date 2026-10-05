@@ -6,6 +6,7 @@ export type LiveMessage =
   | { type: "event"; event: { id: string; type: string; boothId: number | null; title: string; detail: string | null; amountCents: number | null; createdAt: number } }
   | { type: "booth"; booth: { id: number; valueCents: number; name: string | null; color: string; accent: string; style: string; cloth: string; category: string; tier: string; hasLogo: boolean; tagline: string | null; website: string | null; size: string; kind: string; label: string; hall: string } }
   | { type: "presence"; online: number }
+  | { type: "players"; players: Array<{ id: string; n: string; a: unknown; x: number; z: number; h: number; s: number }> }
   | { type: "chat"; message: { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number } }
   | { type: "stats"; totalSalesCents: number; totalViews: number; claimed: number };
 

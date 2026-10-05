@@ -5,22 +5,42 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, useModelUrl, type Motion } from "./models";
+import { Html } from "@react-three/drei";
+import { live, type LivePlayer } from "@/lib/hall/live";
 import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
 export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
-const keys = new Set<string>();
+/**
+ * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a
+ * find bar, a menu, another window), which would leave the figure walking
+ * forever. Every keydown auto-repeat refreshes the key's timestamp; once we've
+ * seen the OS repeat at all, a key that stops repeating for 1.2 s counts as
+ * released. Focus loss or a hidden tab releases everything.
+ */
+const keys = new Map<string, number>();
+let repeatSeen = false;
+const GAME_KEYS = new Set(["w", "a", "s", "d", "q", "e", "v", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "'", "/"]);
+function isDown(k: string): boolean {
+  const t = keys.get(k);
+  if (t === undefined) return false;
+  if (repeatSeen && performance.now() - t > 1200) { keys.delete(k); return false; }
+  return true;
+}
 if (typeof window !== "undefined") {
-  const GAME_KEYS = new Set(["w", "a", "s", "d", "q", "e", "v", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "'", "/"]);
   window.addEventListener("keydown", (e) => {
     const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.tagName === "SELECT" || t?.isContentEditable) return;
     const k = e.key.toLowerCase();
+    if (e.repeat) repeatSeen = true;
     // claim the game keys so the browser doesn't treat them as typing (Firefox find-as-you-type, page scroll on arrows)
     if (GAME_KEYS.has(k) && !e.ctrlKey && !e.metaKey && !e.altKey && useHall.getState().mode === "walk") e.preventDefault();
-    keys.add(k);
+    if (k === "escape" || k === " ") { keys.clear(); return; } // full stop
+    keys.set(k, performance.now());
   });
   window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
-  window.addEventListener("blur", () => keys.clear());
+  const release = () => keys.clear();
+  window.addEventListener("blur", release);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
 }
 
 /* ---------- collision grid over booth rectangles ---------- */
@@ -131,6 +151,21 @@ export function Player() {
   const lastNear = useRef(0);
   const [firstPerson, setFirstPerson] = useState(false);
   const fp = useRef(false);
+  const me = useHall((s) => s.me);
+  const lastReport = useRef(0);
+  const report = (leave = false) => {
+    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: motion.speed, n: me?.displayName || "Visitor", a: avatar };
+    void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
+      .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id) live.me = j.id; }).catch(() => {});
+  };
+  // tell the floor when we leave walk mode or the page
+  useEffect(() => {
+    if (mode !== "walk") return;
+    const bye = () => report(true);
+    window.addEventListener("pagehide", bye);
+    return () => { window.removeEventListener("pagehide", bye); bye(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   useEffect(() => {
     if (walkTarget == null) return;
@@ -156,19 +191,20 @@ export function Player() {
   useFrame((state, dt) => {
     if (mode !== "walk" || !group.current) return;
     const d = Math.min(dt, 0.05);
+    if (!document.hasFocus()) keys.clear();
     let fx = 0, fz = 0;
     // arrows: up/down walk, left/right turn. WASD: W/S walk, A/D strafe. Q/E also turn.
-    if (keys.has("w") || keys.has("arrowup")) fz += 1;
-    if (keys.has("s") || keys.has("arrowdown")) fz -= 1;
-    if (keys.has("a")) fx -= 1;
-    if (keys.has("d")) fx += 1;
+    if (isDown("w") || isDown("arrowup")) fz += 1;
+    if (isDown("s") || isDown("arrowdown")) fz = fz > 0 ? 0 : -1; // S while walking forward stops you; alone it backs up
+    if (isDown("a")) fx -= 1;
+    if (isDown("d")) fx += 1;
     const joy = Math.hypot(input.joy.x, input.joy.y) > 0.05;
     fx += input.joy.x; fz -= input.joy.y;
-    if (keys.has("arrowleft") || keys.has("q")) yaw.current += 2.2 * d;
-    if (keys.has("arrowright")) yaw.current -= 2.2 * d;
+    if (isDown("arrowleft") || isDown("q")) yaw.current += 2.2 * d;
+    if (isDown("arrowright")) yaw.current -= 2.2 * d;
     yaw.current += input.yawDrag; input.yawDrag = 0;
     pitch.current = THREE.MathUtils.clamp(pitch.current + input.pitchDrag, -0.45, 0.6); input.pitchDrag = 0;
-    const run = keys.has("shift") || input.run;
+    const run = isDown("shift") || input.run;
     const len = Math.hypot(fx, fz);
     if (len <= 0.01) motion.speed = 0;
     if (len > 0.01) {
@@ -188,6 +224,8 @@ export function Player() {
     }
     group.current.position.copy(pos.current);
     group.current.rotation.y = heading.current;
+    // share where we are: 6×/s while moving, once a second standing still
+    if (state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
     // camera
     const back = fp.current ? 0 : 20, up = fp.current ? 5.6 : 10;
     // keep the camera inside the building so it never ends up looking at the back of a wall
@@ -255,4 +293,48 @@ export function Crowd({ count = 110 }: { count?: number }) {
     });
   });
   return <>{npcs.map((n, i) => <group key={i} ref={(el) => { refs.current[i] = el; }}><AvatarModel config={n.config} motion={motions[i]} /></group>)}</>;
+}
+
+/* ---------- other live visitors, shared session ---------- */
+/** Everyone else walking the floor right now; positions arrive via /api/live and are eased between updates. */
+export function Others() {
+  const [ids, setIds] = useState<string[]>([]);
+  const seen = useRef(-1);
+  useFrame(() => {
+    if (live.version !== seen.current) { seen.current = live.version; setIds(Array.from(live.players.keys()).filter((id) => id !== live.me)); }
+  });
+  return <>{ids.map((id) => <Other key={id} id={id} />)}</>;
+}
+function Other({ id }: { id: string }) {
+  const group = useRef<THREE.Group>(null);
+  const motion = useRef<Motion>({ speed: 0 }).current;
+  const [cfg, setCfg] = useState<AvatarConfig>(() => live.players.get(id)?.a ?? DEFAULT_AVATAR);
+  const [name, setName] = useState(() => live.players.get(id)?.n ?? "Visitor");
+  const cur = useRef<{ x: number; z: number; h: number } | null>(null);
+  const [near, setNear] = useState(false);
+  const nearT = useRef(0);
+  useFrame(({ camera, clock }, dt) => {
+    const p: LivePlayer | undefined = live.players.get(id);
+    const g = group.current; if (!p || !g) return;
+    if (!cur.current) cur.current = { x: p.x, z: p.z, h: p.h };
+    const c = cur.current;
+    const k = Math.min(1, dt * 8);
+    c.x += (p.x - c.x) * k; c.z += (p.z - c.z) * k;
+    let dh = p.h - c.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); c.h += dh * k;
+    g.position.set(c.x, 0, c.z); g.rotation.y = c.h;
+    motion.speed = p.s;
+    if (p.a && p.a !== cfg && JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a);
+    if (p.n !== name) setName(p.n);
+    if (clock.elapsedTime - nearT.current > 0.5) { nearT.current = clock.elapsedTime; const d = Math.hypot(camera.position.x - c.x, camera.position.z - c.z); g.visible = d < 260; const n = d < 80; if (n !== near) setNear(n); }
+  });
+  return (
+    <group ref={group}>
+      <AvatarModel config={cfg} motion={motion} />
+      {near && (
+        <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
+          <div className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm">{name}</div>
+        </Html>
+      )}
+    </group>
+  );
 }

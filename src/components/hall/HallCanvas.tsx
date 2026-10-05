@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useEffect } from "react";
+import { applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { Canvas } from "@react-three/fiber";
 import { Scene } from "./Scene";
 import { useHall, api, type HallBooth, type HallEvent, type HallStats, type Me, type HallBillboard, type Featured } from "@/lib/hall/store";
@@ -41,6 +42,7 @@ export function HallCanvas() {
       if (m.type === "event") pushEvent(m.event);
       else if (m.type === "booth") upsertBooth({ ...m.booth });
       else if (m.type === "presence") setStats({ online: Math.max(1, m.online) });
+      else if (m.type === "players") applyRoster(m.players as LivePlayer[]);
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
     };
     return () => {
