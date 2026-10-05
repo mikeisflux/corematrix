@@ -85,12 +85,13 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
       }
       seats.forEach((q, k) => {
         const j = i * per + k;
-        tmp.rotation.set(0, q.rot, 0);
+        // the table runs long-ways along the open edge; q.rot faces the banner out toward the aisle
+        tmp.rotation.set(0, q.rot + Math.PI / 2, 0);
         tmp.position.set(q.x - q.nx * 1.6, 1.3, q.z - q.nz * 1.6); tmp.updateMatrix(); tables.current?.setMatrixAt(j, tmp.matrix);
         tmp.position.set(q.x - q.nx * 1.6, 2.66, q.z - q.nz * 1.6); tmp.updateMatrix(); tops.current?.setMatrixAt(j, tmp.matrix);
-        // banner stands a little to one side behind the table, like a real roll-up
-        const side = (k % 2 ? -1 : 1) * (L / 2 - bannerW / 2 - 0.2);
-        tmp.position.set(q.x - q.nx * 4.4 + (q.nx === 0 ? side : 0), bannerH / 2 + 0.3, q.z - q.nz * 4.4 + (q.nz === 0 ? side : 0)); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
+        // banner centred behind the table
+        tmp.rotation.set(0, q.rot, 0);
+        tmp.position.set(q.x - q.nx * 4.4, bannerH / 2 + 0.3, q.z - q.nz * 4.4); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
       });
     });
     for (const m of [tape, floor, drape, rails, posts, card, tables, tops, banners]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
