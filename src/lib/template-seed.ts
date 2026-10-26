@@ -13,7 +13,8 @@ export async function seedTemplates(force: boolean, by: string | null): Promise<
     if (!existing) {
       await db.insert(schema.emailTemplates).values({ id: newId(), slug: t.slug, name: t.name, description: t.description, subject: t.subject, html: t.html, text: t.text ?? htmlToText(t.html), createdAt: now(), updatedAt: now() });
       created++;
-    } else if (force) {
+    } else if (force || /\$\{mono\(/.test(existing.html)) {
+      // force, or the stored copy carries the old unfilled "${mono(...)}" bug: replace it (keeping a version)
       await db.insert(schema.emailTemplateVersions).values({ id: newId(), templateId: existing.id, version: existing.version, subject: existing.subject, html: existing.html, text: existing.text, changedBy: by, changeNote: "before reset to default", createdAt: now() });
       await db.update(schema.emailTemplates).set({ subject: t.subject, html: t.html, text: t.text ?? htmlToText(t.html), version: existing.version + 1, updatedAt: now() }).where(eq(schema.emailTemplates.id, existing.id));
       updated++;

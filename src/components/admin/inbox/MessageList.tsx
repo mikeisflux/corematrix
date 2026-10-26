@@ -28,7 +28,7 @@ export default function MessageList(p: ListProps) {
               <div style={{ minWidth: 0 }}>
                 <div className="who" title={out ? m.toEmail || "" : m.fromEmail}>{who}</div>
                 <div className="subj">{m.subject || <span className="admMuted">(no subject)</span>}</div>
-                {m.snippet && <div className="snip">{m.snippet}</div>}
+                {status && isFailed(status) && m.statusMessage ? <div className="snip" style={{ color: "var(--bad, #f87171)" }}>{m.statusMessage}</div> : m.snippet && <div className="snip">{m.snippet}</div>}
               </div>
               <div className="meta">
                 <span title={new Date(m.createdAt).toLocaleString()}>{relTime(m.sentAt || m.createdAt)}</span>
