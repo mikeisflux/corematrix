@@ -47,6 +47,8 @@ function wrap(text: string, width = 30): string[] {
 }
 
 type Mode = "walk" | "trick" | "approach" | "talk" | "emote" | "lead";
+/** ConBot's rounds: a loop inside the cabinet columns and short of the stage and the back row, so it never clips a machine. */
+const LOOP = [[-18, -28], [18, -28], [18, 28], [-18, 28]];
 const LOOPING = new Set(["Walking", "Running", "Idle", "Dance", "Sitting"]);
 
 function Robot({ url }: { url: string }) {
@@ -82,7 +84,7 @@ function Robot({ url }: { url: string }) {
   // speech bubble texture follows the current line
   const bubbleTex = useMemo(() => conbot.line ? signTexture(wrap(conbot.line), { bg: "#0b0f1a", fg: "#ffffff", accentBar: "#ff2bd6", w: 768, h: 240, size: 44 }) : null, [version]); // eslint-disable-line react-hooks/exhaustive-deps
   const state = useRef({
-    x: ARCADE.x - 30, z: ARCADE.z - 30, tx: ARCADE.x + 30, tz: ARCADE.z - 30,
+    x: ARCADE.x + LOOP[0][0], z: ARCADE.z + LOOP[0][1], tx: ARCADE.x + LOOP[1][0], tz: ARCADE.z + LOOP[1][1],
     mode: "walk" as Mode, after: "walk" as Mode, until: 0, current: "", seenCmd: 0, nextGreet: 0, nextNag: 0, arrive: "",
   });
   const play = (name: string, loop = LOOPING.has(name)) => {
@@ -103,7 +105,7 @@ function Robot({ url }: { url: string }) {
     else if (s.mode === "talk" || s.mode === "approach" || s.mode === "emote") { s.mode = "trick"; s.after = "walk"; s.until = performance.now() / 1000 + clipSeconds("Wave"); play("Wave"); }
   }, [talking]); // eslint-disable-line react-hooks/exhaustive-deps
   const nextCorner = (s: typeof state.current) => {
-    const corners = [[-30, -30], [30, -30], [30, 30], [-30, 30]];
+    const corners = LOOP;
     let best = 0, bd = Infinity;
     corners.forEach(([cx, cz], i) => { const d = Math.hypot(ARCADE.x + cx - s.x, ARCADE.z + cz - s.z); if (d < bd && d > 2) { bd = d; best = i; } });
     s.tx = ARCADE.x + corners[best][0]; s.tz = ARCADE.z + corners[best][1];
@@ -167,7 +169,7 @@ function Robot({ url }: { url: string }) {
         if (dist === 0) {
           s.mode = "trick"; s.after = "walk"; const trick = TRICKS[Math.floor(Math.random() * TRICKS.length)]; s.until = t + (LOOPING.has(trick) ? 4 : clipSeconds(trick)); play(trick);
           face(s, g, ARCADE.x, ARCADE.z);
-          const corners = [[-30, -30], [30, -30], [30, 30], [-30, 30]];
+          const corners = LOOP;
           const i = corners.findIndex(([cx, cz]) => Math.abs(ARCADE.x + cx - s.tx) < 1 && Math.abs(ARCADE.z + cz - s.tz) < 1);
           const [nx, nz] = corners[(i + 1) % corners.length]; s.tx = ARCADE.x + nx; s.tz = ARCADE.z + nz;
         }

@@ -68,10 +68,18 @@ function blocked(x: number, z: number): boolean {
   for (const b of cells().get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`) ?? []) {
     if (Math.abs(x - b.x) < b.w / 2 + R && Math.abs(z - b.z) < b.d / 2 + R) return true;
   }
-  // arcade cabinets live in rows; keep the plaza walkable except the cabinet rows
+  // the plaza is open floor except the cabinet rows, the stage, the flyover pad and the corner pillars
   for (const row of CABINET_ROWS) if (Math.abs(x - row.x) < row.w / 2 + R && Math.abs(z - row.z) < row.d / 2 + R) return true;
+  for (const o of PLAZA_BLOCKS) if (Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R) return true;
+  if (Math.hypot(x - ARCADE.x, z - ARCADE.z) < PAD_RADIUS + R) return true;
   return false;
 }
+/** Solid things on the plaza besides the cabinets (same numbers as Arcade.tsx): the stage with its scoreboard, and the pillars at the corners. */
+const PLAZA_BLOCKS = [
+  { x: ARCADE.x, z: ARCADE.z + ARCADE.d / 2 - 8, w: 36.4, d: 10.6 },
+  ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({ x: ARCADE.x + (sx * ARCADE.w) / 2, z: ARCADE.z + (sz * ARCADE.d) / 2, w: 2.2, d: 2.2 })),
+];
+const PAD_RADIUS = 7.6; // the flyover pad plus its ride sign
 export const CABINET_ROWS = [
   { x: ARCADE.x - 24, z: ARCADE.z - 18, w: 3, d: 30 }, { x: ARCADE.x - 24, z: ARCADE.z + 18, w: 3, d: 30 },
   { x: ARCADE.x + 24, z: ARCADE.z - 18, w: 3, d: 30 }, { x: ARCADE.x + 24, z: ARCADE.z + 18, w: 3, d: 30 },
@@ -327,7 +335,7 @@ export function Crowd({ count = 110 }: { count?: number }) {
       if (kind === "plaza") { const [x, z] = plazaPoint(r); const [tx, tz] = plazaPoint(r); return { ...base, kind, x, z, tx, tz, vx: 0, vz: 0 }; }
       if (kind === "cross") { const dir = r() < 0.5 ? 1 : -1; return { ...base, kind, x: X0 + 20 + r() * (HALL_LENGTH - 40), z: CROSS_Z0 + r() * (CROSS_Z1 - CROSS_Z0), vx: dir, vz: 0, tx: 0, tz: 0 }; }
       return { ...base, kind, x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), vx: 0, vz: r() < 0.5 ? 1 : -1, tx: 0, tz: 0 };
-    });
+    }).map((n) => { const fp = freePoint(n.x, n.z); return { ...n, x: fp.x, z: fp.z }; }); // never start inside a cabinet row, the stage or a booth
   }, [count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const motions = useMemo<Motion[]>(() => npcs.map(() => ({ speed: 1 })), [npcs]);
@@ -343,7 +351,9 @@ export function Crowd({ count = 110 }: { count?: number }) {
       else { motions[i].speed = n.speed > 7.5 ? 2 : 1; moving = true; }
       if (moving) {
         if (n.kind === "aisle") {
-          n.z += n.vz * n.speed * d;
+          const nz = n.z + n.vz * n.speed * d;
+          // corridors run straight through the plaza: turn back at a cabinet row, the stage or the pad
+          if (isBlocked(n.x, nz)) n.vz *= -1; else n.z = nz;
           if (n.z > Z_BACK + 6 || n.z < Z_FRONT - 6) n.vz *= -1;
         } else if (n.kind === "cross") {
           n.x += n.vx * n.speed * d;
