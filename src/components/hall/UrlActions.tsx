@@ -15,6 +15,7 @@ export function UrlActions() {
     let remembered: string | null = null;
     try { remembered = localStorage.getItem("fcc_mode"); } catch {}
     if (wanted === "walk" || wanted === "map") st.setMode(wanted);
+    else if (sp.has("cam")) st.setMode("map"); // a pinned camera is a map-view deep link
     else if (remembered === "walk") st.setMode("walk");
     const booth = Number(sp.get("booth"));
     if (booth) {
