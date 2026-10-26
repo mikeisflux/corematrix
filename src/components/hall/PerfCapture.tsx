@@ -54,30 +54,39 @@ export function PerfCapture() {
     };
     const onHide = () => flushNow(true);
     window.addEventListener("pagehide", onHide);
-    const onVis = () => { if (document.hidden) flushNow(true); };
+    const onVis = () => { if (document.hidden) { paused.current = true; flushNow(true); } };
     document.addEventListener("visibilitychange", onVis);
     const timer = setInterval(() => flushNow(false), FLUSH_EVERY * 1000);
     // time spent inside renderer.render (draw submission on the main thread; a GPU stall shows up here too)
     const orig = gl.render.bind(gl);
     gl.render = (scene, camera) => { const t = performance.now(); orig(scene, camera); cpu.current.rend += performance.now() - t; };
-    return () => { window.removeEventListener("pagehide", onHide); document.removeEventListener("visibilitychange", onVis); clearInterval(timer); gl.render = orig; flushNow(true); };
+    gl.info.autoReset = false;
+    return () => { window.removeEventListener("pagehide", onHide); document.removeEventListener("visibilitychange", onVis); clearInterval(timer); gl.render = orig; gl.info.autoReset = true; flushNow(true); };
   }, [gl]);
 
   // runs before every other frame callback; the microtask fires once the whole animation frame (callbacks + render) has returned,
   // so this is the main-thread cost of the frame. Whatever is left of the frame time is the GPU or vsync.
+  // Also owns the draw-call counters: three resets them on every render() call, and the post-processing composer renders
+  // several passes per frame, so the automatic numbers would only describe the last full-screen pass. Counting is
+  // switched to manual and reset here, once per frame, after the previous frame's totals have been read.
+  const counts = useRef({ calls: 0, tris: 0 });
+  const paused = useRef(false);
   useFrame(() => {
     const t0 = performance.now();
     queueMicrotask(() => { cpu.current.sum += performance.now() - t0; cpu.current.n++; });
+    counts.current.calls = gl.info.render.calls; counts.current.tris = gl.info.render.triangles;
+    gl.info.reset();
   }, -1e9);
 
   useFrame((state, dt) => {
     const ms = dt * 1000;
     elapsed.current += dt;
+    // the first frame back from a hidden tab (or after the machine slept) is a gap, not a slow frame
+    if (paused.current || ms > 5000) { paused.current = false; bucketStart.current = state.clock.elapsedTime; cpu.current = { sum: 0, n: 0, rend: 0 }; return; }
     frames.current.push(ms);
     if (ms > 50) longInBucket.current++;
-    // gl.info holds the previous frame's counts (autoReset clears them at the start of each render)
-    calls.current.push(gl.info.render.calls); tris.current.push(gl.info.render.triangles);
-    perf.ms = ms; perf.calls = gl.info.render.calls; perf.tris = gl.info.render.triangles;
+    calls.current.push(counts.current.calls); tris.current.push(counts.current.tris);
+    perf.ms = ms; perf.calls = counts.current.calls; perf.tris = counts.current.tris;
     if (state.clock.elapsedTime - bucketStart.current < 1) return;
     bucketStart.current = state.clock.elapsedTime;
     const f = frames.current;
