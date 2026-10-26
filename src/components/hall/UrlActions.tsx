@@ -10,7 +10,12 @@ export function UrlActions() {
     const sp = new URLSearchParams(window.location.search);
     const st = useHall.getState();
     if (sp.get("night") === "1" && !st.night) st.toggleNight();
-    if (sp.get("mode") === "walk") st.setMode("walk");
+    // ?mode=walk|map wins; otherwise come back the way you left (walking stays walking)
+    const wanted = sp.get("mode");
+    let remembered: string | null = null;
+    try { remembered = localStorage.getItem("fcc_mode"); } catch {}
+    if (wanted === "walk" || wanted === "map") st.setMode(wanted);
+    else if (remembered === "walk") st.setMode("walk");
     const booth = Number(sp.get("booth"));
     if (booth) {
       st.select(booth);

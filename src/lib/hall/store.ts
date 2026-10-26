@@ -191,7 +191,7 @@ export const useHall = create<HallState>((set) => ({
   setPreview: (previewDraft) => set({ previewDraft }),
   setBillboards: (billboards) => set({ billboards }),
   setFeatured: (featured) => set({ featured }),
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => { try { localStorage.setItem("fcc_mode", mode); } catch {} set({ mode }); },
   setAvatar: (a) => set((s) => { const avatar = { ...s.avatar, ...a }; try { localStorage.setItem("fcc_avatar", JSON.stringify(avatar)); } catch {} return { avatar }; }),
   setWalkTarget: (walkTarget) => set({ walkTarget }),
   setNear: (near) => set({ near }),

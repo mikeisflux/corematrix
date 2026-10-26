@@ -19,7 +19,7 @@ export function Hero({ stats }: { stats: Stats }) {
         </p>
         <div className="mk-reveal on mt-9 flex flex-wrap items-center justify-center gap-3" data-delay="3">
           <Link href="/app?claim=1" className="mk-btn mk-btn--primary">Get a booth from $5</Link>
-          <Link href="/app" className="mk-btn mk-btn--ghost">Walk the floor <span className="text-slate-400">·</span> free</Link>
+          <Link href="/app?mode=walk" className="mk-btn mk-btn--ghost">Walk the floor <span className="text-slate-400">·</span> free</Link>
         </div>
         <div className="mk-reveal on mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-slate-400" data-delay="4">
           {stats.claimed > 0 ? (<>

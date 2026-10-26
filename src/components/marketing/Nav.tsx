@@ -14,7 +14,7 @@ export function Nav() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <Link href="/app/directory" className="hidden rounded-full px-3 py-1.5 text-sm text-slate-300 hover:text-white sm:block">Exhibitors</Link>
-          <Link href="/app" className="mk-btn mk-btn--primary !px-4 !py-2 !text-sm whitespace-nowrap"><span className="hidden sm:inline">Enter the hall</span><span className="sm:hidden">Enter</span> →</Link>
+          <Link href="/app?mode=walk" className="mk-btn mk-btn--primary !px-4 !py-2 !text-sm whitespace-nowrap"><span className="hidden sm:inline">Enter the hall</span><span className="sm:hidden">Enter</span> →</Link>
         </div>
       </div>
     </header>
