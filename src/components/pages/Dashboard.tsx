@@ -453,7 +453,7 @@ async function fileToImage(file: File, want: { width: number; height: number }):
   canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  await page.render({ canvas, canvasContext: ctx, viewport: vp }).promise;
   const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("render failed"))), "image/png"));
   return new File([blob], file.name.replace(/\.pdf$/i, "") + ".png", { type: "image/png" });
 }
@@ -529,34 +529,11 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
 function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
   const [busy, setBusy] = useState<ArtSlot | null>(null);
   const slots = (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book");
-  const toImage = async (file: File, slot: ArtSlot): Promise<File> => {
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return file;
-    const pdfjs = await import("pdfjs-dist");
-    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-    const page = await doc.getPage(1);
-    const base = page.getViewport({ scale: 1 });
-    const want = ART_SLOTS[slot];
-    const scale = Math.min(6, Math.max(want.width / base.width, want.height / base.height));
-    const vp = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("render failed"))), "image/png"));
-    return new File([blob], file.name.replace(/\.pdf$/i, "") + ".png", { type: "image/png" });
-  };
   const upload = async (slot: ArtSlot, file: File) => {
     setBusy(slot);
     try {
       if (file.size > ART_MAX_UPLOAD) throw new Error("Keep the file under 12 MB");
-      const img = await toImage(file, slot);
-      const fd = new FormData(); fd.append("file", img); fd.append("slot", slot);
-      const r = await fetch("/api/art/upload", { method: "POST", body: fd });
-      const j = await r.json(); if (!r.ok) throw new Error(j.error || "Upload failed");
-      const saved = await api<{ art: Record<string, number> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: j.url }) });
-      onChanged(saved.art);
+      onChanged(await uploadArt(p.id, slot, file, ART_SLOTS[slot]));
       setMsg(`${ART_SLOTS[slot].name} updated. It's on the floor now.`);
     } catch (e) { setMsg((e as Error).message); }
     setBusy(null);
