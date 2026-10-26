@@ -11,6 +11,9 @@ import { FloorPlan } from "../FloorPlan";
 export function ClaimPanel() {
   const booths = useHall((s) => s.booths);
   const setFlyTo = useHall((s) => s.setFlyTo);
+  const mode = useHall((s) => s.mode);
+  // hovering the plan pans the map camera; on foot it would teleport the walker, so only a click moves them
+  const peek = (id: number | null) => { if (id && mode === "map") setFlyTo(id); };
   const [picked, setPicked] = useState<number | null>(null);
   const [size, setSize] = useState<BoothSize | null>(null);
   const claimedMap = useMemo(() => new Map(Array.from(booths.values()).map((b) => [b.id, { color: b.color, name: b.name }])), [booths]);
@@ -41,12 +44,12 @@ export function ClaimPanel() {
             </button>
           ))}
         </div>
-        <FloorPlan claimed={claimedMap} filterSize={size} onPick={(id) => { if (!booths.has(id)) { setPicked(id); setFlyTo(id); } else { useHall.getState().select(id); setFlyTo(id); } }} onHover={(id) => { if (id) setFlyTo(id); }} height={190} />
+        <FloorPlan claimed={claimedMap} filterSize={size} onPick={(id) => { if (!booths.has(id)) { setPicked(id); setFlyTo(id); } else { useHall.getState().select(id); setFlyTo(id); } }} onHover={peek} height={190} />
         <p className="text-[11px] text-slate-400">{available.length} spaces open{size ? ` at ${BOOTH_SIZES[size].short}` : ""}. Headliner Row (around the arcade) and front-of-house spaces cost more and see the most traffic.</p>
         <ul className="grid grid-cols-2 gap-1.5">
           {suggestions.map((b) => (
             <li key={b.id}>
-              <button onMouseEnter={() => setFlyTo(b.id)} onClick={() => setPicked(b.id)} className="flex w-full flex-col rounded-xl border border-white/8 bg-white/[0.03] p-2 text-left hover:border-amber-300/50 hover:bg-white/[0.06]">
+              <button onMouseEnter={() => peek(b.id)} onClick={() => setPicked(b.id)} className="flex w-full flex-col rounded-xl border border-white/8 bg-white/[0.03] p-2 text-left hover:border-amber-300/50 hover:bg-white/[0.06]">
                 <span className="mono text-sm font-bold">{b.kind === "artist" ? b.label : `Booth ${b.label}`}</span>
                 <span className="text-[11px] text-slate-400">{BOOTH_SIZES[b.size].short} · {ZONES[b.zone].name}</span>
                 <span className="mono text-xs text-amber-300">{formatMoney(b.priceCents)}</span>

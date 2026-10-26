@@ -75,6 +75,15 @@ export const CABINET_ROWS = [
   { x: ARCADE.x, z: ARCADE.z - 34, w: 30, d: 3 }, { x: ARCADE.x, z: ARCADE.z + 34, w: 30, d: 3 },
 ];
 export function isBlocked(x: number, z: number) { return blocked(x, z); }
+/** The nearest walkable point to (x, z): rings of candidates out to 20 ft, so a bad spawn never leaves someone inside a wall. */
+export function freePoint(x: number, z: number): { x: number; z: number } {
+  if (!blocked(x, z)) return { x, z };
+  for (let r = 1; r <= 20; r += 1) {
+    const n = Math.max(8, Math.round(r * 4));
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (!blocked(px, pz)) return { x: px, z: pz }; }
+  }
+  return { x, z };
+}
 
 /* ---------- the figure ---------- */
 /** An avatar: the rigged GLB from public/models when present (idle/walk/run, recolored by material name), else primitives. */
@@ -191,7 +200,7 @@ export function Player() {
 
   useEffect(() => {
     if (walkTarget == null) return;
-    const sp = standPoint(walkTarget);
+    const sp = freePoint(standPoint(walkTarget).x, standPoint(walkTarget).z);
     const b = boothSpace(walkTarget);
     pos.current.set(sp.x, 0, sp.z);
     if (b) heading.current = Math.atan2(b.x - sp.x, b.z - sp.z);
@@ -237,6 +246,7 @@ export function Player() {
       const dx = -nx * cos + nz * sin, dz = nx * sin + nz * cos;
       const sp = (run ? RUN : WALK) * d;
       const nxp = pos.current.x + dx * sp, nzp = pos.current.z + dz * sp;
+      if (blocked(pos.current.x, pos.current.z)) { const fp = freePoint(pos.current.x, pos.current.z); pos.current.x = fp.x; pos.current.z = fp.z; } // stuck inside something: step out
       if (!blocked(nxp, pos.current.z)) pos.current.x = nxp;
       if (!blocked(pos.current.x, nzp)) pos.current.z = nzp;
       heading.current = Math.atan2(dx, dz);

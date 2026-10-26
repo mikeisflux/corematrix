@@ -152,10 +152,16 @@ export function boothPosition(id: number): { x: number; z: number; rotationY: nu
   return b ? { x: b.x, z: b.z, rotationY: b.rotationY, facing: b.facing } : { x: 0, z: 0, rotationY: 0, facing: 1 };
 }
 /** Where a visitor stands to look at this booth: in the corridor in front of its open side. */
+/** Where a visitor stands to look at a booth: the middle of the aisle in front of it. */
 export function standPoint(id: number): { x: number; z: number } {
   const b = boothSpace(id);
   if (!b) return { x: 0, z: Z0 + FRONT / 2 };
-  if (b.facing === 0) return { x: b.x, z: b.z + b.d / 2 + CROSS / 2 };
+  if (b.facing === 0) {
+    // islands open onto whichever concourse they touch: the front, or the cross aisle on their side of it
+    if (b.z < Z_FRONT + b.d) return { x: b.x, z: b.z - b.d / 2 - 6 };
+    const mid = (Z_CROSS0 + Z_CROSS1) / 2;
+    return { x: b.x, z: b.z < mid ? b.z + b.d / 2 + CROSS / 2 : b.z - b.d / 2 - CROSS / 2 };
+  }
   return { x: b.x + b.facing * (b.w / 2 + AISLE_W / 2), z: b.z };
 }
 export function describeSpace(b: BoothSpace): string {
