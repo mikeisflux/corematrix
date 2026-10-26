@@ -103,7 +103,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <div className="flex flex-wrap items-center gap-3">
             <img src={`/api/logo/${p.id}`} alt="" className="h-14 w-14 rounded-xl bg-white/10 object-cover" />
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-2xl font-bold">{p.name}</h1>
+              <NameEditor p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setBooths((bs) => bs.map((b) => (b.id === p.id ? { ...b, name: d.name ?? b.name } : b))); setMsg("Name saved. The show floor updates instantly."); }} setMsg={setMsg} />
               <div className="text-xs text-slate-400">
                 {p.kind === "artist" ? `Table ${p.label}` : `Booth ${p.label}`} · Hall {p.hall} · {BOOTH_SIZES[p.size as keyof typeof BOOTH_SIZES]?.short ?? p.size} · {CATEGORIES[p.category]?.name} · rank <b className="text-white">#{detail.rank}</b>
                 {detail.prevRank != null && detail.prevRank !== detail.rank && (
@@ -112,8 +112,9 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
                 {p.featuredUntil && p.featuredUntil > Date.now() && <span className="ml-2 rounded-full bg-amber-300/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">🏆 featured this week</span>}
               </div>
             </div>
+            <Link href="/app" className="btn-primary text-xs">← Back to the show floor</Link>
             <Link href={`/app/booth/${p.id}`} className="btn-ghost text-xs">Public page</Link>
-            <Link href={`/app?booth=${p.id}`} className="btn-ghost text-xs">Walk to it</Link>
+            <Link href={`/app?booth=${p.id}&mode=walk`} className="btn-ghost text-xs">Walk to it</Link>
             <div className="flex rounded-xl bg-white/5 p-0.5">{([7, 30, 90] as const).map((r) => <button key={r} onClick={() => setRange(r)} className={`rounded-lg px-3 py-1 text-xs ${range === r ? "bg-amber-300 text-slate-950 font-semibold" : ""}`}>{r}d</button>)}</div>
           </div>
 
@@ -626,6 +627,37 @@ function Cashout({ me, setMsg, onDone }: { me: Me; setMsg: (s: string) => void; 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The booth name in the dashboard header: click the pencil (or the name) to rename in place. */
+function NameEditor({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(p.name);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setName(p.name), [p.name]);
+  const save = async () => {
+    const n = name.trim();
+    if (!n || n === p.name) { setEditing(false); setName(p.name); return; }
+    setBusy(true);
+    try { const r = await api<{ booth: Detail["booth"] }>(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ name: n }) }); onSaved(r.booth); setEditing(false); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(false);
+  };
+  if (!editing) {
+    return (
+      <h1 className="flex min-w-0 items-center gap-2 text-2xl font-bold">
+        <button type="button" className="truncate text-left hover:underline decoration-amber-300/60 underline-offset-4" title="Click to rename" onClick={() => setEditing(true)}>{p.name}</button>
+        <button type="button" aria-label="Rename booth" title="Rename" className="shrink-0 rounded-md px-1.5 text-sm text-slate-400 hover:bg-white/10 hover:text-white" onClick={() => setEditing(true)}>✎</button>
+      </h1>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <input autoFocus className="input text-xl font-bold" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") { setEditing(false); setName(p.name); } }} />
+      <button className="btn-primary text-xs" disabled={busy} onClick={save}>Save</button>
+      <button className="btn-ghost text-xs" onClick={() => { setEditing(false); setName(p.name); }}>Cancel</button>
     </div>
   );
 }
