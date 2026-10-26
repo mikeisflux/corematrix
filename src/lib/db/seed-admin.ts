@@ -83,7 +83,8 @@ async function seedHouseBooth(db: LibSQLDatabase<typeof schema>, ownerId: string
     updatedAt: t,
   };
   if (row) {
-    await db.update(schema.booths).set(house).where(eq(schema.booths.id, HOUSE_BOOTH_ID));
+    // already claimed by the superadmin: keep whatever they named and styled it, just guarantee the perks
+    await db.update(schema.booths).set({ tier: "landmark", tierUntil: forever, notForSaleUntil: forever, bannerHeight: 16, bookSlots: 16, hidden: false, ownerId }).where(eq(schema.booths.id, HOUSE_BOOTH_ID));
   } else {
     await db.insert(schema.booths).values({ id: HOUSE_BOOTH_ID, ...house, valueCents: 100000, claimedAt: t, lastSoldAt: t, salesCount: 1 });
     console.log(`[seed] house booth ${space.label} claimed for ${SUPERADMIN_EMAIL}`);
