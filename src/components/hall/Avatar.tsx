@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, useModelUrl, type Motion } from "./models";
+import { buildAvatar, buildAvatarClips, HAIR_NODES } from "@/lib/hall/modelkit/avatar";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
 import { Suspense } from "react";
@@ -82,35 +83,53 @@ export function AvatarModel({ config, motion, idle }: { config: AvatarConfig; mo
   return <PrimitiveAvatar config={config} motion={m} />;
 }
 
-/** Fallback figure built from primitives; swings limbs from the shared motion state. */
+/* ---------- fallback figure ---------- */
+/** One procedural figure per body type, built once and cloned per instance (geometry and textures are shared). */
+const templates: Partial<Record<AvatarConfig["body"], { scene: THREE.Group; clips: THREE.AnimationClip[] }>> = {};
+function avatarTemplate(body: AvatarConfig["body"]) {
+  let t = templates[body];
+  if (!t) { t = { scene: buildAvatar(body), clips: buildAvatarClips() }; templates[body] = t; }
+  return t;
+}
+const RECOLOR = new Set(["skin", "hair", "shirt", "pants"]);
+const HAIR = new Set<string>(HAIR_NODES);
+
+/**
+ * Fallback figure: the same procedural avatar the GLB is exported from, shown
+ * while the model loads or when the manifest is missing. Recoloured by material
+ * name, hair picked by node name, idle/walk/run crossfaded from the shared motion state.
+ */
 function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Motion }) {
-  const wide = config.body === "a";
-  const shoulders = wide ? 2.1 : 1.7, hips = wide ? 1.7 : 1.9;
-  const lArm = useRef<THREE.Mesh>(null), rArm = useRef<THREE.Mesh>(null), lLeg = useRef<THREE.Mesh>(null), rLeg = useRef<THREE.Mesh>(null);
-  const phase = useRef(0);
-  useFrame((_, dt) => {
-    phase.current += dt * (motion.speed >= 2 ? 14 : motion.speed >= 1 ? 9 : 0);
-    const s = motion.speed > 0 ? Math.sin(phase.current) * 0.55 : 0;
-    if (lArm.current) lArm.current.rotation.x = s; if (rArm.current) rArm.current.rotation.x = -s;
-    if (lLeg.current) lLeg.current.rotation.x = -s; if (rLeg.current) rLeg.current.rotation.x = s;
+  const { body, skin, hairColor, shirt, pants, hair } = config;
+  const obj = useMemo(() => {
+    const t = avatarTemplate(body);
+    const c = t.scene.clone(true);
+    const colors: Record<string, string> = { skin, hair: hairColor, shirt, pants };
+    c.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && RECOLOR.has((m.material as THREE.Material).name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[mm.name]); m.material = mm; }
+      if (HAIR.has(o.name)) o.visible = o.name === `hair_${hair}`;
+    });
+    return c;
+  }, [body, skin, hairColor, shirt, pants, hair]);
+  const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
+  const actions = useMemo(() => Object.fromEntries(avatarTemplate(body).clips.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [body, mixer]);
+  const current = useRef("");
+  const ref = useRef<THREE.Object3D>(null);
+  useEffect(() => () => { mixer.stopAllAction(); }, [mixer]);
+  useFrame(({ camera }, dt) => {
+    const o = ref.current; if (!o) return;
+    if (!o.visible || (o.parent && !o.parent.visible)) return;
+    const p = o.parent ?? o;
+    if (Math.hypot(camera.position.x - p.position.x, camera.position.z - p.position.z) > 220) return;
+    const want = motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
+    if (want !== current.current) {
+      const next = actions[want], prev = actions[current.current];
+      if (next) { next.reset().setEffectiveWeight(1).fadeIn(0.18).play(); if (prev) prev.fadeOut(0.18); current.current = want; }
+    }
+    mixer.update(dt);
   });
-  const hairColor = config.hairColor;
-  return (
-    <group>
-      <group position={[0, 2.9, 0]}>
-        <mesh ref={lLeg} position={[-0.45, 0, 0]}><cylinderGeometry args={[0.36, 0.3, 2.9, 8]} /><meshStandardMaterial color={config.pants} /></mesh>
-        <mesh ref={rLeg} position={[0.45, 0, 0]}><cylinderGeometry args={[0.36, 0.3, 2.9, 8]} /><meshStandardMaterial color={config.pants} /></mesh>
-      </group>
-      <mesh position={[0, 4.1, 0]}><cylinderGeometry args={[shoulders / 2, hips / 2, 2.3, 10]} /><meshStandardMaterial color={config.shirt} /></mesh>
-      <mesh ref={lArm} position={[-(shoulders / 2 + 0.3), 4.6, 0]}><cylinderGeometry args={[0.24, 0.2, 2.4, 6]} /><meshStandardMaterial color={config.skin} /></mesh>
-      <mesh ref={rArm} position={[shoulders / 2 + 0.3, 4.6, 0]}><cylinderGeometry args={[0.24, 0.2, 2.4, 6]} /><meshStandardMaterial color={config.skin} /></mesh>
-      <mesh position={[0, 5.95, 0]}><sphereGeometry args={[0.72, 14, 12]} /><meshStandardMaterial color={config.skin} /></mesh>
-      {config.hair !== "bald" && <mesh position={[0, 6.25, -0.08]}><sphereGeometry args={[0.74, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.1]} /><meshStandardMaterial color={hairColor} /></mesh>}
-      {config.hair === "long" && <mesh position={[0, 5.2, -0.45]}><boxGeometry args={[1.3, 1.9, 0.6]} /><meshStandardMaterial color={hairColor} /></mesh>}
-      {config.hair === "bun" && <mesh position={[0, 6.7, -0.5]}><sphereGeometry args={[0.32, 8, 8]} /><meshStandardMaterial color={hairColor} /></mesh>}
-      <mesh position={[0, 4.2, hips / 2 + 0.05]}><boxGeometry args={[0.6, 0.8, 0.05]} /><meshStandardMaterial color="#f8fafc" /></mesh>
-    </group>
-  );
+  return <primitive ref={ref} object={obj} />;
 }
 
 /* ---------- the player: walk mode controls + third-person camera ---------- */
