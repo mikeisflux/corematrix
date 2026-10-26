@@ -44,3 +44,6 @@ data/
 *.db-journal
 .env.local
 !.env.example
+
+# agent worktrees (local only)
+.claude/worktrees/
