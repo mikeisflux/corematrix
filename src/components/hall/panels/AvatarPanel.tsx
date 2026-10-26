@@ -4,6 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { api, useHall, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, type AvatarConfig } from "@/lib/hall/store";
 import { AvatarModel } from "../Avatar";
 import { PanelHeader } from "./common";
+import { COSTUMES, COSTUME_IDS } from "@/lib/hall/costumes";
 
 const HAIR: AvatarConfig["hair"][] = ["short", "long", "buzz", "bun", "curly", "bald"];
 function Swatches({ list, value, onPick }: { list: string[]; value: string; onPick: (c: string) => void }) {
@@ -48,6 +49,11 @@ export function AvatarPanel() {
         <div><label className="label">Hair color</label><Swatches list={HAIR_COLORS} value={avatar.hairColor} onPick={(hairColor) => setAvatar({ hairColor })} /></div>
         <div><label className="label">Shirt</label><Swatches list={OUTFIT_COLORS} value={avatar.shirt} onPick={(shirt) => setAvatar({ shirt })} /></div>
         <div><label className="label">Pants</label><Swatches list={OUTFIT_COLORS} value={avatar.pants} onPick={(pants) => setAvatar({ pants })} /></div>
+        <div>
+          <label className="label">Cosplay</label>
+          <div className="grid grid-cols-3 gap-1">{COSTUME_IDS.map((c) => <button key={c} title={COSTUMES[c].blurb} onClick={() => setAvatar({ costume: c })} className={`rounded-lg px-1 py-1.5 text-[11px] ${(avatar.costume ?? "none") === c ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"}`}>{COSTUMES[c].name}</button>)}</div>
+          <p className="mt-1 text-[10px] text-slate-500">Original looks only. A costume sets its own outfit colours.</p>
+        </div>
         <button className="btn-primary w-full" onClick={() => { setMode("walk"); setPanel("none"); }}>Walk the floor →</button>
         <p className="text-[11px] text-slate-500">Arrow keys or WASD to walk (left/right arrows turn, A/D sidestep), drag the mouse to look around, Shift to run, E at a booth to open it, V for first person. On phones, use the joystick.</p>
       </div>

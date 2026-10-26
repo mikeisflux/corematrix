@@ -5,7 +5,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, useModelUrl, type Motion } from "./models";
-import { buildAvatar, buildAvatarClips, HAIR_NODES } from "@/lib/hall/modelkit/avatar";
+import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
+import { CROWD_COSTUMES } from "@/lib/hall/costumes";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
 import { Suspense } from "react";
@@ -91,8 +92,6 @@ function avatarTemplate(body: AvatarConfig["body"]) {
   if (!t) { t = { scene: buildAvatar(body), clips: buildAvatarClips() }; templates[body] = t; }
   return t;
 }
-const RECOLOR = new Set(["skin", "hair", "shirt", "pants"]);
-const HAIR = new Set<string>(HAIR_NODES);
 
 /**
  * Fallback figure: the same procedural avatar the GLB is exported from, shown
@@ -100,18 +99,19 @@ const HAIR = new Set<string>(HAIR_NODES);
  * name, hair picked by node name, idle/walk/run crossfaded from the shared motion state.
  */
 function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Motion }) {
-  const { body, skin, hairColor, shirt, pants, hair } = config;
+  const { body, skin, hairColor, shirt, pants, hair, costume } = config;
   const obj = useMemo(() => {
     const t = avatarTemplate(body);
     const c = t.scene.clone(true);
-    const colors: Record<string, string> = { skin, hair: hairColor, shirt, pants };
+    const colors = applyAvatarLook(c, { body, skin, hair, hairColor, shirt, pants, costume });
     c.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh && RECOLOR.has((m.material as THREE.Material).name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[mm.name]); m.material = mm; }
-      if (HAIR.has(o.name)) o.visible = o.name === `hair_${hair}`;
+      if (!m.isMesh) return;
+      const name = (m.material as THREE.Material).name;
+      if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); m.material = mm; }
     });
     return c;
-  }, [body, skin, hairColor, shirt, pants, hair]);
+  }, [body, skin, hairColor, shirt, pants, hair, costume]);
   const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
   const actions = useMemo(() => Object.fromEntries(avatarTemplate(body).clips.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [body, mixer]);
   const current = useRef("");
@@ -285,7 +285,9 @@ export function Crowd({ count = 110 }: { count?: number }) {
     return Array.from({ length: count }, (_, i) => {
       const corridor = unique[Math.floor(r() * unique.length)];
       return {
-        config: { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "bald"] as const)[Math.floor(r() * 5)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)] },
+        config: { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "curly", "bald"] as const)[Math.floor(r() * 6)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)],
+          // cosplayers: about a third near the arcade and headliner aisles, one in six further out
+          costume: r() < (Math.abs(corridor) < 130 ? 0.34 : 0.17) ? CROWD_COSTUMES[Math.floor(r() * CROWD_COSTUMES.length)] : "none" },
         x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), dz: r() < 0.5 ? 1 : -1, speed: 3.5 + r() * 5, corridor: i, pauseUntil: 0, nextPause: 4 + r() * 20,
       };
     });

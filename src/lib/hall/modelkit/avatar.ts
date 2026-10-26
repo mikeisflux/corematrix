@@ -16,6 +16,7 @@
  * merged into one mesh so a figure costs ~23 draw calls.
  */
 import * as THREE from "three";
+import { COSTUMES, COSTUME_PARTS, isCostumeId } from "@/lib/hall/costumes";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export type BodyType = "a" | "b";
@@ -134,6 +135,9 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const shoes = mat("shoes", "#1b1b1f", { roughness: 0.5 }), badge = mat("badge", "#ffffff", { roughness: 0.35, map: badgeTexture() });
   const lanyard = mat("lanyard", "#111827", { roughness: 0.8 }), sole = mat("sole", "#e5e7eb", { roughness: 0.6 });
   const face = mat("face", "#ffffff", { map: faceTexture(), transparent: true, roughness: 0.6 });
+  // cosplay materials: recoloured per preset at runtime
+  const costume = mat("costume", "#b91c1c", { roughness: 0.45, metalness: 0.15 }), costume2 = mat("costume2", "#facc15", { roughness: 0.4, metalness: 0.2, emissive: "#000000" });
+  const cape = mat("cape", "#b91c1c", { roughness: 0.9, side: THREE.DoubleSide });
 
   const node = (name: string, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.name = name; g.position.set(x, y, z); return g; };
   const mesh = (name: string, geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const me = new THREE.Mesh(geo, m); me.name = name; me.position.set(x, y, z); me.castShadow = true; return me; };
@@ -230,7 +234,78 @@ export function buildAvatar(body: BodyType): THREE.Group {
     hand.add(mesh(`hand_${side}_m`, merge(palm, thumb), skin));
     fa.add(hand); sh.add(fa); torso.add(sh);
   }
+
+  /* cosplay parts: all built in, shown per preset at runtime (see applyAvatarLook) */
+  // cape: a curved sheet hanging from the shoulders to the calves, flaring out a little
+  const capePts = [new THREE.Vector2(0.95 * shoulderF, 1.5), new THREE.Vector2(1.0 * shoulderF, 0.6), new THREE.Vector2(1.08, -0.4), new THREE.Vector2(1.18, -1.4), new THREE.Vector2(1.28, -2.3)];
+  const capeGeo = new THREE.LatheGeometry(capePts, 14, Math.PI * 0.62, Math.PI * 0.76).scale(1, 1, 0.74).translate(0, 0, -0.12);
+  torso.add(mesh("cos_cape", capeGeo, cape));
+  // domino mask: a band round the eyes
+  head.add(mesh("cos_mask", new THREE.SphereGeometry(HEAD_R + 0.025, 16, 6, Math.PI / 2 - 1.15, 2.3, 1.0, 0.36).scale(...HEAD_SCALE), costume2, 0, hc, 0));
+  // cowl: a cap over the whole crown with two ears
+  const cowlCap = new THREE.SphereGeometry(HEAD_R + 0.03, 20, 12, 0, Math.PI * 2, 0, 1.75).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const ears2 = [-1, 1].map((s) => new THREE.ConeGeometry(0.16, 0.42, 6).translate(s * 0.4, hc + 0.78, -0.1));
+  head.add(mesh("cos_cowl", merge(cowlCap, ...ears2), costume));
+  // full helmet with a visor slot at eye height
+  const shell = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 14, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0, Math.PI).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const crown = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 10, 0, Math.PI * 2, 0, 0.95).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const chin = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 8, 0, Math.PI * 2, 2.05, 1.1).scale(...HEAD_SCALE).translate(0, hc, 0);
+  head.add(mesh("cos_helmet", merge(shell, crown, chin), costume));
+  head.add(mesh("cos_helmet_visor", new THREE.SphereGeometry(HEAD_R + 0.075, 18, 6, Math.PI / 2 - 1.0, 2.0, 0.95, 0.5).scale(...HEAD_SCALE), costume2, 0, hc, 0));
+  // pointed hat with a brim
+  const cone = new THREE.ConeGeometry(0.62, 1.7, 14).translate(0, hc + 1.1, -0.05).rotateX(-0.12);
+  const brim = new THREE.CylinderGeometry(1.15, 1.15, 0.06, 20).translate(0, hc + 0.36, -0.05);
+  head.add(mesh("cos_hat", merge(cone, brim), costume));
+  // antenna headband
+  const band = new THREE.TorusGeometry(HEAD_R + 0.02, 0.05, 6, 20).rotateX(Math.PI / 2).scale(1, 1, 0.96).translate(0, hc + 0.32, 0);
+  const stalks = [-1, 1].flatMap((s) => [new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6).translate(s * 0.35, hc + 0.95, 0), sphere(0.09, 8, 6).translate(s * 0.35, hc + 1.32, 0)]);
+  head.add(mesh("cos_antenna", merge(band, ...stalks), costume2));
+  // chest plate hugging the torso front, with a collar ridge
+  const plate = new THREE.CylinderGeometry(R(1.4) + 0.05, R(0.1) + 0.05, 1.35, 14, 1, false, -0.95, 1.9).scale(1, 1, 0.76).translate(0, 0.78, 0);
+  const collar = new THREE.TorusGeometry(0.42, 0.06, 6, 16).rotateX(Math.PI / 2).translate(0, 1.6, 0);
+  torso.add(mesh("cos_chest", merge(plate, collar), costume));
+  // shoulder pads
+  const pads = [-1, 1].map((s) => sphere(0.4, 12, 8).scale(1, 0.7, 1).translate(s * (R(1.35) + 0.04), 1.48, 0));
+  torso.add(mesh("cos_pads", merge(...pads), costume));
+  // belt with a buckle
+  const beltRing = new THREE.TorusGeometry(R(-0.2) + 0.02, 0.09, 6, 22).rotateX(Math.PI / 2).scale(1, 1, 0.74).translate(0, -0.2, 0);
+  const buckle = new THREE.BoxGeometry(0.34, 0.26, 0.08).translate(0, -0.2, zF(-0.2) + 0.1);
+  torso.add(mesh("cos_belt", merge(beltRing, buckle), costume2));
+  // chest emblems (flat decals above the pocket)
+  const emblemY = 1.05, emblemZ = zF(emblemY) + 0.07;
+  const starShape = new THREE.Shape(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 0.15 : 0.34, a = Math.PI / 2 + (i / 10) * Math.PI * 2; if (i === 0) starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r); else starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+  torso.add(mesh("cos_emblem_star", new THREE.ShapeGeometry(starShape).translate(0, emblemY, emblemZ), costume2));
+  const bolt = new THREE.Shape(); bolt.moveTo(0.06, 0.36); bolt.lineTo(-0.2, 0.02); bolt.lineTo(-0.02, 0.02); bolt.lineTo(-0.12, -0.36); bolt.lineTo(0.2, 0.06); bolt.lineTo(0.02, 0.06); bolt.lineTo(0.06, 0.36);
+  torso.add(mesh("cos_emblem_bolt", new THREE.ShapeGeometry(bolt).translate(0, emblemY, emblemZ), costume2));
+  torso.add(mesh("cos_emblem_ring", new THREE.RingGeometry(0.16, 0.3, 24).translate(0, emblemY, emblemZ), costume2));
   return root;
+}
+
+/** Materials recoloured per figure at runtime (by material name). */
+export const RECOLOR_MATERIALS = ["skin", "hair", "shirt", "pants", "costume", "costume2", "cape"] as const;
+export interface AvatarLook { body: "a" | "b"; skin: string; hair: string; hairColor: string; shirt: string; pants: string; costume?: string }
+/**
+ * Shows the right hair and costume parts on a built or loaded avatar and returns
+ * the colour per recolourable material. Used by the GLB rig, the fallback and the
+ * dev page so every path looks the same.
+ */
+export function applyAvatarLook(root: THREE.Object3D, look: AvatarLook): Record<string, string> {
+  const costume = isCostumeId(look.costume) ? COSTUMES[look.costume] : COSTUMES.none;
+  const parts = new Set<string>(costume.parts);
+  const hasChest = parts.has("cos_chest") || parts.has("cos_emblem_star") || parts.has("cos_emblem_bolt") || parts.has("cos_emblem_ring");
+  root.traverse((o) => {
+    if ((HAIR_NODES as readonly string[]).includes(o.name)) o.visible = !costume.hideHair && o.name === `hair_${look.hair}`;
+    else if ((COSTUME_PARTS as readonly string[]).includes(o.name)) o.visible = parts.has(o.name);
+    else if (o.name === "cos_helmet_visor") o.visible = parts.has("cos_helmet");
+    else if (o.name === "badge" || o.name === "lanyard_m") o.visible = !hasChest; // the emblem or plate takes the badge's place
+  });
+  const dressed = look.costume && look.costume !== "none";
+  return {
+    skin: look.skin, hair: look.hairColor,
+    shirt: dressed && costume.colors.shirt ? costume.colors.shirt : look.shirt,
+    pants: dressed && costume.colors.pants ? costume.colors.pants : look.pants,
+    costume: costume.colors.costume, costume2: costume.colors.costume2, cape: costume.colors.cape,
+  };
 }
 
 /** Which hair node to show for a hair style; the rest are hidden at runtime ("bald" shows none). */

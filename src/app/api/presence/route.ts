@@ -12,7 +12,7 @@ const Body = z.object({
   h: z.number().finite().optional(),
   s: z.number().int().min(0).max(2).optional(),
   n: z.string().max(40).optional(),
-  a: z.object({ body: z.enum(["a", "b"]), skin: z.string().max(9), hair: z.string().max(10), hairColor: z.string().max(9), shirt: z.string().max(9), pants: z.string().max(9) }).optional(),
+  a: z.object({ body: z.enum(["a", "b"]), skin: z.string().max(9), hair: z.string().max(10), hairColor: z.string().max(9), shirt: z.string().max(9), pants: z.string().max(9), costume: z.string().max(12).optional() }).optional(),
 });
 
 /** Where I am on the floor. The visitor cookie is the player id, so nobody can move somebody else. */

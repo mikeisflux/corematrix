@@ -4,7 +4,8 @@ import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { buildAvatar, buildAvatarClips, HAIR_NODES } from "@/lib/hall/modelkit/avatar";
+import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
+import { COSTUME_IDS } from "@/lib/hall/costumes";
 import { PROP_BUILDERS } from "@/lib/hall/modelkit/props";
 
 type Export = Record<string, string>; // name -> base64 glb
@@ -24,11 +25,14 @@ async function exportAll(): Promise<Export> {
   return out;
 }
 
-function Preview({ body, hair, clip }: { body: "a" | "b"; hair: string; clip: string }) {
+function Preview({ body, hair, clip, costume }: { body: "a" | "b"; hair: string; clip: string; costume: string }) {
   const model = useMemo(() => buildAvatar(body), [body]);
+  useEffect(() => {
+    const colors = applyAvatarLook(model, { body, skin: "#c68642", hair, hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume });
+    model.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { const mat = m.material as THREE.MeshStandardMaterial; if ((RECOLOR_MATERIALS as readonly string[]).includes(mat.name)) mat.color.set(colors[mat.name]); } });
+  }, [model, body, hair, costume]);
   const clips = useMemo(() => buildAvatarClips(), []);
   const mixer = useMemo(() => new THREE.AnimationMixer(model), [model]);
-  useEffect(() => { model.traverse((o) => { if ((HAIR_NODES as readonly string[]).includes(o.name)) o.visible = o.name === `hair_${hair}`; }); }, [model, hair]);
   useEffect(() => { mixer.stopAllAction(); const c = clips.find((x) => x.name === clip); if (c) mixer.clipAction(c).play(); }, [mixer, clips, clip]);
   useFrame((_, dt) => mixer.update(dt));
   return <primitive object={model} />;
@@ -39,6 +43,7 @@ export function ModelExporter() {
   const [body, setBody] = useState<"a" | "b">("a");
   const [hair, setHair] = useState("short");
   const [clip, setClip] = useState("walk");
+  const [costume, setCostume] = useState("none");
   const [prop, setProp] = useState("table");
   const propObj = useMemo(() => PROP_BUILDERS[prop]?.(), [prop]);
   const done = useRef(false);
@@ -52,13 +57,15 @@ export function ModelExporter() {
           <color attach="background" args={["#1b1f2a"]} />
           <ambientLight intensity={0.7} /><directionalLight position={[5, 10, 6]} intensity={1.5} castShadow />
           <gridHelper args={[20, 20, "#334155", "#1f2937"]} />
-          <Preview body={body} hair={hair} clip={clip} />
+          <Preview body={body} hair={hair} clip={clip} costume={costume} />
           <OrbitControls target={[0, 3.2, 0]} />
         </Canvas>
         <div style={{ position: "absolute", left: 12, top: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
           {(["a", "b"] as const).map((b) => <button key={b} onClick={() => setBody(b)} style={{ fontWeight: body === b ? 700 : 400 }}>body {b}</button>)}
           {["short", "long", "buzz", "bun", "curly", "bald"].map((h) => <button key={h} onClick={() => setHair(h)} style={{ fontWeight: hair === h ? 700 : 400 }}>{h}</button>)}
           {["idle", "walk", "run"].map((c) => <button key={c} onClick={() => setClip(c)} style={{ fontWeight: clip === c ? 700 : 400 }}>{c}</button>)}
+          <span style={{ opacity: 0.5 }}>|</span>
+          {COSTUME_IDS.map((c) => <button key={c} onClick={() => setCostume(c)} style={{ fontWeight: costume === c ? 700 : 400 }}>{c}</button>)}
         </div>
       </div>
       <div style={{ position: "relative" }}>

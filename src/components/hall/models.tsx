@@ -10,7 +10,7 @@ import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { create } from "zustand";
 import type { AvatarConfig } from "@/lib/hall/store";
-import { HAIR_NODES } from "@/lib/hall/modelkit/avatar";
+import { applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 
 interface Manifest { models: Record<string, { file: string }> }
 const useManifest = create<{ loaded: boolean; models: Record<string, string>; load: () => void }>((set, get) => ({
@@ -67,15 +67,20 @@ function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onCl
 
 /** Shared per-avatar motion state: 0 idle, 1 walk, 2 run. Written every frame by the mover, never via React. */
 export interface Motion { speed: number }
-const HAIR_SET = new Set<string>(HAIR_NODES);
 
 /** The rigged GLB avatar with idle/walk/run crossfades and recoloring by material name. */
 export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motion: Motion; url: string }) {
   const { scene, animations } = useGLTF(url);
-  const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}`;
+  const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}|${config.costume ?? "none"}`;
   const obj = useMemo(() => {
-    const c = cloneWithMaterials(scene, { skin: config.skin, hair: config.hairColor, shirt: config.shirt, pants: config.pants });
-    c.traverse((o) => { if (HAIR_SET.has(o.name)) o.visible = o.name === `hair_${config.hair}`; });
+    const c = scene.clone(true);
+    const colors = applyAvatarLook(c, config);
+    c.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const name = (m.material as THREE.Material).name;
+      if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); m.material = mm; }
+    });
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, colorKey]);

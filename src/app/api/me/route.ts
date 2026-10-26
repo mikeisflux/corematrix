@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCostumeId } from "@/lib/hall/costumes";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
@@ -47,7 +48,7 @@ export async function PATCH(req: Request) {
   if (body.avatar && typeof body.avatar === "object") {
     const a = body.avatar as Record<string, unknown>;
     const hex = (v: unknown, d: string) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
-    set.avatar = JSON.stringify({ body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44") });
+    set.avatar = JSON.stringify({ body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: isCostumeId(a.costume) ? a.costume : "none" });
   }
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;
