@@ -17,6 +17,7 @@ import { MePanel } from "./panels/MePanel";
 import { ClaimPanel } from "./panels/ClaimPanel";
 import { AvatarPanel } from "./panels/AvatarPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
+import { ConBotPanel } from "./panels/ConBotPanel";
 import { PerfOverlay } from "./PerfOverlay";
 
 export function Hud() {
@@ -33,6 +34,7 @@ export function Hud() {
   const mode = useHall((s) => s.mode);
   const setMode = useHall((s) => s.setMode);
   const near = useHall((s) => s.near);
+  const nearBot = useHall((s) => s.nearBot);
   const booths = useHall((s) => s.booths);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast, setToast]);
   const latest = events[0];
@@ -81,6 +83,7 @@ export function Hud() {
             {panel === "claim" && <ClaimPanel />}
             {panel === "avatar" && <AvatarPanel />}
             {panel === "settings" && <SettingsPanel />}
+            {panel === "conbot" && <ConBotPanel />}
           </div>
         )}
         {panel === "none" && loaded && mode === "map" && <LiveFeed />}
@@ -122,6 +125,13 @@ export function Hud() {
         </button>
       )}
       {mode === "walk" && <Joystick />}
+      {mode === "walk" && !nearBooth && nearBot && panel === "none" && (
+        <button onClick={() => setPanel("conbot")} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
+          <span className="text-lg">🤖</span>
+          <span><b>ConBot</b> wants to say hi</span>
+          <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">E</span>
+        </button>
+      )}
       {toast && <div className="absolute bottom-16 left-1/2 -translate-x-1/2 panel rounded-full px-4 py-2 text-sm fade-up">{toast}</div>}
       {!loaded && <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg)]/70 text-sm text-slate-300">Opening the hall…</div>}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "arrows / WASD walk · drag the mouse to look · shift run · E open booth · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>

@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { useHall } from "@/lib/hall/store";
 
-/** Deep links: /?booth=42 selects, /?claim=1 opens the claim flow, /?booth=42&takeover=1 opens a takeover. */
+/** Deep links: /?booth=42 selects, /?claim=1 opens the claim flow, /?booth=42&takeover=1 opens a takeover, /?conbot=1 calls the mascot over. */
 export function UrlActions() {
   const loaded = useHall((s) => s.loaded);
   useEffect(() => {
@@ -24,6 +24,7 @@ export function UrlActions() {
     } else if (sp.get("claim")) st.setPanel("claim");
     else if (sp.get("chat")) st.setPanel("chat");
     else if (sp.get("arcade")) st.setPanel("arcade");
+    if (sp.get("conbot")) st.setPanel("conbot"); // works with ?booth= too: walk there, then the mascot comes over
   }, [loaded]);
   return null;
 }

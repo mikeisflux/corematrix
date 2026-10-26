@@ -97,7 +97,7 @@ interface HallState {
   loaded: boolean;
   hovered: number | null;
   selected: number | null;
-  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings";
+  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings" | "conbot";
   night: boolean;
   ride: boolean;
   flyTo: number | null;
@@ -106,6 +106,7 @@ interface HallState {
   avatar: AvatarConfig;
   walkTarget: number | null;
   near: number | null;
+  nearBot: boolean;
   quality: Quality;
   previewDraft: { boothId: number; color: string; style: string; cloth: string; name: string } | null;
   setBooths: (p: HallBooth[]) => void;
@@ -127,6 +128,7 @@ interface HallState {
   setAvatar: (a: Partial<AvatarConfig>) => void;
   setWalkTarget: (id: number | null) => void;
   setNear: (id: number | null) => void;
+  setNearBot: (v: boolean) => void;
   setQuality: (q: Quality) => void;
 }
 export type Quality = "high" | "medium" | "low";
@@ -170,6 +172,7 @@ export const useHall = create<HallState>((set) => ({
   avatar: DEFAULT_AVATAR,
   walkTarget: null,
   near: null,
+  nearBot: false,
   quality: "medium",
   previewDraft: null,
   setBooths: (booths) => set({ booths: new Map(booths.map((p) => [p.id, p])), loaded: true }),
@@ -197,6 +200,7 @@ export const useHall = create<HallState>((set) => ({
   setAvatar: (a) => set((s) => { const avatar = { ...s.avatar, ...a }; try { localStorage.setItem("fcc_avatar", JSON.stringify(avatar)); } catch {} return { avatar }; }),
   setWalkTarget: (walkTarget) => set({ walkTarget }),
   setNear: (near) => set({ near }),
+  setNearBot: (nearBot) => set({ nearBot }),
   setQuality: (quality) => set({ quality }),
 }));
 

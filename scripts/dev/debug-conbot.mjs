@@ -1,0 +1,21 @@
+// ConBot: open its panel next to the arcade, send an emote and a question, check it answers and comes over.
+import { chromium } from "playwright";
+const out = "/tmp/claude-0/-home-user-corematrix/80df1d3b-37c9-5f70-bd13-ed1efde32587/scratchpad";
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+const p = await b.newPage({ viewport: { width: 1300, height: 860 } });
+p.on("pageerror", (e) => console.log("pageerror", e.message.slice(0, 300)));
+p.on("console", (m) => { if (m.type() === "error") console.log("console.error", m.text().slice(0, 200)); });
+await p.goto("http://localhost:3000/app?mode=walk&booth=442&conbot=1", { waitUntil: "load", timeout: 180000 });
+await p.waitForTimeout(20000);
+await p.screenshot({ path: `${out}/conbot-1.png` });
+console.log("panel:", (await p.locator("text=Ask ConBot").count()) ? "open" : "missing");
+await p.getByRole("button", { name: "Tell me a joke" }).click();
+await p.waitForTimeout(1500);
+console.log("line:", await p.locator("text=🤖").locator("xpath=..").innerText());
+await p.getByRole("button", { name: /Dance/ }).click();
+await p.waitForTimeout(6000);
+await p.screenshot({ path: `${out}/conbot-2.png` });
+await p.getByRole("button", { name: "Take me to the arcade" }).click();
+await p.waitForTimeout(8000);
+await p.screenshot({ path: `${out}/conbot-3.png` });
+await b.close();

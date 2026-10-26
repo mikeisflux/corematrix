@@ -11,10 +11,13 @@ import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
 import { getPrefs } from "@/lib/hall/prefs";
 import { perf } from "@/lib/hall/perf";
+import { conbot } from "@/lib/hall/conbot";
 import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
 export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
+/** Where the walker is, for things that react to the player (ConBot) without going through React. */
+export const player = { x: 0, z: 0, h: 0 };
 /**
  * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a
  * find bar, a menu, another window), which would leave the figure walking
@@ -212,7 +215,7 @@ export function Player() {
     const onKey = (e: KeyboardEvent) => {
       if (mode !== "walk") return;
       const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
-      if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); }
+      if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); else if (useHall.getState().nearBot) useHall.getState().setPanel("conbot"); }
       if (e.key === "v" || e.key === "V") { fp.current = !fp.current; setFirstPerson(fp.current); }
     };
     window.addEventListener("keydown", onKey);
@@ -256,6 +259,7 @@ export function Player() {
     }
     group.current.position.copy(pos.current);
     group.current.rotation.y = heading.current;
+    player.x = pos.current.x; player.z = pos.current.z; player.h = heading.current;
     // share where we are: 6×/s while moving, once a second standing still
     if (state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
     // camera
@@ -265,9 +269,11 @@ export function Player() {
     const cz = THREE.MathUtils.clamp(pos.current.z - Math.cos(yaw.current) * back, Z0 + 3, Z0 + HALL_DEPTH - 3);
     camera.position.lerp(new THREE.Vector3(cx, up, cz), Math.min(1, d * 6));
     camera.lookAt(pos.current.x + Math.sin(yaw.current) * 20, 4.5 + Math.tan(pitch.current) * 20 + (fp.current ? 1.1 : 0), pos.current.z + Math.cos(yaw.current) * 20);
-    // nearest claimed booth in front of us, every 0.25s
+    // nearest claimed booth in front of us (and whether ConBot is in reach), every 0.25s
     if (state.clock.elapsedTime - lastNear.current > 0.25) {
       lastNear.current = state.clock.elapsedTime;
+      const nb = Math.hypot(conbot.x - pos.current.x, conbot.z - pos.current.z) < 14;
+      if (nb !== useHall.getState().nearBot) useHall.getState().setNearBot(nb);
       let best: number | null = null, bd = 22;
       for (const b of booths.values()) {
         const s = boothSpace(b.id); if (!s) continue;
