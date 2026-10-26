@@ -2,7 +2,7 @@
 /** Frame-rate sessions captured from the hall: who ran what GPU, how it went, and a timeline per session. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useJson, Pager, PageHead, Badge, DateTime, Empty, qs, useToast } from "./shared";
-import type { PerfBucket, PerfDevice } from "@/lib/hall/perf";
+import { verdict, type PerfBucket, type PerfDevice } from "@/lib/hall/perf";
 import type { PerfSummary } from "@/lib/perf";
 
 interface Row { id: string; userId: string | null; email: string | null; label: string | null; url: string | null; device: PerfDevice; summary: PerfSummary; startedAt: number; updatedAt: number }
@@ -48,7 +48,7 @@ export default function Performance({ initialId }: { initialId: string | null })
         {list.data && rows.length === 0 && <Empty>No sessions yet. Walk the floor on the live site and come back; the first samples land after 10 seconds.</Empty>}
         {rows.length > 0 && (
           <div className="admTableWrap"><table className="admTable">
-            <thead><tr><th>Started</th><th>Who</th><th>GPU</th><th>Screen</th><th className="num">Length</th><th className="num">Avg fps</th><th className="num">Min</th><th className="num">p95 ms</th><th className="num">Calls</th><th>Quality</th><th>Mode</th></tr></thead>
+            <thead><tr><th>Started</th><th>Who</th><th>GPU</th><th>Screen</th><th className="num">Length</th><th className="num">Avg fps</th><th className="num">Min</th><th className="num">p95 ms</th><th className="num">CPU ms</th><th className="num">Calls</th><th>Quality</th><th>Mode</th></tr></thead>
             <tbody>{rows.map((r) => {
               const m = r.summary; const q = Object.entries(m.quality).sort((a, b) => b[1] - a[1])[0]?.[0];
               const walk = Math.round(((m.modes.w ?? 0) / Math.max(1, m.durationS)) * 100);
@@ -62,6 +62,7 @@ export default function Performance({ initialId }: { initialId: string | null })
                   <td className="num"><Badge kind={fpsKind(m.avgFps)}>{m.avgFps}</Badge></td>
                   <td className="num">{m.minFps}</td>
                   <td className="num">{m.p95ms}</td>
+                  <td className="num">{m.avgCpu || "-"}</td>
                   <td className="num">{m.avgCalls}</td>
                   <td>{q === "h" ? "high" : q === "m" ? "medium" : q === "l" ? "low" : "-"}</td>
                   <td>{walk}% walk</td>
@@ -84,8 +85,8 @@ export default function Performance({ initialId }: { initialId: string | null })
 
 function SessionDetail({ d, onCopy, onDownload }: { d: Detail; onCopy: (t: string) => void; onDownload: (n: string, t: string, type?: string) => void }) {
   const s = d.session; const m = s.summary;
-  const [metric, setMetric] = useState<"f" | "p95" | "calls" | "tris">("f");
-  const csv = () => { const cols = ["t", "f", "avg", "p95", "max", "calls", "tris", "mode", "q", "npc", "dpr", "long"] as const; return [cols.join(","), ...s.samples.map((b) => cols.map((c) => b[c]).join(","))].join("\n"); };
+  const [metric, setMetric] = useState<"f" | "p95" | "cpu" | "calls" | "tris">("f");
+  const csv = () => { const cols = ["t", "f", "avg", "p95", "max", "cpu", "rend", "calls", "tris", "mode", "q", "npc", "dpr", "long"] as const; return [cols.join(","), ...s.samples.map((b) => cols.map((c) => b[c] ?? "").join(","))].join("\n"); };
   return (
     <>
       <div className="admCard__hd">
@@ -103,11 +104,12 @@ function SessionDetail({ d, onCopy, onDownload }: { d: Detail; onCopy: (t: strin
         <div className="admTile" style={{ ["--c" as string]: m.avgFps >= 50 ? "var(--heat-1)" : m.avgFps >= 30 ? "var(--heat-7)" : "var(--heat-6)" }}><div className="admLabel">Average fps</div><div className="admTile__n">{m.avgFps}</div><div className="admTile__sub">min {m.minFps}</div></div>
         <div className="admTile"><div className="admLabel">Frame time p95</div><div className="admTile__n">{m.p95ms}<span style={{ fontSize: 14 }}> ms</span></div><div className="admTile__sub">worst {m.worstMs} ms · {m.longFrames} frames over 50 ms</div></div>
         <div className="admTile"><div className="admLabel">Draw calls</div><div className="admTile__n">{m.avgCalls}</div><div className="admTile__sub">max {m.maxCalls} · {m.avgTris.toLocaleString("en-US")} triangles avg</div></div>
+        <div className="admTile" style={{ ["--c" as string]: "var(--heat-2)" }}><div className="admLabel">Main thread</div><div className="admTile__n">{m.avgCpu || "-"}<span style={{ fontSize: 14 }}> ms/frame</span></div><div className="admTile__sub">{m.avgRender ? `${m.avgRender} ms in render · ` : ""}{verdict(m.avgCpu, m.avgFps)}</div></div>
         <div className="admTile"><div className="admLabel">Quality tiers</div><div className="admTile__n" style={{ fontSize: 18 }}>{Object.entries(m.quality).map(([k, v]) => `${k === "h" ? "high" : k === "m" ? "medium" : "low"} ${Math.round((v / Math.max(1, m.durationS)) * 100)}%`).join(" · ") || "-"}</div><div className="admTile__sub">render dpr {m.dpr}</div></div>
       </div>
       <div className="admMuted" style={{ fontSize: 12 }}><b style={{ color: "var(--text)" }}>{s.device.gpu}</b> · {s.device.vendor} · {s.device.cores} cores · {s.device.memory ?? "?"} GB · screen {s.device.screen} · viewport {s.device.viewport} · dpr {s.device.dpr}{s.device.touch ? " · touch" : ""}<div style={{ fontSize: 11 }}>{s.device.ua}</div></div>
       <div className="admRow" style={{ gap: 6 }}>
-        {([["f", "fps"], ["p95", "frame p95 ms"], ["calls", "draw calls"], ["tris", "triangles"]] as const).map(([k, l]) => <button key={k} className={`admBtn admBtn--sm${metric === k ? " admBtn--primary" : ""}`} onClick={() => setMetric(k)}>{l}</button>)}
+        {([["f", "fps"], ["p95", "frame p95 ms"], ["cpu", "main thread ms"], ["calls", "draw calls"], ["tris", "triangles"]] as const).map(([k, l]) => <button key={k} className={`admBtn admBtn--sm${metric === k ? " admBtn--primary" : ""}`} onClick={() => setMetric(k)}>{l}</button>)}
       </div>
       <Timeline samples={s.samples} metric={metric} />
       <details><summary className="admMuted" style={{ cursor: "pointer", fontSize: 12 }}>Text report</summary><pre className="admMono" style={{ whiteSpace: "pre-wrap", fontSize: 11, marginTop: 8 }}>{d.report}</pre></details>
@@ -116,17 +118,18 @@ function SessionDetail({ d, onCopy, onDownload }: { d: Detail; onCopy: (t: strin
 }
 
 /** One series over time with a hover crosshair. Quality-tier changes and map/walk switches show as faint bands under the line. */
-function Timeline({ samples, metric }: { samples: PerfBucket[]; metric: "f" | "p95" | "calls" | "tris" }) {
+function Timeline({ samples, metric }: { samples: PerfBucket[]; metric: "f" | "p95" | "cpu" | "calls" | "tris" }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const W = 900, H = 220, PL = 44, PR = 12, PT = 12, PB = 26;
   const n = samples.length;
   const maxT = Math.max(1, samples[n - 1]?.t ?? 1), minT = samples[0]?.t ?? 0;
-  const vals = samples.map((b) => b[metric]);
+  const val = (b: PerfBucket) => b[metric] ?? 0;
+  const vals = samples.map(val);
   const maxV = Math.max(1, ...vals) * 1.08;
   const x = (t: number) => PL + ((t - minT) / Math.max(1, maxT - minT)) * (W - PL - PR);
   const y = (v: number) => PT + (1 - v / maxV) * (H - PT - PB);
-  const path = samples.map((b, i) => `${i ? "L" : "M"}${x(b.t).toFixed(1)},${y(b[metric]).toFixed(1)}`).join(" ");
+  const path = samples.map((b, i) => `${i ? "L" : "M"}${x(b.t).toFixed(1)},${y(val(b)).toFixed(1)}`).join(" ");
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxV * f));
   // bands where the quality tier changed
   const bands: { from: number; to: number; q: string }[] = [];
@@ -139,7 +142,7 @@ function Timeline({ samples, metric }: { samples: PerfBucket[]; metric: "f" | "p
   };
   if (n === 0) return <Empty>No samples.</Empty>;
   const h = hover != null ? samples[hover] : null;
-  const label = { f: "fps", p95: "ms", calls: "calls", tris: "tris" }[metric];
+  const label = { f: "fps", p95: "ms", cpu: "ms", calls: "calls", tris: "tris" }[metric];
   return (
     <div ref={ref} style={{ position: "relative" }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
@@ -148,12 +151,12 @@ function Timeline({ samples, metric }: { samples: PerfBucket[]; metric: "f" | "p
         {metric === "f" && <line x1={PL} x2={W - PR} y1={y(30)} y2={y(30)} stroke="var(--heat-6)" strokeWidth={1} strokeDasharray="4 4" opacity={0.6} />}
         {[0, 0.5, 1].map((f) => { const t = Math.round(minT + f * (maxT - minT)); return <text key={f} x={x(t)} y={H - 8} textAnchor={f === 0 ? "start" : f === 1 ? "end" : "middle"} fontSize={11} fill="var(--text-dim)" fontFamily="var(--font-mono)">{t}s</text>; })}
         <path d={path} fill="none" stroke="var(--heat-2)" strokeWidth={2} strokeLinejoin="round" />
-        {h && <g><line x1={x(h.t)} x2={x(h.t)} y1={PT} y2={H - PB} stroke="var(--text-dim)" strokeWidth={1} /><circle cx={x(h.t)} cy={y(h[metric])} r={4} fill="var(--heat-2)" stroke="var(--surface)" strokeWidth={2} /></g>}
+        {h && <g><line x1={x(h.t)} x2={x(h.t)} y1={PT} y2={H - PB} stroke="var(--text-dim)" strokeWidth={1} /><circle cx={x(h.t)} cy={y(val(h))} r={4} fill="var(--heat-2)" stroke="var(--surface)" strokeWidth={2} /></g>}
       </svg>
       {h && (
         <div style={{ position: "absolute", left: `${(x(h.t) / W) * 100}%`, top: 0, transform: x(h.t) > W * 0.7 ? "translateX(-105%)" : "translateX(8px)", background: "var(--surface-2)", border: "1px solid var(--rule-strong)", padding: "6px 8px", fontSize: 11, fontFamily: "var(--font-mono)", pointerEvents: "none", whiteSpace: "nowrap" }}>
-          <div>{h.t}s · <b>{h[metric].toLocaleString("en-US")} {label}</b></div>
-          <div className="admMuted">{h.f} fps · avg {h.avg} ms · p95 {h.p95} ms · max {h.max} ms</div>
+          <div>{h.t}s · <b>{val(h).toLocaleString("en-US")} {label}</b></div>
+          <div className="admMuted">{h.f} fps · avg {h.avg} ms · p95 {h.p95} ms · max {h.max} ms{h.cpu != null ? ` · main thread ${h.cpu} ms (render ${h.rend ?? 0})` : ""}</div>
           <div className="admMuted">{h.calls} calls · {h.tris.toLocaleString("en-US")} tris · {h.q === "h" ? "high" : h.q === "m" ? "medium" : "low"} · {h.mode === "w" ? "walk" : "map"} · {h.npc} npcs · dpr {h.dpr}{h.long ? ` · ${h.long} long` : ""}</div>
         </div>
       )}

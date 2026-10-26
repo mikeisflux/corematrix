@@ -36,8 +36,8 @@ export function SettingsPanel() {
   const stamp = () => new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const exportJson = () => downloadText(`fcc-perf-${perf.sessionId || stamp()}.json`, JSON.stringify(perfSnapshot(), null, 2));
   const exportCsv = () => {
-    const cols = ["t", "f", "avg", "p95", "max", "calls", "tris", "mode", "q", "npc", "dpr", "long"] as const;
-    const body = [cols.join(","), ...perf.history.map((b) => cols.map((c) => b[c]).join(","))].join("\n");
+    const cols = ["t", "f", "avg", "p95", "max", "cpu", "rend", "calls", "tris", "mode", "q", "npc", "dpr", "long"] as const;
+    const body = [cols.join(","), ...perf.history.map((b) => cols.map((c) => b[c] ?? "").join(","))].join("\n");
     downloadText(`fcc-perf-${perf.sessionId || stamp()}.csv`, body, "text/csv");
   };
   const copyReport = async () => {
@@ -83,6 +83,15 @@ export function SettingsPanel() {
             </div>
             <div className="mt-1.5 text-[11px] text-slate-400">The JSON has your GPU, every second of frame times, draw calls and quality tier. Paste the report or send the file when the hall feels slow.</div>
           </div>
+          <details className="mt-2 rounded-xl border border-amber-300/20 bg-amber-300/5 p-2 text-[11px] text-slate-300">
+            <summary className="cursor-pointer font-semibold text-amber-200">Slow on a gaming laptop? Check which graphics chip the browser uses</summary>
+            <p className="mt-1.5 text-slate-400">Laptops with two chips often run the browser on the small integrated one (Intel UHD / Iris, AMD Radeon Graphics) and leave the big card idle. The overlay above names the chip in use.</p>
+            <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-slate-400">
+              <li><b className="text-slate-200">Windows:</b> Settings → System → Display → Graphics → Browse, add your browser (firefox.exe / chrome.exe) → Options → <b className="text-slate-200">High performance</b>.</li>
+              <li><b className="text-slate-200">NVIDIA:</b> NVIDIA Control Panel → Manage 3D settings → Program Settings → your browser → preferred graphics processor → <b className="text-slate-200">High-performance NVIDIA processor</b>.</li>
+              <li>Close the browser completely and reopen it, then check the overlay again.</li>
+            </ol>
+          </details>
         </div>
         <div className="flex items-center justify-between py-2">
           <button onClick={() => { resetPrefs(); setToast("Settings reset"); }} className="text-xs text-slate-400 hover:text-white">Reset to defaults</button>

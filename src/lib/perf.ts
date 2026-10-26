@@ -6,17 +6,18 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { now } from "@/lib/util";
-import type { PerfBucket, PerfDevice } from "@/lib/hall/perf";
+import { verdict, type PerfBucket, type PerfDevice } from "@/lib/hall/perf";
 
 export const MAX_SAMPLES = 900; // 15 minutes at one bucket a second
 export type PerfSession = typeof schema.perfSessions.$inferSelect;
 export interface PerfSummary {
   durationS: number; frames: number; avgFps: number; minFps: number; p95ms: number; worstMs: number; longFrames: number;
   avgCalls: number; maxCalls: number; avgTris: number; quality: Record<string, number>; modes: Record<string, number>; dpr: number;
+  avgCpu: number; avgRender: number;
 }
 
 export function summarize(samples: PerfBucket[]): PerfSummary {
-  if (samples.length === 0) return { durationS: 0, frames: 0, avgFps: 0, minFps: 0, p95ms: 0, worstMs: 0, longFrames: 0, avgCalls: 0, maxCalls: 0, avgTris: 0, quality: {}, modes: {}, dpr: 1 };
+  if (samples.length === 0) return { durationS: 0, frames: 0, avgFps: 0, minFps: 0, p95ms: 0, worstMs: 0, longFrames: 0, avgCalls: 0, maxCalls: 0, avgTris: 0, quality: {}, modes: {}, dpr: 1, avgCpu: 0, avgRender: 0 };
   const frames = samples.reduce((a, b) => a + b.f, 0);
   // wall-clock span: a frame longer than a second leaves gaps between buckets
   const secs = Math.max(samples.length, samples[samples.length - 1].t - samples[0].t + 1);
@@ -36,6 +37,8 @@ export function summarize(samples: PerfBucket[]): PerfSummary {
     avgTris: Math.round(samples.reduce((a, b) => a + b.tris, 0) / samples.length),
     quality, modes,
     dpr: samples[samples.length - 1].dpr,
+    avgCpu: Math.round((samples.reduce((a, b) => a + (b.cpu ?? 0), 0) / samples.length) * 10) / 10,
+    avgRender: Math.round((samples.reduce((a, b) => a + (b.rend ?? 0), 0) / samples.length) * 10) / 10,
   };
 }
 
@@ -89,13 +92,14 @@ export function perfReport(s: NonNullable<Awaited<ReturnType<typeof getPerf>>>):
     `UA: ${d.ua}`,
     `fps avg ${m.avgFps} min ${m.minFps} · frame p95 ${m.p95ms} ms worst ${m.worstMs} ms · long frames (>50 ms) ${m.longFrames} of ${m.frames}`,
     `draw calls avg ${m.avgCalls} max ${m.maxCalls} · triangles avg ${m.avgTris.toLocaleString("en-US")} · render dpr ${m.dpr}`,
+    `main thread ${m.avgCpu} ms per frame, of which renderer.render ${m.avgRender} ms → ${verdict(m.avgCpu, m.avgFps)}`,
     `quality: ${pct(m.quality)} · mode: ${pct(m.modes)}`,
-    "timeline (t s: fps / p95 ms / calls / quality / mode / npcs):",
+    "timeline (t s: fps / p95 ms / cpu ms / render ms / calls / quality / mode / npcs):",
   ];
   const step = Math.max(1, Math.ceil(s.samples.length / 60));
   for (let i = 0; i < s.samples.length; i += step) {
     const b = s.samples[i];
-    lines.push(`  ${String(b.t).padStart(4)}: ${String(b.f).padStart(3)} / ${b.p95.toFixed(1).padStart(6)} / ${String(b.calls).padStart(4)} / ${b.q} / ${b.mode} / ${b.npc}`);
+    lines.push(`  ${String(b.t).padStart(4)}: ${String(b.f).padStart(3)} / ${b.p95.toFixed(1).padStart(6)} / ${String(b.cpu ?? "-").padStart(5)} / ${String(b.rend ?? "-").padStart(5)} / ${String(b.calls).padStart(4)} / ${b.q} / ${b.mode} / ${b.npc}`);
   }
   return lines.join("\n");
 }

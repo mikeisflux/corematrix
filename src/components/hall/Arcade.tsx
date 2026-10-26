@@ -29,7 +29,7 @@ const MARQUEE_LOCAL = new THREE.Matrix4().makeTranslation(0, 6.3, 0.62);
 
 /* ---------- canvas art (all client-side, drawn once unless noted) ---------- */
 const TILE = 256;
-interface Screens { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture[] }
+interface Screens { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture }
 let screens: Screens | null = null;
 /** Attract-mode clock shared by every screen (module state: the atlas is global, so its animation is too). */
 const attract = { last: -1, frame: 0 };
@@ -39,13 +39,10 @@ function screenAtlas(): Screens {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = TILE * 2;
   const g = canvas.getContext("2d")!;
-  const tex = GAMES.map((_, i) => {
-    const t = new THREE.CanvasTexture(canvas);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
-    t.repeat.set(0.5, 0.5); t.offset.set((i % 2) * 0.5, i < 2 ? 0.5 : 0);
-    return t;
-  });
+  // one texture for all four games (the planes carry the atlas quadrant in their UVs), so a redraw is one upload, not four
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter;
   screens = { canvas, g, tex };
   drawScreens(screens, 0);
   return screens;
@@ -65,7 +62,7 @@ function drawScreens(s: Screens, f: number) {
     g.fillStyle = v; g.fillRect(0, 0, TILE, TILE);
     g.restore();
   });
-  s.tex.forEach((t) => { t.needsUpdate = true; });
+  s.tex.needsUpdate = true;
 }
 const hud = (g: CanvasRenderingContext2D, left: string, right: string, color: string) => {
   g.font = "bold 14px ui-monospace, Menlo, monospace"; g.textBaseline = "top";
@@ -367,15 +364,21 @@ function CabinetFaces({ cabinets, cabMats, night }: { cabinets: Cab[]; cabMats: 
       marquees: idx.map((i) => cabMats[i].clone().multiply(MARQUEE_LOCAL)),
     };
   }), [cabinets, cabMats]);
-  const screenGeo = useMemo(() => new THREE.PlaneGeometry(2.1, 1.66), []);
+  // each game's plane samples its own quadrant of the shared atlas
+  const screenGeos = useMemo(() => GAMES.map((_, i) => {
+    const g = new THREE.PlaneGeometry(2.1, 1.66);
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * 0.5 + (i % 2) * 0.5, uv.getY(k) * 0.5 + (i < 2 ? 0.5 : 0));
+    return g;
+  }), []);
   const marqueeGeo = useMemo(() => new THREE.PlaneGeometry(2.4, 0.68), []);
-  const screenMats = useMemo(() => atlas.tex.map((map) => new THREE.MeshBasicMaterial({ map, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })), [atlas]);
+  const screenMat = useMemo(() => new THREE.MeshBasicMaterial({ map: atlas.tex, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), [atlas]);
   const marqueeMats = useMemo(() => GAMES.map((_, i) => new THREE.MeshBasicMaterial({ map: marqueeTexture(i), toneMapped: false })), []);
   useEffect(() => {
     // brighter than white at night so the bloom catches the glass
-    screenMats.forEach((m) => m.color.setScalar(night ? 1.3 : 1.05));
+    screenMat.color.setScalar(night ? 1.3 : 1.05);
     marqueeMats.forEach((m) => m.color.setScalar(night ? 1.45 : 1.1));
-  }, [night, screenMats, marqueeMats]);
+  }, [night, screenMat, marqueeMats]);
   useFrame(({ clock }) => {
     // attract mode at 4 fps: one atlas redraw feeds every screen in the hall
     const t = clock.elapsedTime;
@@ -387,7 +390,7 @@ function CabinetFaces({ cabinets, cabMats, night }: { cabinets: Cab[]; cabMats: 
     <>
       {groups.map((gr, i) => (
         <group key={i}>
-          <Instanced geo={screenGeo} mat={screenMats[i]} items={gr.screens} />
+          <Instanced geo={screenGeos[i]} mat={screenMat} items={gr.screens} />
           <Instanced geo={marqueeGeo} mat={marqueeMats[i]} items={gr.marquees} />
         </group>
       ))}

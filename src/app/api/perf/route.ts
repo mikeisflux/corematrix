@@ -5,7 +5,7 @@ import { getOrSetVisitor } from "@/lib/visitor";
 import { appendPerf } from "@/lib/perf";
 
 export const dynamic = "force-dynamic";
-const Bucket = z.object({ t: z.number(), f: z.number(), avg: z.number(), p95: z.number(), max: z.number(), calls: z.number(), tris: z.number(), mode: z.enum(["w", "m"]), q: z.enum(["h", "m", "l"]), npc: z.number(), dpr: z.number(), long: z.number() });
+const Bucket = z.object({ t: z.number(), f: z.number(), avg: z.number(), p95: z.number(), max: z.number(), calls: z.number(), tris: z.number(), mode: z.enum(["w", "m"]), q: z.enum(["h", "m", "l"]), npc: z.number(), dpr: z.number(), long: z.number(), cpu: z.number().optional(), rend: z.number().optional() });
 const Body = z.object({
   id: z.string().min(6).max(40),
   label: z.string().max(60).optional(),

@@ -10,6 +10,8 @@ import { useHall } from "@/lib/hall/store";
 import { perf, PERF_HISTORY_MAX, type PerfBucket, type PerfDevice } from "@/lib/hall/perf";
 import { getPrefs } from "@/lib/hall/prefs";
 
+let hinted = false;
+
 const FLUSH_EVERY = 10; // seconds
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
@@ -37,6 +39,7 @@ export function PerfCapture() {
   const tris = useRef<number[]>([]);
   const longInBucket = useRef(0);
   const elapsed = useRef(0);
+  const cpu = useRef({ sum: 0, n: 0, rend: 0 });
 
   useEffect(() => {
     if (!perf.sessionId) { perf.sessionId = newId(); perf.startedAt = Date.now(); }
@@ -54,8 +57,18 @@ export function PerfCapture() {
     const onVis = () => { if (document.hidden) flushNow(true); };
     document.addEventListener("visibilitychange", onVis);
     const timer = setInterval(() => flushNow(false), FLUSH_EVERY * 1000);
-    return () => { window.removeEventListener("pagehide", onHide); document.removeEventListener("visibilitychange", onVis); clearInterval(timer); flushNow(true); };
+    // time spent inside renderer.render (draw submission on the main thread; a GPU stall shows up here too)
+    const orig = gl.render.bind(gl);
+    gl.render = (scene, camera) => { const t = performance.now(); orig(scene, camera); cpu.current.rend += performance.now() - t; };
+    return () => { window.removeEventListener("pagehide", onHide); document.removeEventListener("visibilitychange", onVis); clearInterval(timer); gl.render = orig; flushNow(true); };
   }, [gl]);
+
+  // runs before every other frame callback; the microtask fires once the whole animation frame (callbacks + render) has returned,
+  // so this is the main-thread cost of the frame. Whatever is left of the frame time is the GPU or vsync.
+  useFrame(() => {
+    const t0 = performance.now();
+    queueMicrotask(() => { cpu.current.sum += performance.now() - t0; cpu.current.n++; });
+  }, -1e9);
 
   useFrame((state, dt) => {
     const ms = dt * 1000;
@@ -80,9 +93,20 @@ export function PerfCapture() {
       tris: Math.round(tris.current.reduce((a, b) => a + b, 0) / tris.current.length),
       mode: st.mode === "walk" ? "w" : "m", q: st.quality[0] as "h" | "m" | "l", npc: perf.npcs,
       dpr: Math.round(viewport.dpr * 100) / 100, long: longInBucket.current,
+      cpu: cpu.current.n ? Math.round((cpu.current.sum / cpu.current.n) * 10) / 10 : 0,
+      rend: cpu.current.n ? Math.round((cpu.current.rend / cpu.current.n) * 10) / 10 : 0,
     };
-    perf.fps = bucket.f; perf.p95 = bucket.p95; perf.frames += bucket.f; perf.longFrames += bucket.long;
+    cpu.current = { sum: 0, n: 0, rend: 0 };
+    perf.fps = bucket.f; perf.p95 = bucket.p95; perf.frames += bucket.f; perf.longFrames += bucket.long; perf.cpu = bucket.cpu ?? 0; perf.rend = bucket.rend ?? 0;
     pending.current.push(bucket);
+    // after 15 s of walking below 30 fps, point at the usual culprit once: a laptop running the browser on its integrated chip
+    if (!hinted && bucket.mode === "w") {
+      const recent = perf.history.slice(-10);
+      if (perf.history.length >= 15 && recent.reduce((a, b) => a + b.f, 0) / recent.length < 30) {
+        hinted = true;
+        useHall.getState().setToast(`Running at ${bucket.f} fps. If this PC has two graphics chips the browser may be on the weak one: open ⚙ Settings for the fix.`);
+      }
+    }
     perf.history.push(bucket); if (perf.history.length > PERF_HISTORY_MAX) perf.history.splice(0, perf.history.length - PERF_HISTORY_MAX);
     frames.current = []; calls.current = []; tris.current = []; longInBucket.current = 0;
   });

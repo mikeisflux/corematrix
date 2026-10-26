@@ -27,6 +27,7 @@ export function PerfOverlay() {
       <div className="flex items-baseline justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Performance</span><span className="text-[10px] text-slate-500">P to hide</span></div>
       <div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-bold" style={{ color: fpsColor }}>{perf.fps}</span><span>fps</span><span className="ml-auto">{perf.ms.toFixed(1)} ms · p95 {perf.p95.toFixed(1)}</span></div>
       <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
+        <span>main thread</span><span className="text-right text-white">{perf.cpu.toFixed(1)} ms <span className="text-slate-400">(render {perf.rend.toFixed(1)})</span></span>
         <span>draw calls</span><span className="text-right text-white">{perf.calls}</span>
         <span>triangles</span><span className="text-right text-white">{perf.tris.toLocaleString("en-US")}</span>
         <span>quality / dpr</span><span className="text-right text-white">{quality} / {(window.devicePixelRatio || 1).toFixed(2)}</span>
