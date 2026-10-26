@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
-import { signTexture } from "./textures";
+import { drapeTexture, signTexture } from "./textures";
 import { useHall } from "@/lib/hall/store";
 import { hallLayout, ARCADE, type BoothSpace } from "@/lib/hall/layout";
 import { BOOTH_SIZES, formatMoney, type BoothSize } from "@/lib/config";
@@ -10,7 +10,7 @@ import { BOOTH_SIZES, formatMoney, type BoothSize } from "@/lib/config";
 const tmp = new THREE.Object3D();
 const SIZES = Object.keys(BOOTH_SIZES) as BoothSize[];
 
-/** Every unclaimed space, instanced per size: taped outline on the floor, grey drape, an "available" card. */
+/** Every unclaimed space, instanced per size: taped outline on the floor, grey pipe-and-drape, a skirted table, a roll-up and an "available" card. */
 export function EmptyBooths({ claimed, night }: { claimed: Map<number, unknown>; night: boolean }) {
   const groups = useMemo(() => {
     const all = hallLayout().filter((b) => !claimed.has(b.id));
@@ -25,10 +25,13 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
   const drape = useRef<THREE.InstancedMesh>(null);
   const rails = useRef<THREE.InstancedMesh>(null);
   const posts = useRef<THREE.InstancedMesh>(null);
+  const bars = useRef<THREE.InstancedMesh>(null);
   const card = useRef<THREE.InstancedMesh>(null);
   const tables = useRef<THREE.InstancedMesh>(null);
+  const hems = useRef<THREE.InstancedMesh>(null);
   const tops = useRef<THREE.InstancedMesh>(null);
   const banners = useRef<THREE.InstancedMesh>(null);
+  const bases = useRef<THREE.InstancedMesh>(null);
   const hovered = useHall((s) => s.hovered);
   const selected = useHall((s) => s.selected);
   const select = useHall((s) => s.select);
@@ -39,13 +42,16 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
   // every space of a size shares one footprint; w runs along x, d along z (feet)
   const w = spaces[0].w, d = spaces[0].d;
   const cardTex = useMemo(() => signTexture(["AVAILABLE", def.short, `from ${formatMoney(def.priceCents)}`], { bg: "#fff8dc", fg: "#111827", accentBar: "#ffd166", w: 256, h: 192, size: 34 }), [def]);
-  // roll-up banner art: tall portrait
-  const bannerTex = useMemo(() => signTexture(["YOUR", "BANNER", "HERE", "", def.short, `from ${formatMoney(def.priceCents)}`], { bg: "#111827", fg: "#ffd166", accentBar: "#ffd166", w: 256, h: 512, size: 40 }), [def]);
+  // roll-up banner art: tall portrait poster
+  const bannerTex = useMemo(() => signTexture(["YOUR BANNER HERE", def.short, `from ${formatMoney(def.priceCents)}`], { bg: "#111827", fg: "#ffd166", accentBar: "#ffd166", w: 384, h: 960, size: 64 }), [def]);
   // table length along the open edge; how many tables a space gets
   const L = island || d === 20 ? 8 : table ? 5.4 : 6;
   const per = island ? 4 : d === 20 ? 2 : 1;
   const bannerH = 6, bannerW = 3; // the default roll-up every space comes with
+  const drapeH = table ? 3.2 : 8; // artists' alley gets a low back drape
   const ids = useMemo(() => spaces.map((s) => s.id), [spaces]);
+  // posts: 2 per inline space (back corners) or 4 per island; a crossbar along the back wall of every inline space
+  const postsPer = island ? 4 : 2;
 
   useEffect(() => {
     if (!floor.current || !card.current || !tape.current) return;
@@ -56,15 +62,24 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
       tmp.position.set(s.x, 0.05, s.z); tmp.updateMatrix(); floor.current!.setMatrixAt(i, tmp.matrix);
       if (drape.current) {
         // pipe-and-drape back wall on the back edge (the line shared with the booth behind)
-        tmp.position.set(s.x - f * (w / 2 - 0.25), table ? 1.6 : 4, s.z); tmp.updateMatrix(); drape.current.setMatrixAt(i, tmp.matrix);
+        tmp.position.set(s.x - f * (w / 2 - 0.25), drapeH / 2 - 0.05, s.z); tmp.updateMatrix(); drape.current.setMatrixAt(i, tmp.matrix);
       }
       if (rails.current) {
         // 3 ft side rails along both edges, running from the back wall 70% of the way to the aisle
-        for (const k of [0, 1]) { tmp.position.set(s.x - f * (w / 2 - w * 0.35), 1.5, s.z + (k ? 1 : -1) * (d / 2 - 0.15)); tmp.updateMatrix(); rails.current.setMatrixAt(i * 2 + k, tmp.matrix); }
+        for (const k of [0, 1]) { tmp.position.set(s.x - f * (w / 2 - w * 0.35), 1.45, s.z + (k ? 1 : -1) * (d / 2 - 0.15)); tmp.updateMatrix(); rails.current.setMatrixAt(i * 2 + k, tmp.matrix); }
       }
       if (posts.current) {
-        // islands are open on all four sides: corner posts mark the 20×20
-        [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([px, pz], k) => { tmp.position.set(s.x + px * (w / 2 - 0.2), 4, s.z + pz * (d / 2 - 0.2)); tmp.updateMatrix(); posts.current!.setMatrixAt(i * 4 + k, tmp.matrix); });
+        if (island) {
+          // islands are open on all four sides: corner uprights mark the 20×20
+          [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([px, pz], k) => { tmp.position.set(s.x + px * (w / 2 - 0.2), 0, s.z + pz * (d / 2 - 0.2)); tmp.updateMatrix(); posts.current!.setMatrixAt(i * 4 + k, tmp.matrix); });
+        } else {
+          for (const k of [0, 1]) { tmp.position.set(s.x - f * (w / 2 - 0.25), 0, s.z + (k ? 1 : -1) * (d / 2 - 0.15)); tmp.updateMatrix(); posts.current.setMatrixAt(i * 2 + k, tmp.matrix); }
+        }
+      }
+      if (bars.current) {
+        // the rod the back drape hangs from, lying along z
+        tmp.rotation.set(Math.PI / 2, 0, 0); tmp.position.set(s.x - f * (w / 2 - 0.25), drapeH, s.z); tmp.updateMatrix(); bars.current.setMatrixAt(i, tmp.matrix);
+        tmp.rotation.set(0, 0, 0);
       }
       // card stands at the open side facing the aisle; islands face whichever concourse they border
       if (island) {
@@ -87,16 +102,22 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
         const j = i * per + k;
         // the table runs long-ways along the open edge; q.rot faces the banner out toward the aisle
         tmp.rotation.set(0, q.rot + Math.PI / 2, 0);
-        tmp.position.set(q.x - q.nx * 1.6, 1.3, q.z - q.nz * 1.6); tmp.updateMatrix(); tables.current?.setMatrixAt(j, tmp.matrix);
-        tmp.position.set(q.x - q.nx * 1.6, 2.66, q.z - q.nz * 1.6); tmp.updateMatrix(); tops.current?.setMatrixAt(j, tmp.matrix);
+        const tx = q.x - q.nx * 1.6, tz = q.z - q.nz * 1.6;
+        tmp.position.set(tx, 1.15, tz); tmp.updateMatrix(); tables.current?.setMatrixAt(j, tmp.matrix);
+        tmp.position.set(tx, 2.37, tz); tmp.updateMatrix(); hems.current?.setMatrixAt(j, tmp.matrix);
+        tmp.position.set(tx, 2.55, tz); tmp.updateMatrix(); tops.current?.setMatrixAt(j, tmp.matrix);
         // banner centred behind the table, back against the drape so it's visible over the table
         const back = island ? w / 2 - 1.2 : w - 1.0; // islands: just inside each edge; booths: in front of the back wall
+        const bx = q.x - q.nx * back, bz = q.z - q.nz * back;
         tmp.rotation.set(0, q.rot, 0);
-        tmp.position.set(q.x - q.nx * back, bannerH / 2 + 0.3, q.z - q.nz * back); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
+        tmp.position.set(bx, bannerH / 2 + 0.3, bz); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
+        // the cassette the graphic rolls out of: a cylinder laid along the banner's width
+        tmp.rotation.set(0, q.rot, Math.PI / 2);
+        tmp.position.set(bx, 0.17, bz); tmp.updateMatrix(); bases.current?.setMatrixAt(j, tmp.matrix);
       });
     });
-    for (const m of [tape, floor, drape, rails, posts, card, tables, tops, banners]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
-  }, [spaces, island, table, w, d, L, per, bannerH, bannerW]);
+    for (const m of [tape, floor, drape, rails, posts, bars, card, tables, hems, tops, banners, bases]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
+  }, [spaces, island, table, w, d, L, per, bannerH, bannerW, drapeH]);
 
   useEffect(() => {
     if (!floor.current) return;
@@ -111,7 +132,10 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
   const n = spaces.length;
   const floorGeo = useMemo(() => { const g = new THREE.PlaneGeometry(w - 0.6, d - 0.6); g.rotateX(-Math.PI / 2); return g; }, [w, d]);
   const tapeGeo = useMemo(() => { const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); return g; }, [w, d]);
-  const drapeColor = night ? "#1f2937" : "#374151";
+  const postGeo = useMemo(() => { const g = new THREE.CylinderGeometry(0.07, 0.07, island ? 8 : drapeH, 8); g.translate(0, (island ? 8 : drapeH) / 2, 0); return g; }, [island, drapeH]);
+  const drapeColor = night ? "#1f2937" : "#3b4150";
+  const drapeTex = useMemo(() => drapeTexture(drapeColor), [drapeColor]);
+  const tableTex = useMemo(() => drapeTexture(night ? "#374151" : "#4b5563"), [night]);
   return (
     <group>
       {/* taped outline of the exact footprint */}
@@ -123,39 +147,51 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
       </instancedMesh>
       {!island && (
         <instancedMesh frustumCulled={false} ref={drape} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
-          <boxGeometry args={[0.5, table ? 3.2 : 8, d]} />
-          <meshStandardMaterial color={drapeColor} roughness={0.95} />
+          <boxGeometry args={[0.35, drapeH - 0.2, d - 0.3]} />
+          <meshStandardMaterial map={drapeTex} roughness={0.95} />
         </instancedMesh>
       )}
       {!island && !table && (
         <instancedMesh frustumCulled={false} ref={rails} args={[undefined, undefined, n * 2]} onPointerOver={over} onPointerOut={out} onClick={click}>
-          <boxGeometry args={[w * 0.7, 3, 0.3]} />
-          <meshStandardMaterial color={drapeColor} roughness={0.95} />
+          <boxGeometry args={[w * 0.7 - 0.2, 2.8, 0.25]} />
+          <meshStandardMaterial map={drapeTex} roughness={0.95} />
         </instancedMesh>
       )}
-      {island && (
-        <instancedMesh frustumCulled={false} ref={posts} args={[undefined, undefined, n * 4]} onPointerOver={over} onPointerOut={out} onClick={click}>
-          <boxGeometry args={[0.4, 8, 0.4]} />
-          <meshStandardMaterial color={night ? "#6b7280" : "#9ca3af"} metalness={0.6} roughness={0.4} />
+      {/* aluminium uprights: the back corners of inline spaces, all four corners of an island */}
+      <instancedMesh frustumCulled={false} ref={posts} args={[postGeo, undefined, n * postsPer]} onPointerOver={over} onPointerOut={out} onClick={click}>
+        <meshStandardMaterial color={night ? "#9aa3af" : "#c3c9d2"} metalness={0.85} roughness={0.3} />
+      </instancedMesh>
+      {!island && (
+        <instancedMesh frustumCulled={false} ref={bars} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
+          <cylinderGeometry args={[0.045, 0.045, d - 0.3, 8]} />
+          <meshStandardMaterial color="#c3c9d2" metalness={0.85} roughness={0.3} />
         </instancedMesh>
       )}
       <instancedMesh frustumCulled={false} ref={card} args={[undefined, undefined, n]} onPointerOver={over} onPointerOut={out} onClick={click}>
         <boxGeometry args={[2.2, 1.7, 0.1]} />
         <meshStandardMaterial map={cardTex} emissive="#fff" emissiveMap={cardTex} emissiveIntensity={night ? 0.4 : 0.05} />
       </instancedMesh>
-      {/* skirted tables along the open edge, white top */}
+      {/* skirted tables along the open edge: pleated skirt, hem band, white topper */}
       <instancedMesh frustumCulled={false} ref={tables} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
-        <boxGeometry args={[2.5, 2.6, L]} />
-        <meshStandardMaterial color={night ? "#374151" : "#4b5563"} roughness={0.95} />
+        <boxGeometry args={[2.5, 2.3, L - 0.1]} />
+        <meshStandardMaterial map={tableTex} roughness={0.95} />
+      </instancedMesh>
+      <instancedMesh frustumCulled={false} ref={hems} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
+        <boxGeometry args={[2.76, 0.3, L + 0.16]} />
+        <meshStandardMaterial color={night ? "#374151" : "#4b5563"} roughness={0.9} />
       </instancedMesh>
       <instancedMesh frustumCulled={false} ref={tops} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
-        <boxGeometry args={[2.6, 0.12, L + 0.1]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.6} />
+        <boxGeometry args={[2.7, 0.1, L + 0.1]} />
+        <meshStandardMaterial color="#e4e7ec" roughness={0.7} />
       </instancedMesh>
-      {/* roll-up banner behind each table */}
+      {/* roll-up banner behind each table, on its cassette */}
       <instancedMesh frustumCulled={false} ref={banners} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
-        <boxGeometry args={[bannerW, bannerH, 0.08]} />
+        <boxGeometry args={[bannerW, bannerH, 0.06]} />
         <meshStandardMaterial map={bannerTex} emissive="#fff" emissiveMap={bannerTex} emissiveIntensity={night ? 0.35 : 0.08} />
+      </instancedMesh>
+      <instancedMesh frustumCulled={false} ref={bases} args={[undefined, undefined, n * per]} onPointerOver={over} onPointerOut={out} onClick={click}>
+        <cylinderGeometry args={[0.17, 0.17, bannerW + 0.3, 10]} />
+        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.35} />
       </instancedMesh>
     </group>
   );
