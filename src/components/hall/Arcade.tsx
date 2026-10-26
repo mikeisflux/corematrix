@@ -1,82 +1,533 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { floorTexture, signTexture } from "./textures";
+import { useGLTF } from "@react-three/drei";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { signTexture } from "./textures";
 import { ARCADE } from "@/lib/hall/layout";
 import { CABINET_ROWS } from "./Avatar";
-import { useHall } from "@/lib/hall/store";
+import { useHall, api } from "@/lib/hall/store";
 import { TwoSided } from "./Booth";
-import { Prop, useModelUrl } from "./models";
+import { useModelUrl } from "./models";
 
-const tmp = new THREE.Object3D();
-const SCREEN_COLORS = ["#ff2bd6", "#00f5ff", "#ffd166", "#5ee6c3", "#8338ec", "#ff6b6b"];
+/* ---------- palette + the games on the floor ---------- */
+const NEON = ["#00f5ff", "#ff2bd6", "#ffd166", "#5ee6c3", "#8338ec", "#ff6b6b"];
+/** The screens cycle through the three real arcade games plus an attract loop. Marquees match. */
+const GAMES = [
+  { id: "snake", title: "SERPENT AVE.", color: "#5ee6c3", accent: "#ffd166", coins: "2 coins" },
+  { id: "breakout", title: "BLOCK PARTY", color: "#ff6b6b", accent: "#00f5ff", coins: "2 coins" },
+  { id: "runner", title: "ROOFTOP RUN", color: "#ffd166", accent: "#ff2bd6", coins: "3 coins" },
+  { id: "attract", title: "FCC ARCADE", color: "#ff2bd6", accent: "#00f5ff", coins: "insert coin" },
+] as const;
+const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const UP = new THREE.Vector3(0, 1, 0);
+const ONE = new THREE.Vector3(1, 1, 1);
+/** Where the overlays sit on a cabinet: the GLB's screen is a slab whose glass face is flat at z=0.73 (y 3.58..5.22). */
+const SCREEN_LOCAL = new THREE.Matrix4().makeTranslation(0, 4.4, 0.76);
+const MARQUEE_LOCAL = new THREE.Matrix4().makeTranslation(0, 6.3, 0.62);
 
-/** The arcade plaza in the middle of the hall: cabinets in rows, neon, a stage with the leaderboard. */
-export function Arcade({ night }: { night: boolean }) {
-  const carpet = useMemo(() => floorTexture("arcade", [ARCADE.w / 10, ARCADE.d / 10]), []);
-  const cab = useRef<THREE.InstancedMesh>(null);
-  const screen = useRef<THREE.InstancedMesh>(null);
-  const setPanel = useHall((s) => s.setPanel);
-  const cabinets = useMemo(() => {
-    const out: { x: number; z: number; rot: number }[] = [];
-    for (const row of CABINET_ROWS) {
-      const vertical = row.d > row.w;
-      const n = Math.floor((vertical ? row.d : row.w) / 3.2);
-      for (let i = 0; i < n; i++) {
-        const t = -((n - 1) * 3.2) / 2 + i * 3.2;
-        out.push(vertical ? { x: row.x, z: row.z + t, rot: row.x < ARCADE.x ? Math.PI / 2 : -Math.PI / 2 } : { x: row.x + t, z: row.z, rot: row.z < ARCADE.z ? 0 : Math.PI });
-      }
+/* ---------- canvas art (all client-side, drawn once unless noted) ---------- */
+const TILE = 256;
+interface Screens { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D; tex: THREE.CanvasTexture[] }
+let screens: Screens | null = null;
+/** Attract-mode clock shared by every screen (module state: the atlas is global, so its animation is too). */
+const attract = { last: -1, frame: 0 };
+/** One 2x2 atlas of animated game screens shared by every cabinet; each game gets a texture view on its quarter. */
+function screenAtlas(): Screens {
+  if (screens) return screens;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = TILE * 2;
+  const g = canvas.getContext("2d")!;
+  const tex = GAMES.map((_, i) => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+    t.repeat.set(0.5, 0.5); t.offset.set((i % 2) * 0.5, i < 2 ? 0.5 : 0);
+    return t;
+  });
+  screens = { canvas, g, tex };
+  drawScreens(screens, 0);
+  return screens;
+}
+function drawScreens(s: Screens, f: number) {
+  const { g } = s;
+  [drawSnake, drawBreakout, drawRunner, drawAttract].forEach((fn, i) => {
+    g.save();
+    g.translate((i % 2) * TILE, i < 2 ? 0 : TILE);
+    g.beginPath(); g.rect(0, 0, TILE, TILE); g.clip();
+    fn(g, f);
+    // CRT: scanlines and a darker rim
+    g.fillStyle = "rgba(0,0,0,0.3)";
+    for (let y = 0; y < TILE; y += 3) g.fillRect(0, y, TILE, 1);
+    const v = g.createRadialGradient(128, 128, 100, 128, 128, 200);
+    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.6)");
+    g.fillStyle = v; g.fillRect(0, 0, TILE, TILE);
+    g.restore();
+  });
+  s.tex.forEach((t) => { t.needsUpdate = true; });
+}
+const hud = (g: CanvasRenderingContext2D, left: string, right: string, color: string) => {
+  g.font = "bold 14px ui-monospace, Menlo, monospace"; g.textBaseline = "top";
+  g.fillStyle = color; g.textAlign = "left"; g.fillText(left, 10, 8);
+  g.textAlign = "right"; g.fillText(right, TILE - 10, 8);
+};
+const SNAKE_PATH: [number, number][] = (() => {
+  // a lap around the board: the snake chases its tail forever
+  const p: [number, number][] = [];
+  for (let x = 2; x <= 13; x++) p.push([x, 3]);
+  for (let y = 4; y <= 13; y++) p.push([13, y]);
+  for (let x = 12; x >= 2; x--) p.push([x, 13]);
+  for (let y = 12; y >= 4; y--) p.push([2, y]);
+  return p;
+})();
+function drawSnake(g: CanvasRenderingContext2D, f: number) {
+  g.fillStyle = "#04140c"; g.fillRect(0, 0, TILE, TILE);
+  g.strokeStyle = "rgba(94,230,195,0.12)"; g.lineWidth = 1;
+  for (let i = 0; i <= 16; i++) { g.beginPath(); g.moveTo(i * 16, 32); g.lineTo(i * 16, TILE); g.stroke(); g.beginPath(); g.moveTo(0, 32 + i * 14); g.lineTo(TILE, 32 + i * 14); g.stroke(); }
+  const n = SNAKE_PATH.length;
+  for (let k = 0; k < 11; k++) {
+    const [cx, cy] = SNAKE_PATH[(f + n - k) % n];
+    g.fillStyle = k === 0 ? "#ffd166" : k % 2 ? "#5ee6c3" : "#3dbf9c";
+    g.fillRect(cx * 16 + 1, cy * 14 + 33, 14, 12);
+  }
+  const food = SNAKE_PATH[(f + 18) % n];
+  g.fillStyle = "#ff6b6b"; g.beginPath(); g.arc(food[0] * 16 + 8, food[1] * 14 + 39, 5, 0, Math.PI * 2); g.fill();
+  hud(g, "SERPENT AVE.", `SCORE ${String((f * 10) % 990).padStart(4, "0")}`, "#5ee6c3");
+}
+function drawBreakout(g: CanvasRenderingContext2D, f: number) {
+  g.fillStyle = "#0b0820"; g.fillRect(0, 0, TILE, TILE);
+  const rows = ["#ff6b6b", "#ff9f43", "#ffd166", "#5ee6c3", "#00f5ff", "#8338ec"];
+  const wave = Math.floor(f / 6);
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) {
+    if (((r * 8 + c) * 7919 + wave * 31) % 5 === 0) continue;
+    g.fillStyle = rows[r]; g.fillRect(18 + c * 28, 36 + r * 12, 25, 9);
+  }
+  const bx = 128 + Math.sin(f * 0.8) * 96, by = 128 + Math.abs(Math.cos(f * 0.55)) * 96;
+  g.fillStyle = "#ffffff"; g.beginPath(); g.arc(bx, by, 4, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#00f5ff"; g.fillRect(Math.max(14, Math.min(TILE - 58, bx - 22)), 236, 44, 6);
+  hud(g, "BLOCK PARTY", `${String((f * 20) % 1600).padStart(4, "0")}`, "#ff6b6b");
+}
+function drawRunner(g: CanvasRenderingContext2D, f: number) {
+  const sky = g.createLinearGradient(0, 0, 0, 160);
+  sky.addColorStop(0, "#1a0b3d"); sky.addColorStop(1, "#6b1a6b");
+  g.fillStyle = sky; g.fillRect(0, 0, TILE, 160);
+  g.fillStyle = "#ff6b6b"; g.beginPath(); g.arc(186, 118, 30, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#6b1a6b"; for (let y = 104; y < 150; y += 10) g.fillRect(150, y, 72, 3);
+  const scroll = (f * 9) % 48;
+  g.fillStyle = "#120a26";
+  for (let i = -1; i < 7; i++) { const h = 30 + ((i * 37) % 50 + 50) % 50; g.fillRect(i * 48 - scroll, 160 - h, 40, h); }
+  g.fillStyle = "#0a0614"; g.fillRect(0, 160, TILE, TILE);
+  g.fillStyle = "#2a2f4a";
+  for (let i = -1; i < 4; i++) { const gap = (i + Math.floor(f / 5)) % 3 === 2; if (!gap) g.fillRect(i * 80 - scroll * 1.5, 186, 72, 70); }
+  g.fillStyle = "#5ee6c3"; for (let i = -1; i < 4; i++) { const gap = (i + Math.floor(f / 5)) % 3 === 2; if (!gap) g.fillRect(i * 80 - scroll * 1.5, 186, 72, 3); }
+  const jump = f % 5 === 0 ? 34 : f % 5 === 1 ? 20 : 0;
+  const y = 186 - 26 - jump;
+  g.fillStyle = "#ffd166"; g.fillRect(64, y + 8, 12, 18); g.fillRect(66, y, 9, 8);
+  g.fillStyle = "#ff2bd6"; g.fillRect(62, y + 12, 16, 5);
+  hud(g, "ROOFTOP RUN", `${(f * 7) % 2000}m`, "#ffd166");
+}
+function drawAttract(g: CanvasRenderingContext2D, f: number) {
+  g.fillStyle = "#070612"; g.fillRect(0, 0, TILE, TILE);
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + f * 0.18;
+    g.fillStyle = NEON[i % NEON.length];
+    g.beginPath(); g.arc(128 + Math.cos(a) * 96, 128 + Math.sin(a) * 96, 5, 0, Math.PI * 2); g.fill();
+  }
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.shadowColor = "#ff2bd6"; g.shadowBlur = 18;
+  g.fillStyle = "#ff2bd6"; g.font = "900 46px Impact, 'Arial Black', sans-serif"; g.fillText("ARCADE", 128, 96);
+  g.shadowBlur = 0;
+  g.fillStyle = "#ffd166"; g.font = "bold 16px 'Inter', Arial, sans-serif"; g.fillText("100 COINS = $1 OF BOOTH VALUE", 128, 140);
+  if (f % 2 === 0) { g.fillStyle = "#00f5ff"; g.font = "bold 22px ui-monospace, Menlo, monospace"; g.fillText("INSERT COIN", 128, 178); }
+}
+
+const marqueeCache = new Map<number, THREE.CanvasTexture>();
+/** The backlit marquee above each screen: game title with a neon glow. */
+function marqueeTexture(i: number): THREE.CanvasTexture {
+  const hit = marqueeCache.get(i);
+  if (hit) return hit;
+  const game = GAMES[i];
+  const c = document.createElement("canvas"); c.width = 512; c.height = 144;
+  const g = c.getContext("2d")!;
+  const bg = g.createLinearGradient(0, 0, 0, 144);
+  bg.addColorStop(0, "#0d0b1f"); bg.addColorStop(1, "#1a1038");
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 144);
+  g.strokeStyle = game.accent; g.lineWidth = 5; g.strokeRect(10, 10, 492, 124);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.shadowColor = game.color; g.shadowBlur = 26;
+  g.fillStyle = game.color; g.font = "900 58px Impact, 'Arial Black', sans-serif"; g.fillText(game.title, 256, 62);
+  g.shadowBlur = 0;
+  g.fillStyle = "#ffffff"; g.font = "bold 22px 'Inter', Arial, sans-serif"; g.fillText(game.coins.toUpperCase(), 256, 112);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  marqueeCache.set(i, t);
+  return t;
+}
+
+let carpetTex: THREE.CanvasTexture | null = null;
+/** Black-light arcade carpet: nebulae, stars and neon squiggles on near-black. Tiles seamlessly. */
+function cosmicCarpet(): THREE.CanvasTexture {
+  if (carpetTex) return carpetTex;
+  const S = 512, M = 28;
+  const c = document.createElement("canvas"); c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#0a0718"; g.fillRect(0, 0, S, S);
+  const r = rng(7);
+  const blobs = ["#3b1d7a", "#7a1d5e", "#123c6b", "#1c6b5e"];
+  for (let i = 0; i < 14; i++) {
+    const x = r() * S, y = r() * S, rad = 70 + r() * 110;
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, blobs[i % blobs.length]); gr.addColorStop(1, "rgba(10,7,24,0)");
+    g.globalAlpha = 0.5; g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  g.globalAlpha = 1;
+  for (let i = 0; i < 460; i++) { const s = r() < 0.9 ? 1 : 2; g.fillStyle = `rgba(255,255,255,${(0.25 + r() * 0.75).toFixed(2)})`; g.fillRect(r() * S, r() * S, s, s); }
+  g.lineCap = "round";
+  for (let i = 0; i < 20; i++) {
+    const x = M + r() * (S - 2 * M), y = M + r() * (S - 2 * M), len = 4 + r() * 8;
+    g.strokeStyle = NEON[i % NEON.length]; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(x - len, y); g.lineTo(x + len, y); g.moveTo(x, y - len); g.lineTo(x, y + len); g.stroke();
+  }
+  g.lineWidth = 3; g.globalAlpha = 0.85;
+  for (let i = 0; i < 30; i++) {
+    const col = NEON[Math.floor(r() * NEON.length)];
+    g.strokeStyle = col;
+    const x = M + r() * (S - 2 * M - 40), y = M + r() * (S - 2 * M);
+    g.beginPath();
+    if (i % 3 === 0) { g.moveTo(x, y); for (let k = 1; k <= 4; k++) g.quadraticCurveTo(x + k * 9 - 4, y + (k % 2 ? -11 : 11), x + k * 9, y); }
+    else if (i % 3 === 1) { const s = 7 + r() * 8; g.moveTo(x, y - s); g.lineTo(x + s, y + s); g.lineTo(x - s, y + s); g.closePath(); }
+    else g.arc(x, y, 5 + r() * 8, 0, Math.PI * 2);
+    g.stroke();
+  }
+  for (let i = 0; i < 3; i++) {
+    const x = 90 + r() * (S - 180), y = 90 + r() * (S - 180), rad = 9 + r() * 7;
+    g.fillStyle = NEON[(i * 2 + 1) % NEON.length]; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#ffd166"; g.lineWidth = 2.5; g.beginPath(); g.ellipse(x, y, rad * 1.9, rad * 0.55, -0.4, 0, Math.PI * 2); g.stroke();
+  }
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  t.repeat.set(ARCADE.w / 19, ARCADE.d / 19);
+  carpetTex = t;
+  return t;
+}
+
+let beamTex: THREE.CanvasTexture | null = null;
+/** Alpha gradient for the light column over the pad: solid at the base, gone at the top. */
+function beamTexture(): THREE.CanvasTexture {
+  if (beamTex) return beamTex;
+  const c = document.createElement("canvas"); c.width = 4; c.height = 128;
+  const g = c.getContext("2d")!;
+  const gr = g.createLinearGradient(0, 0, 0, 128);
+  gr.addColorStop(0, "rgba(255,209,102,0)"); gr.addColorStop(0.55, "rgba(255,209,102,0.35)"); gr.addColorStop(1, "rgba(255,209,102,0.8)");
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
+  beamTex = new THREE.CanvasTexture(c);
+  beamTex.colorSpace = THREE.SRGBColorSpace;
+  return beamTex;
+}
+
+let padTex: THREE.CanvasTexture | null = null;
+/** Helipad markings for the drone pad. */
+function padTexture(): THREE.CanvasTexture {
+  if (padTex) return padTex;
+  const S = 512;
+  const c = document.createElement("canvas"); c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#0f1424"; g.fillRect(0, 0, S, S);
+  g.strokeStyle = "#ffd166"; g.lineWidth = 14; g.beginPath(); g.arc(256, 256, 236, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 4; g.strokeStyle = "#00f5ff"; g.beginPath(); g.arc(256, 256, 196, 0, Math.PI * 2); g.stroke();
+  g.setLineDash([18, 14]); g.strokeStyle = "rgba(255,209,102,0.6)"; g.beginPath(); g.arc(256, 256, 150, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+  g.fillStyle = "#ffd166"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "900 190px 'Inter', Arial, sans-serif"; g.fillText("H", 256, 246);
+  g.font = "bold 34px 'Inter', Arial, sans-serif"; g.fillStyle = "#00f5ff"; g.fillText("FLYOVER", 256, 372);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  padTex = t;
+  return t;
+}
+
+type Row = { rank: number; playerName: string | null; score: number };
+/** The big board: three columns of real top scores (or an invitation when nobody has played yet). */
+function boardTexture(scores: Record<string, Row[]> | null): THREE.CanvasTexture {
+  const W = 1024, H = 320;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#06070f"; g.fillRect(0, 0, W, H);
+  const glow = g.createLinearGradient(0, 0, W, 0);
+  glow.addColorStop(0, "rgba(255,43,214,0.18)"); glow.addColorStop(0.5, "rgba(0,245,255,0.18)"); glow.addColorStop(1, "rgba(255,43,214,0.18)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, 76);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.shadowColor = "#00f5ff"; g.shadowBlur = 22; g.fillStyle = "#00f5ff";
+  g.font = "900 56px Impact, 'Arial Black', sans-serif"; g.fillText("TOP SCORES", W / 2, 40);
+  g.shadowBlur = 0;
+  const cols = GAMES.slice(0, 3);
+  cols.forEach((game, i) => {
+    const x = W / 6 + (W / 3) * i;
+    g.fillStyle = game.color; g.font = "bold 28px 'Inter', Arial, sans-serif"; g.fillText(game.title, x, 108);
+    const rows = scores?.[game.id] ?? [];
+    g.font = "bold 24px ui-monospace, Menlo, monospace";
+    if (!rows.length) { g.fillStyle = scores ? "#9aa3b5" : "#4b5263"; g.fillText(scores ? "be the first" : "loading…", x, 170); return; }
+    rows.slice(0, 3).forEach((r, k) => {
+      const y = 148 + k * 36;
+      g.fillStyle = k === 0 ? "#ffd166" : "#ffffff"; g.textAlign = "left";
+      g.fillText(`${r.rank}. ${(r.playerName || "anon").slice(0, 12).toUpperCase()}`, x - 150, y);
+      g.textAlign = "right"; g.fillText(String(r.score).padStart(6, " "), x + 150, y); g.textAlign = "center";
+    });
+  });
+  g.fillStyle = "#ff2bd6"; g.fillRect(60, 262, W - 120, 2);
+  g.fillStyle = "#c7cbd6"; g.font = "bold 26px 'Inter', Arial, sans-serif";
+  g.fillText("play for coins  ·  100 coins = $1 of booth value", W / 2, 292);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+
+/* ---------- cabinets ---------- */
+type Cab = { x: number; z: number; rot: number; game: number };
+function layoutCabinets(): Cab[] {
+  const out: Cab[] = [];
+  for (const row of CABINET_ROWS) {
+    const vertical = row.d > row.w;
+    const n = Math.floor((vertical ? row.d : row.w) / 3.2);
+    for (let i = 0; i < n; i++) {
+      const t = -((n - 1) * 3.2) / 2 + i * 3.2;
+      const k = vertical ? { x: row.x, z: row.z + t, rot: row.x < ARCADE.x ? Math.PI / 2 : -Math.PI / 2 } : { x: row.x + t, z: row.z, rot: row.z < ARCADE.z ? 0 : Math.PI };
+      out.push({ ...k, game: out.length % GAMES.length });
+    }
+  }
+  return out;
+}
+
+/** An instanced mesh whose instances are a fixed list of matrices. */
+function Instanced({ geo, mat, items, castShadow }: { geo: THREE.BufferGeometry; mat: THREE.Material; items: THREE.Matrix4[]; castShadow?: boolean }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  // layout effect: the matrices are in place before the first frame, so a bank never flashes at the origin when it swaps in
+  useLayoutEffect(() => {
+    const m = ref.current; if (!m) return;
+    items.forEach((mx, i) => m.setMatrixAt(i, mx));
+    m.instanceMatrix.needsUpdate = true;
+    m.computeBoundingSphere();
+  }, [items]);
+  return <instancedMesh ref={ref} args={[geo, mat, items.length]} castShadow={castShadow} frustumCulled={false} />;
+}
+
+/** The GLB cabinet, instanced per material: 5 draw calls for the whole bank instead of one scene clone per cabinet. */
+function CabinetsGlb({ url, matrices, night }: { url: string; matrices: THREE.Matrix4[]; night: boolean }) {
+  const { scene } = useGLTF(url);
+  const parts = useMemo(() => {
+    scene.updateMatrixWorld(true);
+    const byMat = new Map<string, { mat: THREE.MeshStandardMaterial; geos: THREE.BufferGeometry[] }>();
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const mat = m.material as THREE.MeshStandardMaterial;
+      const g = m.geometry.clone(); g.applyMatrix4(m.matrixWorld);
+      const e = byMat.get(mat.name) ?? { mat, geos: [] };
+      e.geos.push(g); byMat.set(mat.name, e);
+    });
+    const out: { name: string; geo: THREE.BufferGeometry; mat: THREE.MeshStandardMaterial }[] = [];
+    for (const [name, { mat, geos }] of byMat) {
+      const m = mat.clone();
+      const merged = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+      if (merged) out.push({ name, geo: merged, mat: m }); else geos.forEach((geo, i) => out.push({ name: `${name}${i}`, geo, mat: m }));
     }
     return out;
-  }, []);
+  }, [scene]);
   useEffect(() => {
-    if (!cab.current || !screen.current) return;
-    const c = new THREE.Color();
-    cabinets.forEach((k, i) => {
-      tmp.position.set(k.x, 3, k.z); tmp.rotation.set(0, k.rot, 0); tmp.updateMatrix(); cab.current!.setMatrixAt(i, tmp.matrix);
-      // screen sits on the face pointing toward the plaza center
-      tmp.position.set(k.x + Math.sin(k.rot) * 1.3, 4.1, k.z + Math.cos(k.rot) * 1.3); tmp.rotation.set(-0.25, k.rot, 0); tmp.updateMatrix(); screen.current!.setMatrixAt(i, tmp.matrix);
-      screen.current!.setColorAt(i, c.set(SCREEN_COLORS[i % SCREEN_COLORS.length]));
-    });
-    cab.current.instanceMatrix.needsUpdate = true; screen.current.instanceMatrix.needsUpdate = true;
-    if (screen.current.instanceColor) screen.current.instanceColor.needsUpdate = true;
-  }, [cabinets]);
-  useFrame((state) => {
-    if (!screen.current) return;
-    const m = screen.current.material as THREE.MeshStandardMaterial;
-    m.emissiveIntensity = 1.4 + Math.sin(state.clock.elapsedTime * 6) * 0.3;
+    for (const p of parts) {
+      if (p.name.startsWith("screen")) p.mat.emissiveIntensity = night ? 0.9 : 0.5; // the joystick ball; the screen itself is covered by the overlay
+      if (p.name.startsWith("marquee")) p.mat.emissiveIntensity = night ? 1.4 : 0.6; // the buttons
+      if (p.name.startsWith("cabinet") || p.name.startsWith("side")) {
+        p.mat.roughness = 0.45; p.mat.metalness = 0.25;
+        // a whisper of deep blue at night so the bank reads as shapes against the dark floor, not a void
+        p.mat.emissive.set("#101a4a"); p.mat.emissiveIntensity = night ? 0.5 : 0;
+      }
+    }
+  }, [parts, night]);
+  return <>{parts.map((p) => <Instanced key={p.name} geo={p.geo} mat={p.mat} items={matrices} castShadow />)}</>;
+}
+
+/** Boxy stand-in when the GLB is unavailable; the overlays still make it read as an arcade. */
+function CabinetsFallback({ matrices }: { matrices: THREE.Matrix4[] }) {
+  const parts = useMemo(() => {
+    const body = new THREE.MeshStandardMaterial({ color: "#14122a", roughness: 0.5, metalness: 0.25 });
+    const lower = new THREE.BoxGeometry(2.6, 3.2, 2.4).translate(0, 1.6, -0.1);
+    const upper = new THREE.BoxGeometry(2.6, 3.6, 2.2).translate(0, 5, -0.4);
+    const marquee = new THREE.BoxGeometry(2.7, 0.9, 1.6).translate(0, 6.3, -0.35);
+    return { body, geo: mergeGeometries([lower, upper, marquee], false) ?? lower };
+  }, []);
+  return <Instanced geo={parts.geo} mat={parts.body} items={matrices} castShadow />;
+}
+
+/** Animated screens and backlit marquees, one instanced plane per game so 54 cabinets share four textures. */
+function CabinetFaces({ cabinets, cabMats, night }: { cabinets: Cab[]; cabMats: THREE.Matrix4[]; night: boolean }) {
+  const atlas = useMemo(() => screenAtlas(), []);
+  const groups = useMemo(() => GAMES.map((_, gi) => {
+    const idx = cabinets.map((c, i) => (c.game === gi ? i : -1)).filter((i) => i >= 0);
+    return {
+      screens: idx.map((i) => cabMats[i].clone().multiply(SCREEN_LOCAL)),
+      marquees: idx.map((i) => cabMats[i].clone().multiply(MARQUEE_LOCAL)),
+    };
+  }), [cabinets, cabMats]);
+  const screenGeo = useMemo(() => new THREE.PlaneGeometry(2.1, 1.66), []);
+  const marqueeGeo = useMemo(() => new THREE.PlaneGeometry(2.4, 0.68), []);
+  const screenMats = useMemo(() => atlas.tex.map((map) => new THREE.MeshBasicMaterial({ map, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })), [atlas]);
+  const marqueeMats = useMemo(() => GAMES.map((_, i) => new THREE.MeshBasicMaterial({ map: marqueeTexture(i), toneMapped: false })), []);
+  useEffect(() => {
+    // brighter than white at night so the bloom catches the glass
+    screenMats.forEach((m) => m.color.setScalar(night ? 1.3 : 1.05));
+    marqueeMats.forEach((m) => m.color.setScalar(night ? 1.45 : 1.1));
+  }, [night, screenMats, marqueeMats]);
+  useFrame(({ clock }) => {
+    // attract mode at 4 fps: one atlas redraw feeds every screen in the hall
+    const t = clock.elapsedTime;
+    if (t - attract.last < 0.25) return;
+    attract.last = t; attract.frame++;
+    drawScreens(atlas, attract.frame);
   });
-  const board = useMemo(() => signTexture(["TOP SCORES", "play for coins · 100 coins = $1 of booth value"], { bg: "#0a0a14", fg: "#00f5ff", w: 1024, h: 320, size: 72 }), []);
-  const ride = useMemo(() => signTexture(["HALL FLYOVER", "drone ride · 5 coins"], { bg: "#1a1208", fg: "#ffd166", w: 512, h: 200, size: 52 }), []);
+  return (
+    <>
+      {groups.map((gr, i) => (
+        <group key={i}>
+          <Instanced geo={screenGeo} mat={screenMats[i]} items={gr.screens} />
+          <Instanced geo={marqueeGeo} mat={marqueeMats[i]} items={gr.marquees} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/* ---------- the plaza ---------- */
+function NeonTube({ position, rotation, length, color, radius = 0.22, intensity }: { position: [number, number, number]; rotation?: [number, number, number]; length: number; color: string; radius?: number; intensity: number }) {
+  return (
+    <mesh position={position} rotation={rotation}>
+      <cylinderGeometry args={[radius, radius, length, 10]} />
+      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={intensity} roughness={0.3} toneMapped={false} />
+    </mesh>
+  );
+}
+
+/** A parked drone hovering over the pad: rotors spin, body bobs. */
+function Drone({ night }: { night: boolean }) {
+  const group = useRef<THREE.Group>(null);
+  useFrame(({ clock }, dt) => {
+    const t = clock.elapsedTime, g = group.current; if (!g) return;
+    g.position.y = 3.4 + Math.sin(t * 1.6) * 0.25; g.rotation.z = Math.sin(t * 0.9) * 0.05; g.rotation.x = Math.cos(t * 1.1) * 0.04;
+    for (const o of g.children) for (const r of o.children) if (r.name === "rotor") r.rotation.y += dt * 28;
+  });
+  const arms: [number, number][] = [[1, 1], [-1, 1], [1, -1], [-1, -1]];
+  return (
+    <group ref={group} position={[ARCADE.x, 3.4, ARCADE.z]}>
+      <mesh castShadow><boxGeometry args={[1.5, 0.45, 1.5]} /><meshStandardMaterial color="#c3cad9" metalness={0.6} roughness={0.35} /></mesh>
+      <mesh position={[0, -0.3, 0]}><boxGeometry args={[0.8, 0.2, 0.8]} /><meshStandardMaterial color="#1f2433" /></mesh>
+      {[0.6, -0.6].map((z) => <mesh key={z} position={[0, 0.08, z * 0.76]}><boxGeometry args={[0.9, 0.18, 0.1]} /><meshStandardMaterial color={z > 0 ? "#ff2bd6" : "#00f5ff"} emissive={z > 0 ? "#ff2bd6" : "#00f5ff"} emissiveIntensity={night ? 3 : 1.8} toneMapped={false} /></mesh>)}
+      {arms.map(([sx, sz], i) => (
+        <group key={i} position={[sx * 1.15, 0.1, sz * 1.15]}>
+          <mesh rotation={[0, Math.atan2(sz, sx) + Math.PI / 2, 0]} position={[-sx * 0.55, 0, -sz * 0.55]}><boxGeometry args={[0.16, 0.12, 1.5]} /><meshStandardMaterial color="#8a93a8" metalness={0.5} roughness={0.4} /></mesh>
+          <mesh position={[0, 0.1, 0]}><cylinderGeometry args={[0.14, 0.16, 0.2, 10]} /><meshStandardMaterial color="#1f2433" /></mesh>
+          <group name="rotor" position={[0, 0.22, 0]} rotation={[0, i * 0.7, 0]}>
+            <mesh><boxGeometry args={[1.5, 0.03, 0.14]} /><meshStandardMaterial color="#cfd6e6" transparent opacity={0.7} /></mesh>
+            <mesh rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[1.5, 0.03, 0.14]} /><meshStandardMaterial color="#cfd6e6" transparent opacity={0.7} /></mesh>
+          </group>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** The flyover pad: helipad markings, a neon ring, an expanding pulse, a soft light column and the drone. */
+function FlyoverPad({ night }: { night: boolean }) {
+  const pad = useMemo(() => padTexture(), []);
+  const beam = useMemo(() => beamTexture(), []);
+  const pulse = useRef<THREE.Mesh>(null);
+  const ride = useMemo(() => signTexture(["HALL FLYOVER", "drone ride · 5 coins"], { bg: "#0b0f1a", fg: "#ffd166", accentBar: "#00f5ff", w: 512, h: 200, size: 52 }), []);
+  useFrame(({ clock }) => {
+    const m = pulse.current; if (!m) return;
+    const p = (clock.elapsedTime % 2.6) / 2.6;
+    m.scale.setScalar(0.6 + p * 6.2);
+    (m.material as THREE.MeshBasicMaterial).opacity = (1 - p) * (night ? 0.9 : 0.55);
+  });
+  return (
+    <group position={[ARCADE.x, 0, ARCADE.z]}>
+      <mesh position={[0, 0.4, 0]} castShadow><cylinderGeometry args={[6, 6.3, 0.8, 40]} /><meshStandardMaterial color="#161a2a" metalness={0.5} roughness={0.45} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.81, 0]}><circleGeometry args={[5.95, 48]} /><meshStandardMaterial map={pad} emissiveMap={pad} emissive="#ffffff" emissiveIntensity={night ? 0.9 : 0.35} roughness={0.6} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.86, 0]}><torusGeometry args={[6.15, 0.13, 10, 64]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={night ? 3 : 1.6} toneMapped={false} /></mesh>
+      <mesh ref={pulse} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.9, 0]}><ringGeometry args={[0.9, 1, 48]} /><meshBasicMaterial color="#00f5ff" transparent opacity={0.6} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} /></mesh>
+      <mesh position={[0, 7.4, 0]} renderOrder={10}><cylinderGeometry args={[3.6, 5.9, 13, 32, 1, true]} /><meshBasicMaterial color="#ffd166" map={beam} transparent={true} opacity={night ? 0.12 : 0.05} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} /></mesh>
+      <Drone night={night} />
+      <group position={[0, 4.6, -7.2]}><TwoSided w={10} h={3.9}><meshBasicMaterial map={ride} toneMapped={false} /></TwoSided></group>
+      {[-5.6, 5.6].map((x) => <mesh key={x} position={[x, 1.3, -7.2]}><boxGeometry args={[0.18, 2.6, 0.18]} /><meshStandardMaterial color="#9ca3af" metalness={0.6} roughness={0.4} /></mesh>)}
+    </group>
+  );
+}
+
+/** Stage with the leaderboard wall: bezel, neon frame, lit front edge. */
+function Stage({ night }: { night: boolean }) {
+  const [scores, setScores] = useState<Record<string, Row[]> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    Promise.all(GAMES.slice(0, 3).map((g) => api<{ rows: Row[] }>(`/api/arcade/leaderboard?game=${g.id}&scope=all`).then((d) => [g.id, d.rows] as const).catch(() => [g.id, []] as const)))
+      .then((pairs) => { if (alive) setScores(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+  }, []);
+  const board = useMemo(() => boardTexture(scores), [scores]);
+  useEffect(() => () => board.dispose(), [board]);
+  const z = ARCADE.z + ARCADE.d / 2 - 8;
+  const neon = night ? 2.8 : 1.4;
+  return (
+    <group position={[ARCADE.x, 0, 0]}>
+      <mesh position={[0, 1, z]} castShadow><boxGeometry args={[36, 2, 10]} /><meshStandardMaterial color="#0f1322" roughness={0.6} metalness={0.2} /></mesh>
+      <mesh position={[0, 2.08, z - 5 + 0.08]}><boxGeometry args={[36, 0.14, 0.14]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={neon} toneMapped={false} /></mesh>
+      <mesh position={[0, 0.3, z - 5 + 0.08]}><boxGeometry args={[36, 0.1, 0.1]} /><meshStandardMaterial color="#ff2bd6" emissive="#ff2bd6" emissiveIntensity={neon} toneMapped={false} /></mesh>
+      <group position={[0, 9.2, z + 4.5]}>
+        <mesh position={[0, 0, -0.45]}><boxGeometry args={[36.4, 13, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
+        <TwoSided w={34} h={10.6}><meshBasicMaterial map={board} toneMapped={false} /></TwoSided>
+        {[[0, 6.55, 36.4, 0.16], [0, -6.55, 36.4, 0.16], [-18.3, 0, 0.16, 13], [18.3, 0, 0.16, 13]].map(([x, y, w, h], i) => (
+          <mesh key={i} position={[x, y, 0.2]}><boxGeometry args={[w, h, 0.16]} /><meshStandardMaterial color={i < 2 ? "#ff2bd6" : "#00f5ff"} emissive={i < 2 ? "#ff2bd6" : "#00f5ff"} emissiveIntensity={neon} toneMapped={false} /></mesh>
+        ))}
+        {[-12, 12].map((x) => <mesh key={x} position={[x, -8.6, -0.3]}><boxGeometry args={[0.5, 4.2, 0.5]} /><meshStandardMaterial color="#2b3140" metalness={0.6} roughness={0.4} /></mesh>)}
+      </group>
+    </group>
+  );
+}
+
+/** The arcade plaza in the middle of the hall: cabinet banks with live screens, neon rails, cosmic carpet, the drone pad and the score wall. */
+export function Arcade({ night }: { night: boolean }) {
+  const carpet = useMemo(() => cosmicCarpet(), []);
+  const setPanel = useHall((s) => s.setPanel);
+  const cabinets = useMemo(() => layoutCabinets(), []);
+  const cabMats = useMemo(() => cabinets.map((k) => new THREE.Matrix4().compose(new THREE.Vector3(k.x, 0, k.z), new THREE.Quaternion().setFromAxisAngle(UP, k.rot), ONE)), [cabinets]);
   const cabinetGlb = useModelUrl("cabinet");
+  const pillar = night ? 3.2 : 1.6;
+  const rail = night ? 2.6 : 1.3;
+  const { x, z, w, d } = ARCADE;
   return (
     <group onClick={(e) => { e.stopPropagation(); setPanel("arcade"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ARCADE.x, 0.05, ARCADE.z]}><planeGeometry args={[ARCADE.w, ARCADE.d]} /><meshStandardMaterial map={carpet} roughness={1} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
-      {cabinetGlb ? cabinets.map((k, i) => <Prop key={i} name="cabinet" position={[k.x, 0, k.z]} rotation={[0, k.rot, 0]} emissive={{ screen: SCREEN_COLORS[i % SCREEN_COLORS.length] }} />) : (<>
-        <instancedMesh frustumCulled={false} ref={cab} args={[undefined, undefined, cabinets.length]}>
-          <boxGeometry args={[2.6, 6, 2.6]} />
-          <meshStandardMaterial color="#1b1b2f" roughness={0.6} metalness={0.2} />
-        </instancedMesh>
-        <instancedMesh frustumCulled={false} ref={screen} args={[undefined, undefined, cabinets.length]}>
-          <planeGeometry args={[2, 1.6]} />
-          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1.5} toneMapped={false} />
-        </instancedMesh>
-      </>)}
-      {/* neon pillars at the corners */}
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], i) => (
-        <mesh key={i} position={[ARCADE.x + (sx * ARCADE.w) / 2, 7, ARCADE.z + (sz * ARCADE.d) / 2]}>
-          <cylinderGeometry args={[0.5, 0.5, 14, 8]} />
-          <meshStandardMaterial color="#ff2bd6" emissive="#ff2bd6" emissiveIntensity={night ? 2.5 : 1} toneMapped={false} />
-        </mesh>
+      {/* carpet: lit by the hall by day, glowing under black light by night */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.05, z]} receiveShadow>
+        <planeGeometry args={[w, d]} />
+        <meshStandardMaterial map={carpet} emissiveMap={carpet} emissive="#ffffff" emissiveIntensity={night ? 0.55 : 0.14} roughness={0.95} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
+      </mesh>
+      {/* edge trim so the plaza reads as a room within the hall */}
+      {[[x, z - d / 2, w + 0.6, 0.6], [x, z + d / 2, w + 0.6, 0.6], [x - w / 2, z, 0.6, d + 0.6], [x + w / 2, z, 0.6, d + 0.6]].map(([px, pz, pw, pd], i) => (
+        <mesh key={i} position={[px, 0.09, pz]}><boxGeometry args={[pw, 0.08, pd]} /><meshStandardMaterial color="#8338ec" emissive="#8338ec" emissiveIntensity={night ? 1.6 : 0.6} toneMapped={false} /></mesh>
       ))}
-      {/* stage + leaderboard screen at the back of the plaza */}
-      <mesh position={[ARCADE.x, 1, ARCADE.z + ARCADE.d / 2 - 8]}><boxGeometry args={[36, 2, 10]} /><meshStandardMaterial color="#111827" /></mesh>
-      <group position={[ARCADE.x, 9, ARCADE.z + ARCADE.d / 2 - 3.5]}><TwoSided w={34} h={10.6}><meshBasicMaterial map={board} toneMapped={false} /></TwoSided></group>
-      {/* flyover pad */}
-      <mesh position={[ARCADE.x, 0.4, ARCADE.z]}><cylinderGeometry args={[6, 6, 0.8, 24]} /><meshStandardMaterial color="#ffd166" emissive="#ffd166" emissiveIntensity={night ? 0.6 : 0.1} /></mesh>
-      <group position={[ARCADE.x, 4.5, ARCADE.z - 6.5]}><TwoSided w={10} h={3.9}><meshBasicMaterial map={ride} toneMapped={false} /></TwoSided></group>
-      {night && <pointLight position={[ARCADE.x, 12, ARCADE.z]} intensity={300} distance={80} color="#8338ec" />}
+      {cabinetGlb ? (
+        <Suspense fallback={<CabinetsFallback matrices={cabMats} />}><CabinetsGlb url={cabinetGlb} matrices={cabMats} night={night} /></Suspense>
+      ) : <CabinetsFallback matrices={cabMats} />}
+      <CabinetFaces cabinets={cabinets} cabMats={cabMats} night={night} />
+      {/* neon: magenta pillars at the corners, cyan rails along the top */}
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], i) => (
+        <group key={i} position={[x + (sx * w) / 2, 0, z + (sz * d) / 2]}>
+          <mesh position={[0, 0.5, 0]}><cylinderGeometry args={[0.9, 1.1, 1, 12]} /><meshStandardMaterial color="#1f2433" metalness={0.6} roughness={0.4} /></mesh>
+          <NeonTube position={[0, 8, 0]} length={15} radius={0.3} color="#ff2bd6" intensity={pillar} />
+        </group>
+      ))}
+      <NeonTube position={[x, 15.3, z - d / 2]} rotation={[0, 0, Math.PI / 2]} length={w + 0.6} color="#00f5ff" intensity={rail} />
+      <NeonTube position={[x, 15.3, z + d / 2]} rotation={[0, 0, Math.PI / 2]} length={w + 0.6} color="#00f5ff" intensity={rail} />
+      <NeonTube position={[x - w / 2, 15.3, z]} rotation={[Math.PI / 2, 0, 0]} length={d + 0.6} color="#00f5ff" intensity={rail} />
+      <NeonTube position={[x + w / 2, 15.3, z]} rotation={[Math.PI / 2, 0, 0]} length={d + 0.6} color="#00f5ff" intensity={rail} />
+      <Stage night={night} />
+      <FlyoverPad night={night} />
+      {night && <pointLight position={[x, 14, z]} intensity={420} distance={95} decay={2} color="#7c4dff" />}
     </group>
   );
 }
