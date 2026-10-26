@@ -496,10 +496,10 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
   return (
     <div className="rounded-2xl border border-white/10 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Books on display · {owned}/{cap} platforms</div>
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Books on display · {owned}/{cap} stands</div>
         <div className="text-[11px] text-slate-500">{formatMoney(BOOK_PRICE_CENTS)} per book, one-time</div>
       </div>
-      <p className="mt-1 text-[11px] text-slate-500">Your table has {cap} display platforms. Unlock one and stand a comic on it: upload the front cover at {spec.width} × {spec.height} px ({spec.ratio}; minimum {spec.width / 2} × {spec.height / 2}). {spec.tip}</p>
+      <p className="mt-1 text-[11px] text-slate-500">You have {cap} comic stands on your tables. Unlock one and stand a comic on it: upload the front cover at {spec.width} × {spec.height} px ({spec.ratio}; minimum {spec.width / 2} × {spec.height / 2}). {spec.tip}</p>
       {owned < cap && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select className="input w-auto" value={qty} onChange={(e) => setQty(Number(e.target.value))}>{Array.from({ length: cap - owned }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} {n === 1 ? "book" : "books"} · {formatMoney(n * BOOK_PRICE_CENTS)}</option>)}</select>

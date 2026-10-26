@@ -9,6 +9,8 @@ import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } fro
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
+import { getPrefs } from "@/lib/hall/prefs";
+import { perf } from "@/lib/hall/perf";
 import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
@@ -156,7 +158,8 @@ export function Player() {
     const onDown = (e: PointerEvent) => { if (e.button !== 0 && e.button !== 2) return; down = true; lx = e.clientX; ly = e.clientY; };
     const onMove = (e: PointerEvent) => {
       if (!down) return;
-      input.yawDrag -= (e.clientX - lx) * 0.0045; input.pitchDrag -= (e.clientY - ly) * 0.003;
+      const pr = getPrefs();
+      input.yawDrag -= (e.clientX - lx) * 0.0045 * pr.sensitivity; input.pitchDrag -= (e.clientY - ly) * 0.003 * pr.sensitivity * (pr.invertY ? -1 : 1);
       lx = e.clientX; ly = e.clientY;
     };
     const onUp = () => { down = false; };
@@ -312,6 +315,7 @@ export function Crowd({ count = 110 }: { count?: number }) {
   }, [count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const motions = useMemo<Motion[]>(() => npcs.map(() => ({ speed: 1 })), [npcs]);
+  useEffect(() => { perf.npcs = npcs.length; }, [npcs]);
   useFrame(({ camera, clock }, dt) => {
     const d = Math.min(dt, 0.05);
     const t = clock.elapsedTime;

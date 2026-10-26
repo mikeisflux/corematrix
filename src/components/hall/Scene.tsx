@@ -15,6 +15,8 @@ import { Mascot } from "./Mascot";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
 import { useHall, track, guessQuality, type HallBooth, type Quality } from "@/lib/hall/store";
+import { usePrefs } from "@/lib/hall/prefs";
+import { PerfCapture } from "./PerfCapture";
 import { boothSpace, boothPosition, CEILING, HALLS, HALL_LENGTH, X0, Z_CROSS0, Z_CROSS1, Z0 } from "@/lib/hall/layout";
 
 export function Scene() {
@@ -28,17 +30,23 @@ export function Scene() {
   const setQuality = useHall((s) => s.setQuality);
   const list = useMemo(() => Array.from(booths.values()), [booths]);
   const { setDpr } = useThree();
-  useEffect(() => { setQuality(guessQuality()); }, [setQuality]);
+  const prefs = usePrefs();
+  // a locked tier (gear menu) wins over the frame-rate monitor
+  useEffect(() => { setQuality(prefs.quality === "auto" ? guessQuality() : prefs.quality); }, [setQuality, prefs.quality]);
   useEffect(() => { setDpr(quality === "high" ? Math.min(1.75, window.devicePixelRatio) : quality === "medium" ? Math.min(1.25, window.devicePixelRatio) : 1); }, [quality, setDpr]);
-  const crowd = { high: [110, 140], medium: [60, 80], low: [28, 40] }[quality];
+  const crowdScale = prefs.crowd === "none" ? 0 : prefs.crowd === "light" ? 0.4 : 1;
+  const crowd = { high: [110, 140], medium: [60, 80], low: [28, 40] }[quality].map((n) => Math.round(n * crowdScale));
   return (
     <>
-      <PerformanceMonitor
-        bounds={() => [40, 58]}
-        flipflops={3}
-        onDecline={() => setQuality(step(quality, -1))}
-        onIncline={() => setQuality(step(quality, 1))}
-      />
+      {prefs.quality === "auto" && (
+        <PerformanceMonitor
+          bounds={() => [40, 58]}
+          flipflops={3}
+          onDecline={() => setQuality(step(quality, -1))}
+          onIncline={() => setQuality(step(quality, 1))}
+        />
+      )}
+      <PerfCapture />
       <Lighting night={night} />
       <Hall night={night} />
       <Arcade night={night} />

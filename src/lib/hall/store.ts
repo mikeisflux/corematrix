@@ -97,7 +97,7 @@ interface HallState {
   loaded: boolean;
   hovered: number | null;
   selected: number | null;
-  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar";
+  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings";
   night: boolean;
   ride: boolean;
   flyTo: number | null;

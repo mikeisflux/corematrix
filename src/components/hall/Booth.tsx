@@ -1,4 +1,5 @@
 "use client";
+import { TABLE_STANDS } from "@/lib/hall/modelkit/props";
 import { memo, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -213,7 +214,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       )}
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
-      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={3} onBook={bannerClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />}
+      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bannerClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />}
       {/* a chair behind each table, facing the aisle */}
       {(wide ? [-5, 5] : [0]).map((z) => <group key={z} position={[w / 2 - 4.6, 0, z + 1.6]} rotation={[0, Math.PI / 2, 0]}><Prop name="chair" fallback={chairFallback} /></group>)}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
@@ -252,15 +253,15 @@ function RollUp({ bw, bh, portrait, glow, onClick }: { bw: number; bh: number; p
   );
 }
 
-/** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by platform, this table owning platforms first..first+n-1. */
+/** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by stand, this table owning stands first..first+3 (four stands per table). */
 function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (e: { stopPropagation: () => void }) => void }) {
   const len = wide ? 8 : 6;
-  const n = Math.max(2, Math.round(len / 2));
+  const n = TABLE_STANDS;
   return (
     <group position={[x, 0, z]} rotation={[0, rot, 0]}>
       <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} />} />
       {books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
-        // platform i sits at x 0.35, top at y 3.03; the book leans back a touch and faces the aisle (+x)
+        // stand i sits at x 0.35, top at y 3.03; the book leans back against the easel and faces the aisle (+x)
         <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={onBook}>
           <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
           <mesh position={[0, 0.54, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 1.08]} /><meshStandardMaterial map={tex} roughness={0.55} /></mesh>
@@ -269,10 +270,10 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: n
     </group>
   );
 }
-/** Primitives standing in for table.glb: pleat-textured skirt, hem, white topper, a few stacks. Same footprint and platform heights as the model. */
+/** Primitives standing in for table.glb: pleat-textured skirt, hem, white topper, four comic stands. Same footprint and stand heights as the model. */
 function TableFallback({ len, cloth, art }: { len: number; cloth: string; art?: THREE.Texture | null }) {
   const pleat = useMemo(() => drapeTexture(cloth), [cloth]);
-  const n = Math.max(2, Math.round(len / 2));
+  const n = TABLE_STANDS;
   return (
     <group>
       <mesh position={[0, 1.15, 0]}><boxGeometry args={[2.5, 2.3, len - 0.1]} /><meshStandardMaterial map={pleat} roughness={0.95} /></mesh>
@@ -282,7 +283,7 @@ function TableFallback({ len, cloth, art }: { len: number; cloth: string; art?: 
       {Array.from({ length: n }, (_, i) => -len / 2 + (i + 0.5) * (len / n)).map((o) => (
         <group key={o}>
           <mesh position={[0.35, 2.815, o]}><boxGeometry args={[1.08, 0.42, 0.94]} /><meshStandardMaterial color="#e5e7eb" /></mesh>
-          <mesh position={[-0.7, 2.78, o + 0.2]}><boxGeometry args={[0.9, 0.36, 0.76]} /><meshStandardMaterial color="#f1ece0" /></mesh>
+          <group position={[0.2, 3.03, o]} rotation={[0, 0, 0.14]}><mesh position={[0, 0.56, 0]} material={ALU}><boxGeometry args={[0.03, 1.12, 0.8]} /></mesh></group>
         </group>
       ))}
     </group>

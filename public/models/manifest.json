@@ -12,12 +12,12 @@
     },
     "table": {
       "file": "/models/table.glb",
-      "bytes": 56420,
+      "bytes": 42168,
       "generated": true
     },
     "table_wide": {
       "file": "/models/table_wide.glb",
-      "bytes": 69616,
+      "bytes": 44448,
       "generated": true
     },
     "chair": {
@@ -47,5 +47,5 @@
       "license": "CC0 — RobotExpressive by Tomás Laulhé"
     }
   },
-  "generatedAt": "2026-10-26T02:28:48.747Z"
+  "generatedAt": "2026-10-26T03:57:29.577Z"
 }

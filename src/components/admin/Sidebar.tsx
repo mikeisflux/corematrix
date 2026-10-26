@@ -18,6 +18,7 @@ const NAV: { href: string; label: string; sub?: { href: string; label: string }[
     { href: "/admin/emails/logs", label: "Logs" },
   ] },
   { href: "/admin/webhooks", label: "Webhooks" },
+  { href: "/admin/performance", label: "Performance" },
   { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/settings", label: "Settings" },
 ];

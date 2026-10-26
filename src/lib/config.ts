@@ -56,7 +56,7 @@ export const ART_SLOTS = {
     name: "Comic cover",
     ratio: "2:3",
     width: 600, height: 900,
-    where: "A book standing on one of the platforms on your table.",
+    where: "A comic standing on one of the four stands on your table.",
     tip: "Upload the front cover at 2:3. Standard comic covers (6.625 × 10.25 in) fit with a sliver trimmed top and bottom.",
   },
   drape: {
@@ -68,16 +68,17 @@ export const ART_SLOTS = {
   },
 } as const;
 export type ArtSlot = keyof typeof ART_SLOTS;
-/** Art slot keys stored per booth: a slot name, or "book:N" for the Nth display platform. */
+/** Art slot keys stored per booth: a slot name, or "book:N" for the Nth comic stand. */
 export const bookSlotKey = (n: number) => `book:${n}`;
 export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
-/** "Display a book": $5 per platform, one-time. How many platforms a space has depends on its tables (3 per 6 ft table, 4 per 8 ft). */
+/** "Display a book": $5 per stand, one-time. Four stands per table, so capacity follows the table count. */
 export const BOOK_PRICE_CENTS = 500;
 export function bookCapacity(size: string, kind: string): number {
-  if (kind === "artist") return 3;
+  // four comic stands per table: one table for artists and 10x10s, two for a 20x10, four for an island
+  if (kind === "artist") return 4;
   if (size === "20x20") return 16;
-  if (size === "20x10") return 6;
-  return 3;
+  if (size === "20x10") return 8;
+  return 4;
 }
 export const ART_MAX_UPLOAD = 12 * 1024 * 1024;
 export const ART_FORMATS = "PNG, JPG, WebP or PDF (first page)";

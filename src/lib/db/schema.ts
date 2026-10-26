@@ -442,3 +442,21 @@ export const payouts = sqliteTable(
   },
   (t) => [index("payouts_user_idx").on(t.userId, t.createdAt), index("payouts_status_idx").on(t.status, t.createdAt)],
 );
+
+/** Frame-rate capture from the hall: one row per visit, 1-second samples appended every few seconds. */
+export const perfSessions = sqliteTable(
+  "perf_sessions",
+  {
+    id: text("id").primaryKey(),
+    visitorId: text("visitor_id").notNull(),
+    userId: text("user_id"),
+    label: text("label"),
+    url: text("url"),
+    device: text("device").notNull(), // JSON: gpu, vendor, ua, cores, memory, screen, dpr, touch
+    summary: text("summary").notNull(), // JSON, recomputed on every append
+    samples: text("samples").notNull(), // JSON array of 1 s buckets (capped)
+    startedAt: integer("started_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("perf_started_idx").on(t.startedAt)],
+);

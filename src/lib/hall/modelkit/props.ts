@@ -17,7 +17,6 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 const mat = (name: string, color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) => { const m = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, ...extra }); m.name = name; return m; };
 const group = (name: string) => { const g = new THREE.Group(); g.name = name; return g; };
 /** Deterministic jitter so every export is identical. */
-const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 /** Collects geometry per material and emits one named mesh for each. */
 class Parts {
@@ -96,27 +95,17 @@ function pleatedSkirt(hx: number, hz: number, y0: number, y1: number, amp: numbe
   walls.forEach((w) => w.dispose());
   return g;
 }
-/** A stack of magazines: thin jittered slabs, alternating cover and page-edge materials. Top lands exactly at yTop. */
-function stack(p: Parts, x: number, yTop: number, z: number, w: number, d: number, count: number, slab: number, cover: THREE.Material, paper: THREE.Material, r: () => number, twist = 0.08) {
-  const h = count * slab;
-  for (let i = 0; i < count; i++) {
-    const geo = new THREE.BoxGeometry(w, slab - 0.004, d);
-    geo.rotateY((r() - 0.5) * twist);
-    geo.translate(x + (r() - 0.5) * 0.06, yTop - h + (i + 0.5) * slab, z + (r() - 0.5) * 0.06);
-    p.add(i % 2 ? paper : cover, i % 2 ? "paper" : "product", geo);
-  }
-}
-
 /**
  * 6 ft draped show table, origin at floor centre, long along z, aisle side +x.
  * Materials: cloth (pleated skirt + hem, recoloured per booth), cloth_front (flat
  * printed front panel over the skirt: the owner's drape art), top, metal, product
- * (+ paper/trim for the display). Platform i sits at x 0.35 with its top at y 3.03,
- * z = -len/2 + (i+0.5)·len/n: the standing comic covers in Booth.tsx rely on that.
+ * (+ paper/trim for the display). Stand i (of TABLE_STANDS) sits at x 0.35 with its
+ * top at y 3.03, z = -len/2 + (i+0.5)·len/TABLE_STANDS: the standing comic covers in
+ * Booth.tsx rely on that.
  */
+export const TABLE_STANDS = 4;
 export function buildTable(len = 6): THREE.Group {
   const p = new Parts(group("table"));
-  const r = rng(len * 7919);
   const cloth = mat("cloth", "#111827", { roughness: 0.92 }), top = mat("top", "#e4e7ec", { roughness: 0.7 }), metal = mat("metal", "#6b7280", { metalness: 0.6, roughness: 0.4 }), product = mat("product", "#d7dbe2", { roughness: 0.75 });
   const clothFront = mat("cloth_front", "#111827", { roughness: 0.9 });
   const paper = mat("paper", "#e6dfcc", { roughness: 0.95 }), trim = mat("trim", "#9aa3b0", { roughness: 0.6 });
@@ -127,24 +116,21 @@ export function buildTable(len = 6): THREE.Group {
   p.solo(clothFront, "skirt_front", front);
   p.add(top, "top", box(2.7, 0.1, len + 0.1, 0, 2.5));
   for (const [x, z] of [[-1.1, -len / 2 + 0.3], [1.1, -len / 2 + 0.3], [-1.1, len / 2 - 0.3], [1.1, len / 2 - 0.3]]) p.add(metal, "leg", post(0.05, 2.4, x, 0, z, 6));
-  // display: a stack of comics on every platform (front row), longboxes and smaller stacks behind
-  const n = Math.max(2, Math.round(len / 2));
+  // display: four comic stands along the aisle edge (a riser with an easel back the cover leans on), a longbox behind each pair
+  const n = TABLE_STANDS;
   for (let i = 0; i < n; i++) {
     const z = -len / 2 + (i + 0.5) * (len / n);
-    stack(p, 0.35, 3.03, z, 1.08, 0.94, 6, 0.07, product, paper, r, 0.05);
+    p.add(product, "product", box(1.08, 0.42, 0.94, 0.35, 2.6, z));          // riser, top at 3.03
+    const back = new THREE.BoxGeometry(0.03, 1.12, 0.8); back.translate(0, 0.56, 0); back.rotateZ(0.14); back.translate(0.2, 3.03, z); p.add(trim, "trim", back); // easel back, same lean as the cover
+    p.add(trim, "trim", box(0.1, 0.06, 0.8, 0.42, 3.06, z));                 // lip the cover sits on
     if (i % 2 === 0) {
-      // white longbox lying along the table, lid line in trim
-      p.add(product, "product", box(0.72, 0.52, 1.36, -0.72, 2.6, z + 0.25));
-      p.add(trim, "trim", box(0.76, 0.03, 1.4, -0.72, 2.98, z + 0.25));
-    } else {
-      stack(p, -0.7, 2.6 + 0.36, z + 0.2, 0.9, 0.76, 4, 0.09, product, paper, r, 0.25);
-      stack(p, -0.75, 2.6 + 0.18, z - 0.55, 0.6, 0.5, 3, 0.06, paper, product, r, 0.4);
+      // white longbox lying along the table behind the stands, lid line in trim
+      p.add(product, "product", box(0.72, 0.52, 1.36, -0.72, 2.6, z + len / n / 2));
+      p.add(trim, "trim", box(0.76, 0.03, 1.4, -0.72, 2.98, z + len / n / 2));
     }
   }
-  // a tent card at the aisle corner and a tray of prints at the far end
-  const card = new THREE.BoxGeometry(0.02, 0.32, 0.46); card.rotateZ(-0.25); card.translate(1.05, 2.76, len / 2 - 0.55); p.add(paper, "paper", card);
-  p.add(trim, "trim", box(0.9, 0.08, 0.7, -0.2, 2.6, -len / 2 + 0.55));
-  for (let k = 0; k < 3; k++) { const pr = new THREE.BoxGeometry(0.02, 0.9, 0.62); pr.translate(0, 0.45, 0); pr.rotateZ(0.5 - k * 0.07); pr.translate(-0.42 + k * 0.08, 2.62, -len / 2 + 0.55); p.add(k === 1 ? product : paper, k === 1 ? "product" : "paper", pr); }
+  // a tent card at the aisle corner
+  const card = new THREE.BoxGeometry(0.02, 0.32, 0.46); card.rotateZ(-0.25); card.translate(1.05, 2.76, len / 2 - 0.4); p.add(paper, "paper", card);
   return p.done();
 }
 

@@ -16,6 +16,8 @@ import { BillboardsPanel } from "./panels/BillboardsPanel";
 import { MePanel } from "./panels/MePanel";
 import { ClaimPanel } from "./panels/ClaimPanel";
 import { AvatarPanel } from "./panels/AvatarPanel";
+import { SettingsPanel } from "./panels/SettingsPanel";
+import { PerfOverlay } from "./PerfOverlay";
 
 export function Hud() {
   const stats = useHall((s) => s.stats);
@@ -39,6 +41,7 @@ export function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
+      <PerfOverlay />
       <div className="absolute left-1/2 top-3 flex -translate-x-1/2 flex-col items-center gap-2 fade-up">
         <button onClick={() => toggle("stats")} className="pointer-events-auto panel flex items-center gap-4 rounded-full px-4 py-2 text-sm hover:border-white/20">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />{stats?.online ?? 1} on the floor</span>
@@ -66,7 +69,7 @@ export function Hud() {
           </button>
         )}
         {panel !== "none" && (
-          <div className="pointer-events-auto panel max-h-[calc(100vh-150px)] overflow-y-auto scroll rounded-2xl fade-up">
+          <div className="pointer-events-auto panel max-h-[calc(100vh-210px)] overflow-y-auto scroll rounded-2xl fade-up">
             {panel === "booth" && <BoothPanel />}
             {panel === "rankings" && <RankingsPanel />}
             {panel === "search" && <SearchPanel />}
@@ -77,6 +80,7 @@ export function Hud() {
             {panel === "me" && <MePanel />}
             {panel === "claim" && <ClaimPanel />}
             {panel === "avatar" && <AvatarPanel />}
+            {panel === "settings" && <SettingsPanel />}
           </div>
         )}
         {panel === "none" && loaded && mode === "map" && <LiveFeed />}
@@ -96,6 +100,7 @@ export function Hud() {
         <RailButton label={mode === "walk" ? "Back to the map" : "Walk the floor"} active={mode === "walk"} onClick={() => { if (mode === "walk") setMode("map"); else { setMode("walk"); setPanel("none"); } }} icon={mode === "walk" ? "🗺️" : "🚶"} />
         <RailButton label="Your avatar" active={panel === "avatar"} onClick={() => toggle("avatar")} icon="🧑‍🎤" />
         <RailButton label={night ? "House lights up" : "After hours"} onClick={toggleNight} icon={night ? "💡" : "🌙"} />
+        <RailButton label="Settings" active={panel === "settings"} onClick={() => toggle("settings")} icon="⚙️" />
       </div>
 
       <div className="absolute bottom-3 left-3 flex items-center gap-2 pointer-events-auto">
