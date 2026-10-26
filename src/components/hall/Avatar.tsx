@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
-import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
+import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, useModelUrl, type Motion } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
@@ -275,21 +275,39 @@ export function Player() {
 }
 
 /* ---------- NPC crowd wandering the aisles ---------- */
-interface Npc { config: AvatarConfig; x: number; z: number; dz: number; speed: number; corridor: number; pauseUntil: number; nextPause: number }
+interface Npc { config: AvatarConfig; kind: "aisle" | "cross" | "plaza"; x: number; z: number; vx: number; vz: number; speed: number; pauseUntil: number; nextPause: number; tx: number; tz: number; heading: number }
 function rnd(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
+const CROSS_Z0 = Z_CROSS0 + 3, CROSS_Z1 = Z_CROSS1 - 3;
+/** A random walkable point in the arcade plaza (off the cabinet rows). */
+function plazaPoint(r: () => number): [number, number] {
+  for (let i = 0; i < 12; i++) {
+    const x = ARCADE.x + (r() - 0.5) * (ARCADE.w - 10), z = ARCADE.z + (r() - 0.5) * (ARCADE.d - 10);
+    if (!isBlocked(x, z)) return [x, z];
+  }
+  return [ARCADE.x, ARCADE.z];
+}
+/**
+ * Ambient crowd. Three kinds of walker: aisle shoppers shuttling along one
+ * corridor, cross-aisle traffic flowing the length of the hall, and plaza
+ * wanderers drifting between spots in the arcade. Cosplayers cluster where a
+ * real show's do: the plaza and the headliner aisles.
+ */
 export function Crowd({ count = 110 }: { count?: number }) {
   const npcs = useMemo<Npc[]>(() => {
     const r = rnd(42);
     const corridors = hallLayout().filter((b) => b.facing === 1).map((b) => b.x + b.w / 2 + 5);
     const unique = Array.from(new Set(corridors.map((x) => Math.round(x))));
-    return Array.from({ length: count }, (_, i) => {
+    return Array.from({ length: count }, (): Npc => {
+      const roll = r();
+      const kind: Npc["kind"] = roll < 0.18 ? "plaza" : roll < 0.32 ? "cross" : "aisle";
       const corridor = unique[Math.floor(r() * unique.length)];
-      return {
-        config: { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "curly", "bald"] as const)[Math.floor(r() * 6)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)],
-          // cosplayers: about a third near the arcade and headliner aisles, one in six further out
-          costume: r() < (Math.abs(corridor) < 130 ? 0.34 : 0.17) ? CROWD_COSTUMES[Math.floor(r() * CROWD_COSTUMES.length)] : "none" },
-        x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), dz: r() < 0.5 ? 1 : -1, speed: 3.5 + r() * 5, corridor: i, pauseUntil: 0, nextPause: 4 + r() * 20,
-      };
+      const costumeOdds = kind === "plaza" ? 0.5 : kind === "cross" ? 0.3 : Math.abs(corridor) < 130 ? 0.3 : 0.15;
+      const config: AvatarConfig = { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "curly", "bald"] as const)[Math.floor(r() * 6)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], costume: r() < costumeOdds ? CROWD_COSTUMES[Math.floor(r() * CROWD_COSTUMES.length)] : "none" };
+      const speed = 3.5 + r() * 5;
+      const base = { config, speed, pauseUntil: 0, nextPause: 4 + r() * 20, heading: 0 };
+      if (kind === "plaza") { const [x, z] = plazaPoint(r); const [tx, tz] = plazaPoint(r); return { ...base, kind, x, z, tx, tz, vx: 0, vz: 0 }; }
+      if (kind === "cross") { const dir = r() < 0.5 ? 1 : -1; return { ...base, kind, x: X0 + 20 + r() * (HALL_LENGTH - 40), z: CROSS_Z0 + r() * (CROSS_Z1 - CROSS_Z0), vx: dir, vz: 0, tx: 0, tz: 0 }; }
+      return { ...base, kind, x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), vx: 0, vz: r() < 0.5 ? 1 : -1, tx: 0, tz: 0 };
     });
   }, [count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
@@ -298,16 +316,38 @@ export function Crowd({ count = 110 }: { count?: number }) {
     const d = Math.min(dt, 0.05);
     const t = clock.elapsedTime;
     npcs.forEach((n, i) => {
-      // stop at a booth now and then, then move on
-      if (t < n.pauseUntil) { motions[i].speed = 0; }
-      else {
-        if (t > n.nextPause) { n.pauseUntil = t + 2 + Math.random() * 5; n.nextPause = n.pauseUntil + 6 + Math.random() * 25; motions[i].speed = 0; }
-        else { motions[i].speed = n.speed > 7.5 ? 2 : 1; n.z += n.dz * n.speed * d; }
+      let moving = false;
+      // stop to look at something now and then, then move on
+      if (t < n.pauseUntil) motions[i].speed = 0;
+      else if (t > n.nextPause) { n.pauseUntil = t + 2 + Math.random() * 5; n.nextPause = n.pauseUntil + 6 + Math.random() * 25; motions[i].speed = 0; }
+      else { motions[i].speed = n.speed > 7.5 ? 2 : 1; moving = true; }
+      if (moving) {
+        if (n.kind === "aisle") {
+          n.z += n.vz * n.speed * d;
+          if (n.z > Z_BACK + 6 || n.z < Z_FRONT - 6) n.vz *= -1;
+        } else if (n.kind === "cross") {
+          n.x += n.vx * n.speed * d;
+          if (n.x > X0 + HALL_LENGTH - 12 || n.x < X0 + 12) n.vx *= -1;
+          // step round the arcade plaza instead of walking through the cabinets
+          if (isBlocked(n.x, n.z)) { n.x -= n.vx * n.speed * d; n.vx *= -1; }
+        } else {
+          const dx = n.tx - n.x, dz = n.tz - n.z, dist = Math.hypot(dx, dz);
+          if (dist < 1.5) { const [tx, tz] = plazaPoint(Math.random); n.tx = tx; n.tz = tz; n.pauseUntil = t + 1 + Math.random() * 4; }
+          else {
+            const step = Math.min(dist, n.speed * 0.8 * d);
+            const nx = n.x + (dx / dist) * step, nz = n.z + (dz / dist) * step;
+            if (isBlocked(nx, nz)) { const [tx, tz] = plazaPoint(Math.random); n.tx = tx; n.tz = tz; }
+            else { n.vx = dx / dist; n.vz = dz / dist; n.x = nx; n.z = nz; }
+          }
+        }
       }
-      if (n.z > Z_BACK + 6 || n.z < Z_FRONT - 6) n.dz *= -1;
       const g = refs.current[i];
       if (g) {
-        g.position.set(n.x, 0, n.z); g.rotation.y = n.dz > 0 ? 0 : Math.PI;
+        // face the way we're going, easing round corners
+        const want = Math.atan2(n.vx, n.vz);
+        let diff = want - n.heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        n.heading += diff * Math.min(1, d * 6);
+        g.position.set(n.x, 0, n.z); g.rotation.y = n.heading;
         // only draw people near the camera; the rest keep walking unseen
         g.visible = Math.hypot(camera.position.x - n.x, camera.position.z - n.z) < 170;
       }
