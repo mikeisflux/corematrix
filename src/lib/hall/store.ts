@@ -70,6 +70,7 @@ export interface HallStats {
   totalValueCents: number;
   online: number;
   totalBooths: number;
+  walking?: number; // real people on foot right now, you included
 }
 
 export interface Me {

@@ -47,6 +47,7 @@ export function Hud() {
       <div className="absolute left-1/2 top-3 flex -translate-x-1/2 flex-col items-center gap-2 fade-up">
         <button onClick={() => toggle("stats")} className="pointer-events-auto panel flex items-center gap-4 rounded-full px-4 py-2 text-sm hover:border-white/20">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />{stats?.online ?? 1} on the floor</span>
+          {(stats?.walking ?? 0) > 0 && <><span className="text-slate-400">|</span><span title="Real people walking the hall right now; they wear a green triangle">👣 {stats?.walking} walking</span></>}
           <span className="text-slate-400">|</span>
           <span>👁 {formatCount(stats?.totalViews ?? 0)} visits</span>
           <span className="text-slate-400">|</span>

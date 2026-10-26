@@ -382,9 +382,24 @@ export function Others() {
   const [ids, setIds] = useState<string[]>([]);
   const seen = useRef(-1);
   useFrame(() => {
-    if (live.version !== seen.current) { seen.current = live.version; setIds(Array.from(live.players.keys()).filter((id) => id !== live.me)); }
+    if (live.version !== seen.current) {
+      seen.current = live.version;
+      const list = Array.from(live.players.keys()).filter((id) => id !== live.me);
+      setIds(list);
+      const st = useHall.getState();
+      st.setStats({ walking: list.length + (st.mode === "walk" ? 1 : 0) });
+    }
   });
   return <>{ids.map((id) => <Other key={id} id={id} />)}</>;
+}
+
+const MARKER_MAT = new THREE.MeshBasicMaterial({ color: "#5ee6c3", toneMapped: false });
+const MARKER_GEO = new THREE.ConeGeometry(0.55, 1.1, 3);
+/** The "real person" marker: a glowing triangle that floats, bobs and turns above a live visitor so nobody mistakes them for the crowd. */
+function LiveMarker() {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => { const m = ref.current; if (!m) return; m.position.y = 8.9 + Math.sin(clock.elapsedTime * 2.4) * 0.25; m.rotation.y = clock.elapsedTime * 1.6; });
+  return <mesh ref={ref} geometry={MARKER_GEO} material={MARKER_MAT} rotation={[Math.PI, 0, 0]} position={[0, 8.9, 0]} />;
 }
 function Other({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null);
@@ -411,9 +426,10 @@ function Other({ id }: { id: string }) {
   return (
     <group ref={group}>
       <AvatarModel config={cfg} motion={motion} />
+      <LiveMarker />
       {near && (
         <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
-          <div className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm">{name}</div>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" />{name}<span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">live</span></div>
         </Html>
       )}
     </group>
