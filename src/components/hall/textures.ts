@@ -226,7 +226,6 @@ export function signTexture(lines: string[], opts: { bg?: string; fg?: string; w
 
 // ---- procedural surface helpers (deterministic, seam-safe for repeating tiles) ----
 const prng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-const rgba = (hex: string, a: number) => { const c = new THREE.Color(hex); return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${a})`; };
 /** Single-pixel grain: `n` dots, each a random shade of `color` within ±amt lightness. */
 function grain(g: CanvasRenderingContext2D, w: number, h: number, r: () => number, n: number, color: string, amt: number, alpha = 1) {
   const tones = Array.from({ length: 9 }, (_, i) => shade(color, -amt + (amt * 2 * i) / 8));

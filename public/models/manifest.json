@@ -2,12 +2,12 @@
   "models": {
     "avatar-a": {
       "file": "/models/avatar-a.glb",
-      "bytes": 317012,
+      "bytes": 438536,
       "generated": true
     },
     "avatar-b": {
       "file": "/models/avatar-b.glb",
-      "bytes": 317048,
+      "bytes": 438572,
       "generated": true
     },
     "table": {
@@ -47,5 +47,5 @@
       "license": "CC0 — RobotExpressive by Tomás Laulhé"
     }
   },
-  "generatedAt": "2026-10-26T02:20:19.353Z"
+  "generatedAt": "2026-10-26T02:28:48.747Z"
 }
