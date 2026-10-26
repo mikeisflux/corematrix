@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, PerformanceMonitor } from "@react-three/drei";
-import { EffectComposer, Bloom, Vignette, SMAA, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
+import { EffectComposer, Bloom, Vignette, SMAA, BrightnessContrast, HueSaturation, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Booth } from "./Booth";
 import { Hall } from "./Hall";
@@ -55,10 +56,14 @@ export function Scene() {
       {quality !== "low" && (
         <EffectComposer multisampling={0}>
           {quality === "high" ? <SMAA /> : <></>}
-          <Bloom intensity={night ? 0.9 : 0.25} luminanceThreshold={night ? 0.6 : 0.95} luminanceSmoothing={0.3} mipmapBlur />
-          <BrightnessContrast brightness={0.02} contrast={0.1} />
-          <HueSaturation saturation={0.1} />
-          <Vignette eskil={false} offset={0.2} darkness={night ? 0.7 : 0.4} />
+          {/* Bloom reads the HDR buffer before tone mapping: by day only emissives past 1.2 glow (fixtures, neon, signage), never the lit floor;
+              by night the threshold drops so every marquee and tube washes its surroundings. */}
+          <Bloom intensity={night ? 1.3 : 0.5} luminanceThreshold={night ? 0.5 : 1.2} luminanceSmoothing={night ? 0.45 : 0.12} mipmapBlur radius={night ? 0.8 : 0.55} levels={night ? 7 : 5} />
+          {/* The composer renders to a float buffer where three skips material tone mapping, so the filmic curve is applied here, fused into the same pass. */}
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+          <BrightnessContrast brightness={night ? -0.015 : 0.01} contrast={night ? 0.16 : 0.1} />
+          <HueSaturation saturation={night ? 0.22 : 0.16} />
+          <Vignette eskil={false} offset={night ? 0.15 : 0.28} darkness={night ? 0.8 : 0.45} />
         </EffectComposer>
       )}
     </>
@@ -68,16 +73,67 @@ export function Scene() {
 const ORDER: Quality[] = ["low", "medium", "high"];
 function step(q: Quality, d: number): Quality { return ORDER[Math.max(0, Math.min(ORDER.length - 1, ORDER.indexOf(q) + d))]; }
 
+/**
+ * Show-floor lighting. Day is a fluorescent hall: cool-white hemisphere, a warm key from high front-right that casts the
+ * one shadow map, a cool fill from the opposite side and a white rim from the back wall. Night keeps the same rig dimmed
+ * and cooled, with a magenta rim so the neon seems to wash the whole floor. Exposure is set on the renderer here so the
+ * low tier (no composer) and the composer's ACES pass agree.
+ */
+const KEY_OFFSET = { x: 90, y: 170, z: 70 };
 function Lighting({ night }: { night: boolean }) {
+  const quality = useHall((s) => s.quality);
+  const gl = useThree((s) => s.gl);
+  const key = useRef<THREE.DirectionalLight>(null);
+  const anchor = useMemo(() => new THREE.Object3D(), []);
+  const dir = useMemo(() => new THREE.Vector3(), []);
+  const shadows = quality !== "low";
+  useEffect(() => { gl.toneMappingExposure = night ? 1.05 : 1.0; }, [gl, night]);
+  useEffect(() => {
+    // the shadow camera's bounds are set as props below; its projection has to be rebuilt once they land
+    const l = key.current; if (!l) return;
+    const c = l.shadow.camera;
+    c.left = -160; c.right = 160; c.top = 160; c.bottom = -160; c.near = 10; c.far = 520;
+    c.updateProjectionMatrix();
+    l.shadow.needsUpdate = true;
+  }, [shadows]);
+  useFrame(({ camera }) => {
+    const l = key.current; if (!l) return;
+    // the 320 ft shadow box follows the floor point the camera looks at, snapped to a grid so shadows don't shimmer while panning
+    camera.getWorldDirection(dir);
+    const reach = dir.y < -0.02 ? Math.min(600, -camera.position.y / dir.y) : 120;
+    const px = Math.round((camera.position.x + dir.x * reach) / 8) * 8;
+    const pz = Math.round((camera.position.z + dir.z * reach) / 8) * 8;
+    anchor.position.set(px, 0, pz); anchor.updateMatrixWorld();
+    l.position.set(px + KEY_OFFSET.x, KEY_OFFSET.y, pz + KEY_OFFSET.z);
+  });
   return (
     <>
-      <Environment files="/hdri/warehouse.hdr" environmentIntensity={night ? 0.25 : 0.9} />
-      <ambientLight intensity={night ? 0.15 : 0.35} color={night ? "#7c86ff" : "#ffffff"} />
-      <hemisphereLight intensity={night ? 0.25 : 0.7} color={night ? "#2a2a55" : "#ffffff"} groundColor={night ? "#0a0a14" : "#6b7280"} />
-      <directionalLight position={[120, 200, 80]} intensity={night ? 0.2 : 1.1} color={night ? "#8a8aff" : "#fff8ea"} />
-      <directionalLight position={[-200, 160, -120]} intensity={night ? 0.1 : 0.5} color="#dbe7ff" />
-      <fog attach="fog" args={[night ? "#07090f" : "#262b38", 420, 1500]} />
-      <color attach="background" args={[night ? "#07090f" : "#1b1f2a"]} />
+      {/* own boundary: the hall, models and manifest no longer wait behind the 1.6 MB HDR */}
+      <Suspense fallback={null}><Environment files="/hdri/warehouse.hdr" environmentIntensity={night ? 0.14 : 0.5} /></Suspense>
+      <ambientLight intensity={night ? 0.2 : 0.1} color={night ? "#4a4f99" : "#ffffff"} />
+      <hemisphereLight intensity={night ? 0.4 : 0.65} color={night ? "#444a94" : "#f3f6ff"} groundColor={night ? "#0a0b14" : "#4b5060"} />
+      <directionalLight
+        ref={key}
+        position={[KEY_OFFSET.x, KEY_OFFSET.y, KEY_OFFSET.z]}
+        target={anchor}
+        intensity={night ? 0.42 : 1.35}
+        color={night ? "#8d93ff" : "#fff3df"}
+        castShadow={shadows}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-160}
+        shadow-camera-right={160}
+        shadow-camera-top={160}
+        shadow-camera-bottom={-160}
+        shadow-camera-near={10}
+        shadow-camera-far={520}
+        shadow-bias={-0.0003}
+        shadow-normalBias={0.6}
+      />
+      <primitive object={anchor} />
+      <directionalLight position={[-220, 140, -110]} intensity={night ? 0.16 : 0.45} color={night ? "#5b6bff" : "#cfe0ff"} />
+      <directionalLight position={[40, 90, -320]} intensity={night ? 0.24 : 0.3} color={night ? "#ff2bd6" : "#ffffff"} />
+      <fog attach="fog" args={[night ? "#0c1020" : "#2c3242", night ? 280 : 320, night ? 1350 : 1500]} />
+      <color attach="background" args={[night ? "#05060c" : "#1e2230"]} />
     </>
   );
 }

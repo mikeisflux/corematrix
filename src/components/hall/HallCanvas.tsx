@@ -2,6 +2,7 @@
 import { Suspense, useEffect } from "react";
 import { applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { Canvas } from "@react-three/fiber";
+import * as THREE from "three";
 import { Scene } from "./Scene";
 import { useHall, api, type HallBooth, type HallEvent, type HallStats, type Me, type HallBillboard, type Featured } from "@/lib/hall/store";
 import type { LiveMessage } from "@/lib/realtime";
@@ -51,12 +52,13 @@ export function HallCanvas() {
     };
   }, [setBooths, upsertBooth, pushEvent, setStats, setMe, setBillboards, setFeatured, setToast]);
 
+  // ACES on the renderer covers the low tier (no composer); the composer applies the same curve in its own pass.
   return (
     <Canvas
-      shadows
+      shadows="percentage"
       dpr={[1, 1.25]}
       camera={{ position: [0, 150, 180], fov: 45, near: 0.5, far: 2200 }}
-      gl={{ antialias: false, powerPreference: "high-performance" }}
+      gl={{ antialias: false, powerPreference: "high-performance", stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12 }}
       onPointerMissed={() => { if (useHall.getState().mode === "map") useHall.getState().select(null); }}
       className="h-full w-full"
     >
