@@ -1,5 +1,5 @@
 "use client";
-import { TABLE_STANDS } from "@/lib/hall/modelkit/props";
+import { TABLE_STANDS, DRAPE_PANEL_MAX_W } from "@/lib/hall/modelkit/props";
 import { memo, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -84,6 +84,11 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const portraitUrl = booth.art?.portrait ? `/api/art/${booth.id}/portrait?v=${booth.art.portrait}` : null;
   const drapeUrl = booth.art?.drape ? `/api/art/${booth.id}/drape?v=${booth.art.drape}` : null;
   const drapeArt = useMemo(() => (drapeUrl ? logoTexture(drapeUrl) : null), [drapeUrl]);
+  // island-only: a wrap for the tower's four faces and a print on the floor
+  const towerUrl = booth.art?.tower ? `/api/art/${booth.id}/tower?v=${booth.art.tower}` : null;
+  const towerArt = useMemo(() => (towerUrl ? logoTexture(towerUrl) : null), [towerUrl]);
+  const floorUrl = booth.art?.floor ? `/api/art/${booth.id}/floor?v=${booth.art.floor}` : null;
+  const floorArt = useMemo(() => (floorUrl ? logoTexture(floorUrl) : null), [floorUrl]);
   // standing comic covers: slot "book:N" → platform N, counted table by table
   const bookKey = Object.entries(booth.art ?? {}).filter(([k]) => k.startsWith("book:")).map(([k, v]) => `${k}=${v}`).sort().join("|");
   const books = useMemo(() => {
@@ -131,13 +136,13 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     const th = booth.house ? 28 : Math.max(14, sign.height);
     return (
       <group position={[space.x, 0, space.z]} {...common}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
-        {/* fabric-wrapped tower on a plinth, aluminium corner trims, a cap, a banner and logo board on each face */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial map={floorArt ?? undefined} color={floorArt && !hovered && !selected ? "#ffffff" : floorColor} roughness={1} transparent opacity={preview ? 0.6 : floorArt ? 1 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
+        {/* fabric-wrapped tower on a plinth, aluminium corner trims, a cap, a banner and logo board on each face (or the owner's wrap on all four faces) */}
         <mesh position={[0, 0.25, 0]} material={FRAME}><boxGeometry args={[8.8, 0.5, 8.8]} /></mesh>
-        <mesh position={[0, th / 2, 0]} castShadow><boxGeometry args={[8, th, 8]} /><meshStandardMaterial map={drape} color="#ffffff" roughness={0.9} /></mesh>
+        <mesh position={[0, th / 2, 0]} castShadow onClick={bannerClick}><boxGeometry args={[8, th, 8]} /><meshStandardMaterial map={towerArt ?? drape} color="#ffffff" roughness={towerArt ? 0.6 : 0.9} emissiveMap={towerArt ?? undefined} emissive={towerArt ? "#ffffff" : "#000000"} emissiveIntensity={towerArt ? glow : 0} /></mesh>
         {[[-4, -4], [4, -4], [-4, 4], [4, 4]].map(([x, z], i) => <mesh key={i} position={[x, th / 2, z]} material={ALU_DARK}><boxGeometry args={[0.3, th, 0.3]} /></mesh>)}
         <mesh position={[0, th + 0.25, 0]} material={FRAME}><boxGeometry args={[8.6, 0.5, 8.6]} /></mesh>
-        {([0, Math.PI / 2, Math.PI, -Math.PI / 2] as const).map((r, i) => (
+        {!towerArt && ([0, Math.PI / 2, Math.PI, -Math.PI / 2] as const).map((r, i) => (
           <group key={i} rotation={[0, r, 0]}>
             <mesh position={[0, th * 0.62, 4.02]} material={FRAME}><boxGeometry args={[7.8, 7.6 / 4 + 0.2, 0.05]} /></mesh>
             <mesh position={[0, th * 0.62, 4.06]} onClick={bannerClick}><planeGeometry args={[7.6, 7.6 / 4]} /><meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} /></mesh>
@@ -278,7 +283,7 @@ function TableFallback({ len, cloth, art }: { len: number; cloth: string; art?: 
   return (
     <group>
       <mesh position={[0, 1.15, 0]}><boxGeometry args={[2.5, 2.3, len - 0.1]} /><meshStandardMaterial map={pleat} roughness={0.95} /></mesh>
-      {art && <mesh position={[1.31, 1.15, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[len - 0.3, (len - 0.3) / 3]} /><meshStandardMaterial map={art} roughness={0.9} transparent alphaTest={0.02} /></mesh>}
+      {art && <mesh position={[1.31, 1.15, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[Math.min(len - 0.3, DRAPE_PANEL_MAX_W), Math.min(len - 0.3, DRAPE_PANEL_MAX_W) / 3]} /><meshStandardMaterial map={art} roughness={0.9} transparent alphaTest={0.02} /></mesh>}
       <mesh position={[0, 2.37, 0]}><boxGeometry args={[2.76, 0.3, len + 0.16]} /><meshStandardMaterial color={cloth} roughness={0.9} /></mesh>
       <mesh position={[0, 2.55, 0]} material={MAT_WHITE}><boxGeometry args={[2.7, 0.1, len + 0.1]} /></mesh>
       {Array.from({ length: n }, (_, i) => -len / 2 + (i + 0.5) * (len / n)).map((o) => (

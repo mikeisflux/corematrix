@@ -43,6 +43,7 @@ export const ART_SLOTS = {
     ratio: "1:2",
     width: 1200, height: 2400,
     where: "The retractable banner behind your table. 3×6 ft by default; taller upgrades keep the same shape.",
+    physical: "Shown 3 ft wide × 6 ft tall by default (200 px per foot); height upgrades scale it up with the same art.",
     tip: "Keep text inside the middle 80% and make headline letters at least 1/15 of the height so they read from the aisle.",
   },
   wide: {
@@ -50,6 +51,7 @@ export const ART_SLOTS = {
     ratio: "4:1",
     width: 2000, height: 500,
     where: "Across the back wall, the header on posts and the hanging sign (all four faces of an island tower).",
+    physical: "Stretches the full width of your back wall at 4:1, so it is about 10 × 2.5 ft on a 10×10 and larger on islands.",
     tip: "Logo left or centred, one line of text. Avoid thin strokes: it is seen from 20+ ft away.",
   },
   book: {
@@ -57,17 +59,37 @@ export const ART_SLOTS = {
     ratio: "2:3",
     width: 600, height: 900,
     where: "A comic standing on one of the four stands on your table.",
+    physical: "Life size: about 8.5 × 13 in standing on its stand.",
     tip: "Upload the front cover at 2:3. Standard comic covers (6.625 × 10.25 in) fit with a sliver trimmed top and bottom.",
   },
   drape: {
     name: "Table drape",
     ratio: "3:1",
     width: 1800, height: 600,
-    where: "Printed on the aisle-facing front of every table skirt in your booth, centred on your cloth colour.",
+    where: "Hangs on the outside front of the table skirt only (never the top or sides), centred on your cloth colour, on every table in your booth.",
+    physical: "About 5.7 × 1.9 ft on a 6 ft table and 6.3 × 2.1 ft on an 8 ft table, roughly 300 px per foot. The skirt is only 2.2 ft tall, so the art is as wide as the table allows and never taller than the skirt.",
     tip: "A logo on a transparent PNG works best: it is fitted and centred, never cropped. Anything you upload is scaled to fit inside 3:1.",
+  },
+  tower: {
+    name: "Tower wrap",
+    ratio: "2:7",
+    width: 800, height: 2800,
+    where: "Wraps all four faces of your island tower from the plinth to the cap, replacing the fabric, the banner band and the logo board.",
+    physical: "8 ft wide × 28 ft tall on the premier booth (100 px per foot); other islands show the same art on their shorter tower.",
+    tip: "Design one face; it repeats on all four. The roll-up banners stand in front of the lower part of each face (the bottom 16 ft on the premier booth), so put the hero art in the top half.",
+  },
+  floor: {
+    name: "Floor graphic",
+    ratio: "1:1",
+    width: 2000, height: 2000,
+    where: "Printed on the carpet of your 20×20 island, under the tower, tables and roll-ups.",
+    physical: "The full 20 × 20 ft of your island (100 px per foot). The tower covers the middle 8 × 8 ft and the tables sit 2 ft inside each edge.",
+    tip: "Big shapes and a bold border read best from the aisle; fine text on the floor is unreadable at avatar height.",
   },
 } as const;
 export type ArtSlot = keyof typeof ART_SLOTS;
+/** Slots that only exist on a 20×20 island (it has the tower and the open floor). */
+export const ISLAND_SLOTS: readonly ArtSlot[] = ["tower", "floor"];
 /** Art slot keys stored per booth: a slot name, or "book:N" for the Nth comic stand. */
 export const bookSlotKey = (n: number) => `book:${n}`;
 export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);

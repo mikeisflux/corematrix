@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
@@ -529,7 +529,7 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
 /** Full-size banner artwork: PNG/JPG/WebP straight up, PDFs rendered to an image here in the browser first. */
 function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
   const [busy, setBusy] = useState<ArtSlot | null>(null);
-  const slots = (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book");
+  const slots = (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book" && (p.size === "20x20" || !ISLAND_SLOTS.includes(k)));
   const upload = async (slot: ArtSlot, file: File) => {
     setBusy(slot);
     try {
@@ -553,7 +553,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
         {slots.map((slot) => {
           const spec = ART_SLOTS[slot];
           const v = p.art?.[slot];
-          const portrait = slot === "portrait";
+          const portrait = spec.height > spec.width;
           return (
             <div key={slot} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <div className="flex items-start justify-between gap-2">
@@ -568,7 +568,8 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
                   {v ? <img src={`/api/art/${p.id}/${slot}?v=${v}`} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[10px] text-slate-500">{spec.width}×{spec.height}</div>}
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  <div><b className="text-slate-200">Recommended:</b> {spec.width} × {spec.height} px ({spec.ratio}), 150 px per foot.</div>
+                  <div><b className="text-slate-200">Recommended:</b> {spec.width} × {spec.height} px ({spec.ratio}).</div>
+                  <div className="mt-1"><b className="text-slate-200">On the floor:</b> {spec.physical}</div>
                   <div className="mt-1"><b className="text-slate-200">Minimum:</b> {spec.width / 2} × {spec.height / 2} px. Larger is fine; we downscale.</div>
                   <div className="mt-1">{spec.tip}</div>
                 </div>

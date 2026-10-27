@@ -104,6 +104,8 @@ function pleatedSkirt(hx: number, hz: number, y0: number, y1: number, amp: numbe
  * Booth.tsx rely on that.
  */
 export const TABLE_STANDS = 4;
+/** Widest the drape print can be before its 3:1 height would overflow the skirt. */
+export const DRAPE_PANEL_MAX_W = 6.3;
 export function buildTable(len = 6): THREE.Group {
   const p = new Parts(group("table"));
   const cloth = mat("cloth", "#111827", { roughness: 0.92 }), top = mat("top", "#e4e7ec", { roughness: 0.7 }), metal = mat("metal", "#6b7280", { metalness: 0.6, roughness: 0.4 }), product = mat("product", "#d7dbe2", { roughness: 0.75 });
@@ -111,8 +113,10 @@ export function buildTable(len = 6): THREE.Group {
   const paper = mat("paper", "#e6dfcc", { roughness: 0.95 }), trim = mat("trim", "#9aa3b0", { roughness: 0.6 });
   // pleated skirt all round (peaks stay inside the 2.6 ft footprint), the fitted top drop, the fold under the topper
   p.add(cloth, "skirt", pleatedSkirt(1.22, len / 2 - 0.08, 0.04, 2.28, 0.06, 0.55), box(2.76, 0.3, len + 0.16, 0, 2.22), box(2.8, 0.05, len + 0.2, 0, 2.47));
-  // printed front panel: 3:1, reads left-to-right from the aisle, floats just ahead of the pleat peaks
-  const front = new THREE.PlaneGeometry(len - 0.3, (len - 0.3) / 3); front.rotateY(Math.PI / 2); front.translate(1.32, 1.15, 0);
+  // printed front panel: 3:1 on the outside front skirt only, as wide as the table allows but never taller than the
+  // 2.2 ft skirt (so an 8 ft table gets 6.3 × 2.1, a 6 ft one 5.7 × 1.9); floats just ahead of the pleat peaks
+  const fw = Math.min(len - 0.3, DRAPE_PANEL_MAX_W);
+  const front = new THREE.PlaneGeometry(fw, fw / 3); front.rotateY(Math.PI / 2); front.translate(1.32, 1.15, 0);
   p.solo(clothFront, "skirt_front", front);
   p.add(top, "top", box(2.7, 0.1, len + 0.1, 0, 2.5));
   for (const [x, z] of [[-1.1, -len / 2 + 0.3], [1.1, -len / 2 + 0.3], [-1.1, len / 2 - 0.3], [1.1, len / 2 - 0.3]]) p.add(metal, "leg", post(0.05, 2.4, x, 0, z, 6));

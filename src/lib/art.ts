@@ -11,7 +11,7 @@ import { ART_SLOTS, ART_MAX_UPLOAD, ART_FORMATS, specForSlot, type ArtSlot } fro
 
 export { ART_SLOTS, ART_MAX_UPLOAD, ART_FORMATS, type ArtSlot };
 void ART_SLOTS;
-export const isArtSlot = (s: unknown): s is string => typeof s === "string" && (s === "portrait" || s === "wide" || s === "drape" || /^book:(\d|1[0-5])$/.test(s));
+export const isArtSlot = (s: unknown): s is string => typeof s === "string" && (s === "portrait" || s === "wide" || s === "drape" || s === "tower" || s === "floor" || /^book:(\d|1[0-5])$/.test(s));
 
 /** Resize/crop to the slot's exact size and encode as JPEG (PNG when it has transparency). */
 export async function normalizeArt(buf: Buffer, slot: string): Promise<{ mime: string; data: string; width: number; height: number }> {
