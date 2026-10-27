@@ -534,6 +534,29 @@ export function ribbedTexture(color: string, repeat: [number, number]): THREE.Ca
 
 const logoCache = new Map<string, THREE.Texture>();
 const loader = new THREE.TextureLoader();
+const framedCache = new Map<string, THREE.CanvasTexture>();
+/** A square tile for the spinning logo cube: the booth colour with the logo fitted inside a margin, never cropped or stretched whatever its shape. */
+export function framedLogoTexture(url: string, color: string): THREE.CanvasTexture {
+  const key = `${url}|${color}`;
+  const hit = framedCache.get(key);
+  if (hit) return hit;
+  const S = 1024, m = S * 0.09;
+  const [c, g] = mk(S, S);
+  g.fillStyle = color; g.fillRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const img = new Image();
+  img.onload = () => {
+    const k = Math.min((S - 2 * m) / img.width, (S - 2 * m) / img.height);
+    const w = img.width * k, h = img.height * k;
+    g.fillStyle = color; g.fillRect(0, 0, S, S);
+    g.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+    t.needsUpdate = true;
+  };
+  img.src = url;
+  framedCache.set(key, t);
+  return t;
+}
 export function logoTexture(url: string): THREE.Texture {
   const hit = logoCache.get(url);
   if (hit) return hit;

@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Html } from "@react-three/drei";
-import { bannerTexture, drapeTexture, logoTexture, signTexture, luminance } from "./textures";
+import { bannerTexture, drapeTexture, framedLogoTexture, logoTexture, signTexture, luminance } from "./textures";
 import { useHall, track, type HallBooth } from "@/lib/hall/store";
 import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
 import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
@@ -105,6 +105,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const hang = useMemo(() => wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
   const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
+  const cubeLogo = useMemo(() => framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a"), [booth.id, booth.logoVersion, booth.cloth]);
   if (!space) return null;
   const facing = space.facing;
   const rotY = facing === -1 ? Math.PI : 0;
@@ -176,7 +177,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
           <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
         ))}
         {night && !booth.house && <pointLight position={[0, th + 2, 0]} intensity={120} distance={50} color={booth.accent} />}
-        {booth.house && <Flagship color={booth.color} logo={logo} banner={banner} th={th} />}
+        {booth.house && <Flagship color={booth.color} logo={cubeLogo} banner={banner} th={th} />}
         {tip}
       </group>
     );
@@ -316,12 +317,13 @@ function HangingSign({ tex, y, w, night, onClick, big }: { tex: THREE.Texture; y
 
 /** The house booth's extras: LED floor ring, light columns on the corners, lit tower edges and cap, a spinning logo cube on the tower, scrolling marquee banners, always-on glow. */
 function Flagship({ color, logo, banner, th }: { color: string; logo: THREE.Texture; banner: THREE.Texture; th: number }) {
+  const CUBE = 8; // big enough that the logo reads from the aisle, with a margin of booth colour around it
   const ring = useRef<THREE.Mesh>(null);
   const cube = useRef<THREE.Mesh>(null);
   const t = useRef(0);
   useFrame((_, dt) => {
     t.current += dt;
-    if (cube.current) { cube.current.rotation.y += dt * 0.7; cube.current.position.y = th + 5.5 + Math.sin(t.current * 1.6) * 0.5; }
+    if (cube.current) { cube.current.rotation.y += dt * 0.7; cube.current.position.y = th + 1.6 + CUBE / 2 + Math.sin(t.current * 1.6) * 0.5; }
     if (ring.current) (ring.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.4 + Math.sin(t.current * 3) * 0.7;
     banner.offset.x = (banner.offset.x + dt * 0.05) % 1;
   });
@@ -332,8 +334,8 @@ function Flagship({ color, logo, banner, th }: { color: string; logo: THREE.Text
         <ringGeometry args={[9.1, 9.9, 72]} />
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
       </mesh>
-      <mesh ref={cube} position={[0, th + 5.5, 0]}>
-        <boxGeometry args={[5, 5, 5]} />
+      <mesh ref={cube} position={[0, th + 1.6 + CUBE / 2, 0]}>
+        <boxGeometry args={[CUBE, CUBE, CUBE]} />
         <meshStandardMaterial map={logo} emissiveMap={logo} emissive="#ffffff" emissiveIntensity={0.7} />
       </mesh>
       {/* LED tape down the tower edges and around the cap */}
