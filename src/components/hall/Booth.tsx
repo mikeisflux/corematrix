@@ -153,7 +153,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         </group>
         {/* tables on four sides + a header frame on corner uprights */}
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, Math.PI / 2], [-7.5, 0, 0], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bannerClick} wide />)}
+        {/* one table per edge, each turned so its aisle side (local +x: stands, drape print) faces out of the island: north -z, south +z, west -x, east +x */}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bannerClick} wide />)}
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
