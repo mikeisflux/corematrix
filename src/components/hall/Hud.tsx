@@ -19,6 +19,7 @@ import { AvatarPanel } from "./panels/AvatarPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { ConBotPanel } from "./panels/ConBotPanel";
 import { PerfOverlay } from "./PerfOverlay";
+import { useTheater, setTheaterSound } from "@/lib/hall/theater";
 
 export function Hud() {
   const stats = useHall((s) => s.stats);
@@ -35,6 +36,7 @@ export function Hud() {
   const setMode = useHall((s) => s.setMode);
   const near = useHall((s) => s.near);
   const nearBot = useHall((s) => s.nearBot);
+  const th = useTheater();
   const booths = useHall((s) => s.booths);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast, setToast]);
   const latest = events[0];
@@ -126,6 +128,13 @@ export function Hud() {
         </button>
       )}
       {mode === "walk" && <Joystick />}
+      {mode === "walk" && th.near && th.playing && panel === "none" && (
+        <button onClick={() => setTheaterSound(!th.sound)} className="pointer-events-auto absolute bottom-36 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
+          <span className="text-lg">🎬</span>
+          <span><b>{th.title || "Now showing"}</b></span>
+          <span className={`rounded-md px-1.5 text-[11px] ${th.sound ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10"}`}>{th.sound ? "🔊 sound on" : "🔇 tap for sound"}</span>
+        </button>
+      )}
       {mode === "walk" && !nearBooth && nearBot && panel === "none" && (
         <button onClick={() => setPanel("conbot")} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
           <span className="text-lg">🤖</span>

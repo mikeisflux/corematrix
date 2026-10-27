@@ -182,7 +182,7 @@ export function bannerTexture(o: { name: string; tagline?: string | null; color:
  * line is the headline (wrapped onto two lines when it would otherwise shrink),
  * the rest sit beneath it at a smaller size.
  */
-export function signTexture(lines: string[], opts: { bg?: string; fg?: string; w?: number; h?: number; size?: number; accentBar?: string; font?: string } = {}): THREE.CanvasTexture {
+export function signTexture(lines: string[], opts: { bg?: string; fg?: string; w?: number; h?: number; size?: number; accentBar?: string; font?: string; dy?: number } = {}): THREE.CanvasTexture {
   const key = `sign|${lines.join("\n")}|${JSON.stringify(opts)}`;
   const hit = cache.get(key);
   if (hit) return hit;
@@ -219,7 +219,8 @@ export function signTexture(lines: string[], opts: { bg?: string; fg?: string; w
     return finish(c, key);
   }
   const lh = size * 1.2;
-  const y0 = h / 2 - ((lines.length - 1) * lh) / 2;
+  // `dy` nudges the block down as a share of the height: all-caps headlines sit high on a "middle" baseline
+  const y0 = h / 2 + (opts.dy ?? 0) * h - ((lines.length - 1) * lh) / 2;
   lines.forEach((l, i) => { const px = fitText(g, l, w - inset * 4, size, 10, font("bold")); g.font = font("bold")(px); g.fillText(l, w / 2, y0 + i * lh); });
   return finish(c, key);
 }

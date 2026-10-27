@@ -74,16 +74,19 @@ function blocked(x: number, z: number): boolean {
   if (Math.hypot(x - ARCADE.x, z - ARCADE.z) < PAD_RADIUS + R) return true;
   return false;
 }
+/** Theater benches in front of the stage (same numbers as Arcade.tsx): two rows, two benches each, an aisle down the middle. */
+export const BENCHES = [21.5, 26].flatMap((dz) => [-8, 8].map((dx) => ({ x: ARCADE.x + dx, z: ARCADE.z + dz, w: 12, d: 1.6 })));
 /** Solid things on the plaza besides the cabinets (same numbers as Arcade.tsx): the stage with its scoreboard, and the pillars at the corners. */
 const PLAZA_BLOCKS = [
   { x: ARCADE.x, z: ARCADE.z + ARCADE.d / 2 - 8, w: 36.4, d: 10.6 },
+  ...BENCHES,
   ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({ x: ARCADE.x + (sx * ARCADE.w) / 2, z: ARCADE.z + (sz * ARCADE.d) / 2, w: 2.2, d: 2.2 })),
 ];
 const PAD_RADIUS = 7.6; // the flyover pad plus its ride sign
 export const CABINET_ROWS = [
   { x: ARCADE.x - 24, z: ARCADE.z - 18, w: 3, d: 30 }, { x: ARCADE.x - 24, z: ARCADE.z + 18, w: 3, d: 30 },
   { x: ARCADE.x + 24, z: ARCADE.z - 18, w: 3, d: 30 }, { x: ARCADE.x + 24, z: ARCADE.z + 18, w: 3, d: 30 },
-  { x: ARCADE.x, z: ARCADE.z - 34, w: 30, d: 3 }, { x: ARCADE.x, z: ARCADE.z + 34, w: 30, d: 3 },
+  { x: ARCADE.x, z: ARCADE.z - 34, w: 30, d: 3 }, // the back of the plaza is the theater: stage, screen and benches instead of a cabinet row
 ];
 export function isBlocked(x: number, z: number) { return blocked(x, z); }
 /** The nearest walkable point to (x, z): rings of candidates out to 20 ft, so a bad spawn never leaves someone inside a wall. */

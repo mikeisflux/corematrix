@@ -288,7 +288,7 @@ function HangingSigns({ night }: { night: boolean }) {
   const hallSigns = useMemo(() => HALLS.map((h) => signTexture([`HALL ${h}`], { bg: "#111827", fg: "#ffffff", w: 1024, h: 320, size: 230, accentBar: "#ffd166" })), []);
   const aisleSigns = useMemo(() => Array.from({ length: EXHIBIT_AISLES }, (_, a) => signTexture([String((a + 1) * 100)], { bg: "#1d4ed8", fg: "#ffffff", w: 512, h: 256, size: 196, accentBar: "#93c5fd" })), []);
   const aaSign = useMemo(() => signTexture(["ARTISTS' ALLEY"], { bg: "#7c3aed", fg: "#ffffff", w: 1024, h: 208, size: 130 }), []);
-  const arcadeSign = useMemo(() => signTexture(["ARCADE"], { bg: "#0a0a14", fg: "#ff2bd6", w: 1024, h: 256, size: 200 }), []);
+  const arcadeSign = useMemo(() => signTexture(["ARCADE"], { bg: "#0a0a14", fg: "#ff2bd6", w: 1024, h: 256, size: 150, dy: 0.07 }), []);
   const hallW = HALL_LENGTH / HALLS.length;
   return (
     <group>

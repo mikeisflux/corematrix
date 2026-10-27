@@ -14,7 +14,7 @@ export interface SettingDef {
   readonly?: boolean; // computed / informational rows
 }
 
-export const SETTING_GROUPS = ["Site", "DivinityCoin", "SendGrid", "Economy", "Security"] as const;
+export const SETTING_GROUPS = ["Site", "Theater", "DivinityCoin", "SendGrid", "Economy", "Security"] as const;
 
 export const SETTING_KEYS: SettingDef[] = [
   // Site
@@ -33,6 +33,8 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "DIVINITYCOIN_WEBHOOK_URL", label: "Webhook URL (paste into DivinityCoin partner settings)", group: "DivinityCoin", readonly: true, hint: "https://<site>/api/webhooks/divinitycoin" },
   { key: "DIVINITYCOIN_INTERNAL_PATH", label: "Internal API path prefix", group: "DivinityCoin", hint: "/internal (default). Calls are POST <prefix>?action=…" },
   { key: "DIVINITYCOIN_ALLOW_CREDITS", label: "Allow paying with DivinityCoin credit balance", group: "DivinityCoin", hint: "true / false" },
+  // Theater: the big screen on the arcade stage
+  { key: "THEATER_TITLE", label: "Now showing", group: "Theater", hint: "Caption shown in the hall while the screen plays, e.g. 'Divinity Comics trailers'. The films themselves are managed under Admin → Theater." },
   { key: "DIVINITYCOIN_TEST_MODE", label: "Test mode", group: "DivinityCoin", hint: "true — the checkout frame loads a local simulator that posts signed events to our own webhook; no card is charged" },
 
   // SendGrid

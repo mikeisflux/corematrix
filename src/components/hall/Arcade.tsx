@@ -6,6 +6,11 @@ import { useGLTF } from "@react-three/drei";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { signTexture } from "./textures";
 import { ARCADE } from "@/lib/hall/layout";
+import { BENCHES, player } from "./Avatar";
+import { theater, bumpTheater } from "@/lib/hall/theater";
+import { scheduleAt } from "@/lib/theater-schedule";
+
+type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; duration: number }[] };
 import { CABINET_ROWS } from "./Avatar";
 import { useHall, api } from "@/lib/hall/store";
 import { TwoSided } from "./Booth";
@@ -242,42 +247,6 @@ function padTexture(): THREE.CanvasTexture {
   return t;
 }
 
-type Row = { rank: number; playerName: string | null; score: number };
-/** The big board: three columns of real top scores (or an invitation when nobody has played yet). */
-function boardTexture(scores: Record<string, Row[]> | null): THREE.CanvasTexture {
-  const W = 1024, H = 320;
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const g = c.getContext("2d")!;
-  g.fillStyle = "#06070f"; g.fillRect(0, 0, W, H);
-  const glow = g.createLinearGradient(0, 0, W, 0);
-  glow.addColorStop(0, "rgba(255,43,214,0.18)"); glow.addColorStop(0.5, "rgba(0,245,255,0.18)"); glow.addColorStop(1, "rgba(255,43,214,0.18)");
-  g.fillStyle = glow; g.fillRect(0, 0, W, 76);
-  g.textAlign = "center"; g.textBaseline = "middle";
-  g.shadowColor = "#00f5ff"; g.shadowBlur = 22; g.fillStyle = "#00f5ff";
-  g.font = "900 56px Impact, 'Arial Black', sans-serif"; g.fillText("TOP SCORES", W / 2, 40);
-  g.shadowBlur = 0;
-  const cols = GAMES.slice(0, 3);
-  cols.forEach((game, i) => {
-    const x = W / 6 + (W / 3) * i;
-    g.fillStyle = game.color; g.font = "bold 28px 'Inter', Arial, sans-serif"; g.fillText(game.title, x, 108);
-    const rows = scores?.[game.id] ?? [];
-    g.font = "bold 24px ui-monospace, Menlo, monospace";
-    if (!rows.length) { g.fillStyle = scores ? "#9aa3b5" : "#4b5263"; g.fillText(scores ? "be the first" : "loading…", x, 170); return; }
-    rows.slice(0, 3).forEach((r, k) => {
-      const y = 148 + k * 36;
-      g.fillStyle = k === 0 ? "#ffd166" : "#ffffff"; g.textAlign = "left";
-      g.fillText(`${r.rank}. ${(r.playerName || "anon").slice(0, 12).toUpperCase()}`, x - 150, y);
-      g.textAlign = "right"; g.fillText(String(r.score).padStart(6, " "), x + 150, y); g.textAlign = "center";
-    });
-  });
-  g.fillStyle = "#ff2bd6"; g.fillRect(60, 262, W - 120, 2);
-  g.fillStyle = "#c7cbd6"; g.font = "bold 26px 'Inter', Arial, sans-serif";
-  g.fillText("play for coins  ·  100 coins = $1 of booth value", W / 2, 292);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-  return t;
-}
-
-/* ---------- cabinets ---------- */
 type Cab = { x: number; z: number; rot: number; game: number };
 function layoutCabinets(): Cab[] {
   const out: Cab[] = [];
@@ -463,17 +432,74 @@ function FlyoverPad({ night }: { night: boolean }) {
 }
 
 /** Stage with the leaderboard wall: bezel, neon frame, lit front edge. */
-function Stage({ night }: { night: boolean }) {
-  const [scores, setScores] = useState<Record<string, Row[]> | null>(null);
+/**
+ * The theater at the back of the plaza: the stage carries a 34×10.6 ft screen that plays the admin's playlist
+ * (Admin → Settings → Theater) as a video texture, muted until someone nearby turns on sound; the clock picks the
+ * file and the position so everyone watches the same moment. With nothing configured it shows a poster.
+ */
+function Theater({ night }: { night: boolean }) {
+  const [show, setShow] = useState<Playlist | null>(null);
   useEffect(() => {
     let alive = true;
-    Promise.all(GAMES.slice(0, 3).map((g) => api<{ rows: Row[] }>(`/api/arcade/leaderboard?game=${g.id}&scope=all`).then((d) => [g.id, d.rows] as const).catch(() => [g.id, []] as const)))
-      .then((pairs) => { if (alive) setScores(Object.fromEntries(pairs)); });
-    return () => { alive = false; };
+    const load = () => api<Playlist>("/api/theater").then((d) => { if (alive) setShow((prev) => (prev && JSON.stringify(prev.items) === JSON.stringify(d.items) && prev.title === d.title ? prev : d)); }).catch(() => {});
+    load();
+    const t = setInterval(load, 120000);
+    return () => { alive = false; clearInterval(t); };
   }, []);
-  const board = useMemo(() => boardTexture(scores), [scores]);
-  useEffect(() => () => board.dispose(), [board]);
+  const poster = useMemo(() => signTexture([show?.title || "NOW SHOWING", show?.items.length ? "" : "feature presentation · coming soon"].filter(Boolean), { bg: "#05060c", fg: "#ff2bd6", accentBar: "#00f5ff", w: 1024, h: 320, size: 110 }), [show]);
+  const video = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const v = document.createElement("video");
+    v.crossOrigin = "anonymous"; v.playsInline = true; v.muted = true; v.preload = "auto"; v.setAttribute("playsinline", "");
+    return v;
+  }, []);
+  const tex = useMemo(() => { if (!video) return null; const t = new THREE.VideoTexture(video); t.colorSpace = THREE.SRGBColorSpace; return t; }, [video]);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
+    const items = show.items;
+    const dead = new Set<number>();
+    let alive = true, current = -1, offset = -1;
+    const clock = () => Date.now() / 1000; // server and client clocks agree well enough for a film
+    // the clock says which film and how far in; load it and jump there once its length is known
+    const tune = () => {
+      const s = scheduleAt(items, clock());
+      let i = s.index, tries = 0;
+      while (dead.has(i) && tries++ < items.length) i = (i + 1) % items.length;
+      if (dead.has(i)) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
+      if (i !== current) { current = i; offset = s.offset; video.src = items[i].url; video.load(); return; }
+      const d = video.duration;
+      if (s.offset >= 0 && Number.isFinite(d) && d > 0 && (video.ended || Math.abs(video.currentTime - s.offset) > 3)) video.currentTime = s.offset % d;
+      if (video.paused) void video.play().catch(() => {});
+    };
+    const onMeta = () => {
+      const d = video.duration;
+      if (offset >= 0 && Number.isFinite(d) && d > 0) video.currentTime = offset % d;
+      void video.play().catch(() => {});
+    };
+    const onPlaying = () => { if (alive) { setPlaying(true); theater.playing = true; theater.title = show.title; bumpTheater(); } };
+    const onEnded = () => tune(); // the schedule says what is next; the same film again is a seek, not a reload
+    const onErr = () => { if (!alive) return; dead.add(current); current = -1; tune(); };
+    video.addEventListener("loadedmetadata", onMeta); video.addEventListener("playing", onPlaying); video.addEventListener("ended", onEnded); video.addEventListener("error", onErr);
+    tune();
+    const sync = setInterval(tune, 15000);
+    return () => {
+      alive = false; clearInterval(sync);
+      video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("playing", onPlaying); video.removeEventListener("ended", onEnded); video.removeEventListener("error", onErr);
+      video.pause(); video.removeAttribute("src"); video.load();
+      theater.playing = false; bumpTheater();
+    };
+  }, [video, show]);
   const z = ARCADE.z + ARCADE.d / 2 - 8;
+  // sound follows the walker: on only when they asked and are near the screen, fading with distance
+  useFrame(() => {
+    if (!video) return;
+    const d = Math.hypot(player.x - ARCADE.x, player.z - (z + 4.5));
+    const near = d < 48 && useHall.getState().mode === "walk";
+    if (near !== theater.near) { theater.near = near; bumpTheater(); }
+    video.muted = !(theater.sound && near);
+    video.volume = THREE.MathUtils.clamp(1 - (d - 14) / 34, 0.15, 1);
+  });
   const neon = night ? 2.8 : 1.4;
   return (
     <group position={[ARCADE.x, 0, 0]}>
@@ -481,13 +507,25 @@ function Stage({ night }: { night: boolean }) {
       <mesh position={[0, 2.08, z - 5 + 0.08]}><boxGeometry args={[36, 0.14, 0.14]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={neon} toneMapped={false} /></mesh>
       <mesh position={[0, 0.3, z - 5 + 0.08]}><boxGeometry args={[36, 0.1, 0.1]} /><meshStandardMaterial color="#ff2bd6" emissive="#ff2bd6" emissiveIntensity={neon} toneMapped={false} /></mesh>
       <group position={[0, 9.2, z + 4.5]}>
-        <mesh position={[0, 0, -0.45]}><boxGeometry args={[36.4, 13, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
-        <TwoSided w={34} h={10.6}><meshBasicMaterial map={board} toneMapped={false} /></TwoSided>
+        {/* the audience is on the -z side: backing behind the picture, neon bezel just in front of it */}
+        <mesh position={[0, 0, 0.45]}><boxGeometry args={[36.4, 13, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
+        <mesh rotation={[0, Math.PI, 0]}><planeGeometry args={[34, 10.6]} /><meshBasicMaterial map={playing && tex ? tex : poster} toneMapped={false} /></mesh>
         {[[0, 6.55, 36.4, 0.16], [0, -6.55, 36.4, 0.16], [-18.3, 0, 0.16, 13], [18.3, 0, 0.16, 13]].map(([x, y, w, h], i) => (
-          <mesh key={i} position={[x, y, 0.2]}><boxGeometry args={[w, h, 0.16]} /><meshStandardMaterial color={i < 2 ? "#ff2bd6" : "#00f5ff"} emissive={i < 2 ? "#ff2bd6" : "#00f5ff"} emissiveIntensity={neon} toneMapped={false} /></mesh>
+          <mesh key={i} position={[x, y, -0.2]}><boxGeometry args={[w, h, 0.16]} /><meshStandardMaterial color={i < 2 ? "#ff2bd6" : "#00f5ff"} emissive={i < 2 ? "#ff2bd6" : "#00f5ff"} emissiveIntensity={neon} toneMapped={false} /></mesh>
         ))}
         {[-12, 12].map((x) => <mesh key={x} position={[x, -8.6, -0.3]}><boxGeometry args={[0.5, 4.2, 0.5]} /><meshStandardMaterial color="#2b3140" metalness={0.6} roughness={0.4} /></mesh>)}
+        {/* the screen lights the seats when a film is on */}
+        {playing && <pointLight position={[0, -2, -10]} intensity={night ? 260 : 90} distance={60} decay={2} color="#9fb8ff" />}
       </group>
+      {/* benches: two rows, an aisle down the middle, facing the screen */}
+      {BENCHES.map((b, i) => (
+        <group key={i} position={[b.x - ARCADE.x, 0, b.z]}>
+          <mesh position={[0, 1.35, 0]} castShadow><boxGeometry args={[b.w, 0.45, b.d]} /><meshStandardMaterial color="#141a33" roughness={0.6} metalness={0.2} /></mesh>
+          <mesh position={[0, 2.3, -b.d / 2 + 0.1]}><boxGeometry args={[b.w, 1.5, 0.18]} /><meshStandardMaterial color="#141a33" roughness={0.6} metalness={0.2} /></mesh>
+          <mesh position={[0, 1.12, b.d / 2 - 0.05]}><boxGeometry args={[b.w, 0.06, 0.06]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={neon * 0.6} toneMapped={false} /></mesh>
+          {[-b.w / 2 + 0.6, 0, b.w / 2 - 0.6].map((x) => <mesh key={x} position={[x, 0.56, 0]}><boxGeometry args={[0.18, 1.12, b.d - 0.3]} /><meshStandardMaterial color="#2b3140" metalness={0.6} roughness={0.4} /></mesh>)}
+        </group>
+      ))}
     </group>
   );
 }
@@ -528,7 +566,7 @@ export function Arcade({ night }: { night: boolean }) {
       <NeonTube position={[x, 15.3, z + d / 2]} rotation={[0, 0, Math.PI / 2]} length={w + 0.6} color="#00f5ff" intensity={rail} />
       <NeonTube position={[x - w / 2, 15.3, z]} rotation={[Math.PI / 2, 0, 0]} length={d + 0.6} color="#00f5ff" intensity={rail} />
       <NeonTube position={[x + w / 2, 15.3, z]} rotation={[Math.PI / 2, 0, 0]} length={d + 0.6} color="#00f5ff" intensity={rail} />
-      <Stage night={night} />
+      <Theater night={night} />
       <FlyoverPad night={night} />
       {night && <pointLight position={[x, 14, z]} intensity={420} distance={95} decay={2} color="#7c4dff" />}
     </group>

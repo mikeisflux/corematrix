@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /** Registered accounts. Email + password sign-in; login_tokens are one-time password-reset tokens. */
 export const users = sqliteTable("users", {
@@ -460,3 +460,17 @@ export const perfSessions = sqliteTable(
   },
   (t) => [index("perf_started_idx").on(t.startedAt)],
 );
+
+/** The arcade theater playlist: uploaded files (kept on disk under the data directory) and external video URLs, in play order. */
+export const theaterVideos = sqliteTable("theater_videos", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  kind: text("kind").notNull(), // "file" (src = stored filename) | "url" (src = the address)
+  src: text("src").notNull(),
+  mime: text("mime"),
+  bytes: integer("bytes").notNull().default(0),
+  duration: real("duration").notNull().default(0), // seconds; 0 = unknown
+  position: integer("position").notNull().default(0),
+  enabled: integer("enabled").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+});

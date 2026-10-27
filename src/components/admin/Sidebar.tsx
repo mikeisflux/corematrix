@@ -11,6 +11,7 @@ const NAV: { href: string; label: string; sub?: { href: string; label: string }[
   { href: "/admin/plans", label: "Plans" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/billboards", label: "Billboards" },
+  { href: "/admin/theater", label: "Theater" },
   { href: "/admin/emails", label: "Emails", sub: [
     { href: "/admin/emails", label: "Inbox" },
     { href: "/admin/emails/compose", label: "Compose" },
