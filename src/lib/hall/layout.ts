@@ -136,9 +136,16 @@ function build(): BoothSpace[] {
   return [...exhibitors, ...rows].map((b) => ({ ...b, id: n++ }));
 }
 
+/**
+ * Spaces taken off the plan. Ids are assigned over the full grid first, so
+ * removing a label here never renumbers the booths people already own.
+ * 1706 and 1805 sit behind the premier island (1702) and were its back wall;
+ * without them the island is open on its fourth side too.
+ */
+export const REMOVED_LABELS = new Set(["1706", "1805"]);
 let cache: BoothSpace[] | null = null;
 export function hallLayout(): BoothSpace[] {
-  if (!cache) cache = build();
+  if (!cache) cache = build().filter((b) => !REMOVED_LABELS.has(b.label));
   return cache;
 }
 let byId: Map<number, BoothSpace> | null = null;
