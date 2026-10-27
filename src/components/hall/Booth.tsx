@@ -105,7 +105,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const hang = useMemo(() => wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
   const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
-  const cubeLogo = useMemo(() => framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a"), [booth.id, booth.logoVersion, booth.cloth]);
+  const cubeLogo = useMemo(() => framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a", 1.5), [booth.id, booth.logoVersion, booth.cloth]); // 5 wide × 7.5 tall faces
   if (!space) return null;
   const facing = space.facing;
   const rotY = facing === -1 ? Math.PI : 0;
@@ -317,13 +317,13 @@ function HangingSign({ tex, y, w, night, onClick, big }: { tex: THREE.Texture; y
 
 /** The house booth's extras: LED floor ring, light columns on the corners, lit tower edges and cap, a spinning logo cube on the tower, scrolling marquee banners, always-on glow. */
 function Flagship({ color, logo, banner, th }: { color: string; logo: THREE.Texture; banner: THREE.Texture; th: number }) {
-  const CUBE = 8; // big enough that the logo reads from the aisle, with a margin of booth colour around it
+  const BOX_W = 5, BOX_H = 7.5; // the original 5 ft footprint, taller: each face carries the logo at square proportions with colour above and below
   const ring = useRef<THREE.Mesh>(null);
   const cube = useRef<THREE.Mesh>(null);
   const t = useRef(0);
   useFrame((_, dt) => {
     t.current += dt;
-    if (cube.current) { cube.current.rotation.y += dt * 0.7; cube.current.position.y = th + 1.6 + CUBE / 2 + Math.sin(t.current * 1.6) * 0.5; }
+    if (cube.current) { cube.current.rotation.y += dt * 0.7; cube.current.position.y = th + 1.6 + BOX_H / 2 + Math.sin(t.current * 1.6) * 0.5; }
     if (ring.current) (ring.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.4 + Math.sin(t.current * 3) * 0.7;
     banner.offset.x = (banner.offset.x + dt * 0.05) % 1;
   });
@@ -334,8 +334,8 @@ function Flagship({ color, logo, banner, th }: { color: string; logo: THREE.Text
         <ringGeometry args={[9.1, 9.9, 72]} />
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} side={THREE.DoubleSide} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
       </mesh>
-      <mesh ref={cube} position={[0, th + 1.6 + CUBE / 2, 0]}>
-        <boxGeometry args={[CUBE, CUBE, CUBE]} />
+      <mesh ref={cube} position={[0, th + 1.6 + BOX_H / 2, 0]}>
+        <boxGeometry args={[BOX_W, BOX_H, BOX_W]} />
         <meshStandardMaterial map={logo} emissiveMap={logo} emissive="#ffffff" emissiveIntensity={0.7} />
       </mesh>
       {/* LED tape down the tower edges and around the cap */}
