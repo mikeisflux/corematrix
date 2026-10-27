@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
+import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
@@ -528,18 +528,24 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
 
 /** Full-size banner artwork: PNG/JPG/WebP straight up, PDFs rendered to an image here in the browser first. */
 function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
-  const [busy, setBusy] = useState<ArtSlot | null>(null);
-  const slots = (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book" && (p.size === "20x20" || !ISLAND_SLOTS.includes(k)));
-  const upload = async (slot: ArtSlot, file: File) => {
-    setBusy(slot);
+  const [busy, setBusy] = useState<string | null>(null);
+  type Card = { key: string; spec: (typeof ART_SLOTS)[ArtSlot]; name: string; where: string };
+  const card = (key: ArtSlot): Card => ({ key, spec: ART_SLOTS[key], name: ART_SLOTS[key].name, where: ART_SLOTS[key].where });
+  // an island has four roll-ups (one per side, each its own art), the tower wrap and the floor graphic; its tower and
+  // hanging sign carry the booth name, so it has no wide banner. Everyone else: one roll-up, the wide banner, the drape.
+  const cards: Card[] = p.size === "20x20"
+    ? [...ISLAND_SIDES.map((side, i) => ({ key: rollupSlotKey(i), spec: ART_SLOTS.portrait, name: `Roll-up banner · ${side}`, where: "The retractable banner behind this side's table, facing out to the aisle." })), card("drape"), card("tower"), card("floor")]
+    : (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book" && !ISLAND_SLOTS.includes(k)).map(card);
+  const upload = async (c: Card, file: File) => {
+    setBusy(c.key);
     try {
       if (file.size > ART_MAX_UPLOAD) throw new Error("Keep the file under 12 MB");
-      onChanged(await uploadArt(p.id, slot, file, ART_SLOTS[slot]));
-      setMsg(`${ART_SLOTS[slot].name} updated. It's on the floor now.`);
+      onChanged(await uploadArt(p.id, c.key, file, c.spec));
+      setMsg(`${c.name} updated. It's on the floor now.`);
     } catch (e) { setMsg((e as Error).message); }
     setBusy(null);
   };
-  const remove = async (slot: ArtSlot) => {
+  const remove = async (slot: string) => {
     setBusy(slot);
     try { const saved = await api<{ art: Record<string, number> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: null }) }); onChanged(saved.art); setMsg("Back to the generated banner."); }
     catch (e) { setMsg((e as Error).message); }
@@ -550,16 +556,16 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Banner artwork · free</div>
       <p className="mt-1 text-[11px] text-slate-500">Upload your own full-size art and it replaces the generated banner on the floor instantly. {ART_FORMATS}, up to 12 MB. We fit it to the exact size below (centre crop), so design at that ratio.</p>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {slots.map((slot) => {
-          const spec = ART_SLOTS[slot];
+        {cards.map((c) => {
+          const { key: slot, spec } = c;
           const v = p.art?.[slot];
           const portrait = spec.height > spec.width;
           return (
             <div key={slot} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-sm font-semibold">{spec.name}</div>
-                  <div className="text-[11px] text-slate-400">{spec.where}</div>
+                  <div className="text-sm font-semibold">{c.name}</div>
+                  <div className="text-[11px] text-slate-400">{c.where}</div>
                 </div>
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">{spec.ratio}</span>
               </div>
@@ -575,7 +581,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <label className={`btn-primary cursor-pointer text-xs ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === slot ? "Uploading…" : v ? "Replace" : "Upload"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(slot, f); e.target.value = ""; }} /></label>
+                <label className={`btn-primary cursor-pointer text-xs ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === slot ? "Uploading…" : v ? "Replace" : "Upload"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(c, f); e.target.value = ""; }} /></label>
                 {v && <button className="btn-ghost text-xs" disabled={!!busy} onClick={() => remove(slot)}>Remove</button>}
               </div>
             </div>

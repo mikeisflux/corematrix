@@ -36,7 +36,7 @@ export const Z_CROSS0 = Z_FRONT + HALF_DEPTH; // cross aisle start
 export const Z_CROSS1 = Z_CROSS0 + CROSS;
 export const Z_BACK = Z_CROSS1 + HALF_DEPTH; // where booths end
 export const ARCADE = { x: 0, z: (Z_CROSS0 + Z_CROSS1) / 2, w: 78, d: 86 }; // center plaza, booths inside are removed
-export const CEILING = 34;
+export const CEILING = 40;
 
 export interface BoothSpace {
   id: number;

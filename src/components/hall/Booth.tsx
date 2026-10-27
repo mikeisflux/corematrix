@@ -102,6 +102,9 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     return t;
   }, [wideUrl, booth.name, booth.tagline, booth.color, booth.accent, booth.style, booth.label, booth.size, booth.house]);
   const portrait = useMemo(() => portraitUrl ? logoTexture(portraitUrl) : signTexture([booth.name ?? "", booth.tagline ?? ""].filter(Boolean), { bg: booth.color, fg: luminance(booth.color) < 0.35 ? "#fff" : "#0b0f1a", accentBar: booth.accent, w: 512, h: 1280, size: 84 }), [portraitUrl, booth.name, booth.tagline, booth.color, booth.accent]);
+  // an island's four roll-ups each take their own art (rollup:N), else the single portrait slot, else the generated banner
+  const rollupKey = [0, 1, 2, 3].map((i) => booth.art?.[`rollup:${i}`] ?? 0).join("|");
+  const rollups = useMemo(() => rollupKey.split("|").map((v, i) => (Number(v) ? logoTexture(`/api/art/${booth.id}/rollup:${i}?v=${v}`) : portrait)), [rollupKey, booth.id, portrait]);
   const hang = useMemo(() => wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
   const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
@@ -134,7 +137,9 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const chairFallback = <><mesh position={[0, 1.5, 0]}><boxGeometry args={[1.4, 0.14, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh><mesh position={[0, 2.3, -0.65]}><boxGeometry args={[1.4, 1.2, 0.12]} /><meshStandardMaterial color="#1f2937" /></mesh></>;
 
   if (island) {
-    const th = booth.house ? 28 : Math.max(14, sign.height);
+    const th = booth.house ? 24 : Math.max(14, sign.height);
+    // the hanging sign clears the tower cap, and on the house booth the spinning logo box above it
+    const hangY = Math.min(CEILING - 4, th + (booth.house ? 13 : 7));
     // the roll-ups (up to 16 ft) stand right in front of each face, so the band and logo live above them,
     // centred in the free part of the face: band 1.9 ft, gap, 4 ft logo board
     const freeLo = bh + 1, freeHi = th - 0.5, stack = 1.9 + 0.8 + 4;
@@ -158,10 +163,10 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
           </group>
         ))}
         {/* hanging sign */}
-        <group position={[0, Math.min(CEILING - 4, th + 7), 0]}>
+        <group position={[0, hangY, 0]}>
           <group onClick={bannerClick}><TwoSided w={18} h={4.5}><meshStandardMaterial map={hang} emissiveMap={hang} emissive="#fff" emissiveIntensity={night ? 0.6 : 0.1} /></TwoSided></group>
           <group rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}><TwoSided w={18} h={4.5}><meshStandardMaterial map={hang} emissiveMap={hang} emissive="#fff" emissiveIntensity={night ? 0.6 : 0.1} /></TwoSided></group>
-          {[-7, 7].map((x) => <mesh key={x} geometry={BAR} material={ALU} position={[x, (CEILING - Math.min(CEILING - 4, th + 7)) / 2, 0]} scale={[1.2, CEILING - Math.min(CEILING - 4, th + 7), 1.2]} />)}
+          {[-7, 7].map((x) => <mesh key={x} geometry={BAR} material={ALU} position={[x, (CEILING - hangY) / 2, 0]} scale={[1.2, CEILING - hangY, 1.2]} />)}
         </group>
         {/* tables on four sides + a header frame on corner uprights */}
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
@@ -174,7 +179,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {([[2.5, -4.9, Math.PI], [-2.5, 4.9, 0], [4.9, 2.5, Math.PI / 2], [-4.9, -2.5, -Math.PI / 2]] as const).map(([x, z, r], i) => <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><Prop name="chair" fallback={chairFallback} /></group>)}
         {/* roll-up banner behind each table, facing out (3×6 by default, up to 8×16 when upgraded) */}
         {([[0, -5.6, Math.PI], [0, 5.6, 0], [-5.6, 0, -Math.PI / 2], [5.6, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
-          <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
+          <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={rollups[i]} glow={glow} onClick={bannerClick} /></group>
         ))}
         {night && !booth.house && <pointLight position={[0, th + 2, 0]} intensity={120} distance={50} color={booth.accent} />}
         {booth.house && <Flagship color={booth.color} logo={cubeLogo} banner={banner} th={th} />}

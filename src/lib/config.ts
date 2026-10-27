@@ -92,7 +92,10 @@ export type ArtSlot = keyof typeof ART_SLOTS;
 export const ISLAND_SLOTS: readonly ArtSlot[] = ["tower", "floor"];
 /** Art slot keys stored per booth: a slot name, or "book:N" for the Nth comic stand. */
 export const bookSlotKey = (n: number) => `book:${n}`;
-export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
+/** An island has four roll-ups, one per side, each with its own art ("rollup:N", portrait spec). Same order as the roll-ups in Booth.tsx. */
+export const rollupSlotKey = (n: number) => `rollup:${n}`;
+export const ISLAND_SIDES = ["North · toward the entrance", "South · toward the back", "West aisle", "East aisle"] as const;
+export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : key.startsWith("rollup:") ? ART_SLOTS.portrait : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
 /** "Display a book": $5 per stand, one-time. Four stands per table, so capacity follows the table count. */
 export const BOOK_PRICE_CENTS = 500;
 export function bookCapacity(size: string, kind: string): number {
