@@ -10,6 +10,8 @@ import { BENCHES, player } from "./Avatar";
 import { theater, bumpTheater } from "@/lib/hall/theater";
 import { scheduleAt } from "@/lib/theater-schedule";
 
+/** The theater screen: 4:3 for the public-domain classics, 32 ft wide, its bottom edge a foot over the stage. */
+const SCREEN_W = 32, SCREEN_H = 24, SCREEN_Y = 2 + 1.2 + SCREEN_H / 2;
 type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; duration: number }[] };
 import { CABINET_ROWS } from "./Avatar";
 import { useHall, api } from "@/lib/hall/store";
@@ -446,7 +448,7 @@ function Theater({ night }: { night: boolean }) {
     const t = setInterval(load, 120000);
     return () => { alive = false; clearInterval(t); };
   }, []);
-  const poster = useMemo(() => signTexture([show?.title || "NOW SHOWING", show?.items.length ? "" : "feature presentation · coming soon"].filter(Boolean), { bg: "#05060c", fg: "#ff2bd6", accentBar: "#00f5ff", w: 1024, h: 320, size: 110 }), [show]);
+  const poster = useMemo(() => signTexture([show?.title || "NOW SHOWING", show?.items.length ? "" : "feature presentation · coming soon"].filter(Boolean), { bg: "#05060c", fg: "#ff2bd6", accentBar: "#00f5ff", w: 1024, h: 768, size: 110 }), [show]);
   const video = useMemo(() => {
     if (typeof document === "undefined") return null;
     const v = document.createElement("video");
@@ -455,6 +457,7 @@ function Theater({ night }: { night: boolean }) {
   }, []);
   const tex = useMemo(() => { if (!video) return null; const t = new THREE.VideoTexture(video); t.colorSpace = THREE.SRGBColorSpace; return t; }, [video]);
   const [playing, setPlaying] = useState(false);
+  const [aspect, setAspect] = useState(4 / 3); // the picture's own shape; anything else is letterboxed on the 4:3 screen
   useEffect(() => {
     if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
     const items = show.items;
@@ -474,6 +477,7 @@ function Theater({ night }: { night: boolean }) {
     };
     const onMeta = () => {
       const d = video.duration;
+      if (video.videoWidth && video.videoHeight) setAspect(video.videoWidth / video.videoHeight);
       if (offset >= 0 && Number.isFinite(d) && d > 0) video.currentTime = offset % d;
       void video.play().catch(() => {});
     };
@@ -506,16 +510,17 @@ function Theater({ night }: { night: boolean }) {
       <mesh position={[0, 1, z]} castShadow><boxGeometry args={[36, 2, 10]} /><meshStandardMaterial color="#0f1322" roughness={0.6} metalness={0.2} /></mesh>
       <mesh position={[0, 2.08, z - 5 + 0.08]}><boxGeometry args={[36, 0.14, 0.14]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={neon} toneMapped={false} /></mesh>
       <mesh position={[0, 0.3, z - 5 + 0.08]}><boxGeometry args={[36, 0.1, 0.1]} /><meshStandardMaterial color="#ff2bd6" emissive="#ff2bd6" emissiveIntensity={neon} toneMapped={false} /></mesh>
-      <group position={[0, 9.2, z + 4.5]}>
+      <group position={[0, SCREEN_Y, z + 4.5]}>
         {/* the audience is on the -z side: backing behind the picture, neon bezel just in front of it */}
-        <mesh position={[0, 0, 0.45]}><boxGeometry args={[36.4, 13, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
-        <mesh rotation={[0, Math.PI, 0]}><planeGeometry args={[34, 10.6]} /><meshBasicMaterial map={playing && tex ? tex : poster} toneMapped={false} /></mesh>
-        {[[0, 6.55, 36.4, 0.16], [0, -6.55, 36.4, 0.16], [-18.3, 0, 0.16, 13], [18.3, 0, 0.16, 13]].map(([x, y, w, h], i) => (
+        <mesh position={[0, 0, 0.45]}><boxGeometry args={[SCREEN_W + 2.4, SCREEN_H + 2.4, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
+        {/* the picture at its own aspect, fitted inside the 4:3 screen; the backing shows as black bars around anything wider or taller */}
+        <mesh rotation={[0, Math.PI, 0]}><planeGeometry args={playing ? [Math.min(SCREEN_W, SCREEN_H * aspect), Math.min(SCREEN_H, SCREEN_W / aspect)] : [SCREEN_W, SCREEN_H]} /><meshBasicMaterial map={playing && tex ? tex : poster} toneMapped={false} /></mesh>
+        {[[0, SCREEN_H / 2 + 1.25, SCREEN_W + 2.4, 0.16], [0, -SCREEN_H / 2 - 1.25, SCREEN_W + 2.4, 0.16], [-SCREEN_W / 2 - 1.3, 0, 0.16, SCREEN_H + 2.4], [SCREEN_W / 2 + 1.3, 0, 0.16, SCREEN_H + 2.4]].map(([x, y, w, h], i) => (
           <mesh key={i} position={[x, y, -0.2]}><boxGeometry args={[w, h, 0.16]} /><meshStandardMaterial color={i < 2 ? "#ff2bd6" : "#00f5ff"} emissive={i < 2 ? "#ff2bd6" : "#00f5ff"} emissiveIntensity={neon} toneMapped={false} /></mesh>
         ))}
-        {[-12, 12].map((x) => <mesh key={x} position={[x, -8.6, -0.3]}><boxGeometry args={[0.5, 4.2, 0.5]} /><meshStandardMaterial color="#2b3140" metalness={0.6} roughness={0.4} /></mesh>)}
+        {[-12, 12].map((x) => <mesh key={x} position={[x, -SCREEN_H / 2 - 1.2 - (SCREEN_Y - SCREEN_H / 2 - 1.2 - 2) / 2, -0.3]}><boxGeometry args={[0.5, SCREEN_Y - SCREEN_H / 2 - 1.2 - 2, 0.5]} /><meshStandardMaterial color="#2b3140" metalness={0.6} roughness={0.4} /></mesh>)}
         {/* the screen lights the seats when a film is on */}
-        {playing && <pointLight position={[0, -2, -10]} intensity={night ? 260 : 90} distance={60} decay={2} color="#9fb8ff" />}
+        {playing && <pointLight position={[0, -SCREEN_H / 2, -10]} intensity={night ? 260 : 90} distance={60} decay={2} color="#9fb8ff" />}
       </group>
       {/* benches: two rows, an aisle down the middle, facing the screen */}
       {BENCHES.map((b, i) => (
