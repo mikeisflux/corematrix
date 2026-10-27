@@ -134,6 +134,11 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
 
   if (island) {
     const th = booth.house ? 28 : Math.max(14, sign.height);
+    // the roll-ups (up to 16 ft) stand right in front of each face, so the band and logo live above them,
+    // centred in the free part of the face: band 1.9 ft, gap, 4 ft logo board
+    const freeLo = bh + 1, freeHi = th - 0.5, stack = 1.9 + 0.8 + 4;
+    const stackLo = Math.max(freeLo, (freeLo + freeHi) / 2 - stack / 2);
+    const faceBandY = stackLo + 0.95, faceLogoY = stackLo + 1.9 + 0.8 + 2;
     return (
       <group position={[space.x, 0, space.z]} {...common}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial map={floorArt ?? undefined} color={floorArt && !hovered && !selected ? "#ffffff" : floorColor} roughness={1} transparent opacity={preview ? 0.6 : floorArt ? 1 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
@@ -142,12 +147,13 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         <mesh position={[0, th / 2, 0]} castShadow onClick={bannerClick}><boxGeometry args={[8, th, 8]} /><meshStandardMaterial map={towerArt ?? drape} color="#ffffff" roughness={towerArt ? 0.6 : 0.9} emissiveMap={towerArt ?? undefined} emissive={towerArt ? "#ffffff" : "#000000"} emissiveIntensity={towerArt ? glow : 0} /></mesh>
         {[[-4, -4], [4, -4], [-4, 4], [4, 4]].map(([x, z], i) => <mesh key={i} position={[x, th / 2, z]} material={ALU_DARK}><boxGeometry args={[0.3, th, 0.3]} /></mesh>)}
         <mesh position={[0, th + 0.25, 0]} material={FRAME}><boxGeometry args={[8.6, 0.5, 8.6]} /></mesh>
+        {/* banner band with the logo board above it, stacked in the part of the face that shows above the roll-ups */}
         {!towerArt && ([0, Math.PI / 2, Math.PI, -Math.PI / 2] as const).map((r, i) => (
           <group key={i} rotation={[0, r, 0]}>
-            <mesh position={[0, th * 0.62, 4.02]} material={FRAME}><boxGeometry args={[7.8, 7.6 / 4 + 0.2, 0.05]} /></mesh>
-            <mesh position={[0, th * 0.62, 4.06]} onClick={bannerClick}><planeGeometry args={[7.6, 7.6 / 4]} /><meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} /></mesh>
-            <mesh position={[0, th * 0.3, 4.02]} material={MAT_WHITE}><boxGeometry args={[4.3, 4.3, 0.05]} /></mesh>
-            <mesh position={[0, th * 0.3, 4.06]}><planeGeometry args={[4, 4]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
+            <mesh position={[0, faceBandY, 4.02]} material={FRAME}><boxGeometry args={[7.8, 7.6 / 4 + 0.2, 0.05]} /></mesh>
+            <mesh position={[0, faceBandY, 4.06]} onClick={bannerClick}><planeGeometry args={[7.6, 7.6 / 4]} /><meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} /></mesh>
+            <mesh position={[0, faceLogoY, 4.02]} material={MAT_WHITE}><boxGeometry args={[4.3, 4.3, 0.05]} /></mesh>
+            <mesh position={[0, faceLogoY, 4.06]}><planeGeometry args={[4, 4]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
           </group>
         ))}
         {/* hanging sign */}
