@@ -112,15 +112,23 @@ export function HallCanvas() {
       e.preventDefault();
       perf.contextLost++;              // the perf capture posts it with the next batch of samples
       setLost(true);
-      // the browser restores the context on its own within a few seconds; if it does not, reload into safe settings
-      setTimeout(() => { if (!gl.getContext().isContextLost()) return; const u = new URL(location.href); u.searchParams.set("safe", "1"); location.replace(u.toString()); }, 6000);
+      // the browser restores the context on its own once the driver is back (three re-creates its GL state); we wait and
+      // never navigate ourselves, because a reload while the GPU process is still restarting fails outright
     });
     el.addEventListener("webglcontextrestored", () => { setLost(false); invalidate(); });
   };
   // ACES on the renderer covers the low tier (no composer); the composer applies the same curve in its own pass.
   return (
     <>
-    {lost && <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/90 text-center text-sm text-slate-200"><div><div className="text-lg font-bold">Graphics reset</div><div className="mt-1 text-slate-400">The graphics driver dropped out. Waiting for it to come back; if it does not, the hall reloads in safe mode.</div></div></div>}
+    {lost && (
+      <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/90 text-center text-sm text-slate-200">
+        <div className="max-w-sm px-4">
+          <div className="text-lg font-bold">Graphics reset</div>
+          <div className="mt-1 text-slate-400">Your graphics driver dropped the 3D view. The hall picks up again by itself when the driver is back, usually within a few seconds. If this keeps happening, use Safe mode in ⚙ Settings.</div>
+          <button onClick={() => { const u = new URL(location.href); u.searchParams.set("safe", "1"); location.href = u.toString(); }} className="btn-primary mt-3">Reload in safe mode</button>
+        </div>
+      </div>
+    )}
     <Canvas
       style={{ touchAction: "none" }}
       shadows="percentage"

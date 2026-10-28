@@ -534,7 +534,7 @@ function Other({ id }: { id: string }) {
       <OverheadNotes id={id} />
       {near && (
         <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className={`text-[9px] font-bold uppercase tracking-wider ${away ? "text-slate-400" : "text-emerald-300"}`}>{away ? "away" : "live"}</span></div>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className={`text-[9px] font-bold uppercase tracking-wider ${away ? "text-slate-400" : "text-emerald-300"}`}>{away ? "away" : "live"}</span></div>
         </Html>
       )}
     </group>

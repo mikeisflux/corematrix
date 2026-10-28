@@ -23,7 +23,7 @@ export function PerfOverlay() {
   const d = perf.device;
   const fpsColor = perf.fps >= 50 ? "#5ee6c3" : perf.fps >= 30 ? "#ffcf5c" : "#ff6b6b";
   return (
-    <div className="pointer-events-auto absolute right-16 top-3 z-40 w-[290px] rounded-xl border border-white/10 bg-slate-950/85 p-3 font-mono text-[11px] text-slate-300 backdrop-blur">
+    <div className="pointer-events-auto absolute right-16 top-3 z-40 w-[290px] rounded-xl border border-white/10 bg-slate-950/85 p-3 font-mono text-[11px] text-slate-300">
       <div className="flex items-baseline justify-between"><span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Performance</span><span className="text-[10px] text-slate-500">P to hide</span></div>
       <div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-bold" style={{ color: fpsColor }}>{perf.fps}</span><span>fps</span><span className="ml-auto">{perf.ms.toFixed(1)} ms · p95 {perf.p95.toFixed(1)}</span></div>
       <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">

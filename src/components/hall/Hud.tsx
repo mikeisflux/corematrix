@@ -209,7 +209,7 @@ function Joystick() {
   const end = () => { active.current = false; input.joy.x = 0; input.joy.y = 0; input.run = false; setKnob({ x: 0, y: 0 }); };
   return (
     <div className="pointer-events-auto absolute bottom-24 left-5 md:hidden" style={{ touchAction: "none" }}>
-      <div ref={pad} className="relative h-32 w-32 rounded-full border border-white/20 bg-white/10 backdrop-blur" onPointerDown={(e) => { active.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+      <div ref={pad} className="relative h-32 w-32 rounded-full border border-white/20 bg-white/10" onPointerDown={(e) => { active.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
         <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/80" style={{ transform: `translate(calc(-50% + ${knob.x * 40}px), calc(-50% + ${knob.y * 40}px))` }} />
       </div>
       <div className="mt-1 text-center text-[10px] text-slate-400">push to the edge to run · drag the view to look</div>
