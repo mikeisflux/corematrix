@@ -24,7 +24,7 @@ export function ChatPanel({ room = "lobby", title = "Hall chat" }: { room?: stri
     };
     return () => es.close();
   }, [room]);
-  useEffect(() => bottom.current?.scrollIntoView({ block: "end" }), [msgs]);
+  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [msgs]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();

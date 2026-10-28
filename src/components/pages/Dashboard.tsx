@@ -465,7 +465,7 @@ function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: Return
 function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
   const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
   const [busy, setBusy] = useState(false);
-  useEffect(() => setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }), [p]);
+  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p]);
   const save = async () => {
     setBusy(true);
     try {
@@ -730,7 +730,7 @@ function NameEditor({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: P
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(p.name);
   const [busy, setBusy] = useState(false);
-  useEffect(() => setName(p.name), [p.name]);
+  useEffect(() => { setName(p.name); }, [p.name]);
   const save = async () => {
     const n = name.trim();
     if (!n || n === p.name) { setEditing(false); setName(p.name); return; }

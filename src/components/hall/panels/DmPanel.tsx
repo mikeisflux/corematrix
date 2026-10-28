@@ -23,7 +23,7 @@ export function DmPanel() {
     if (!active) return;
     api<{ me: string; messages: DmMessage[] }>(`/api/dm?with=${encodeURIComponent(active.id)}`).then((d) => { social.dm.me = d.me; social.dm.messages = d.messages; const th = social.dm.threads.find((t) => t.with === active.id); if (th) th.unread = 0; social.dm.unread = social.dm.threads.reduce((a, t) => a + t.unread, 0); bumpSocial(); }).catch(() => {});
   }, [active]);
-  useEffect(() => bottom.current?.scrollIntoView({ block: "end" }), [soc.dm.messages.length]);
+  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [soc.dm.messages.length]);
   if (!active) return <><PanelHeader title="Messages" onBack={() => setPanel("people")} /><p className="p-3 text-xs text-slate-400">Pick someone in People.</p></>;
   const onFloor = live.players.get(active.id);
   const post = async (body: string) => {
