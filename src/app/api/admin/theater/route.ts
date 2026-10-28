@@ -2,14 +2,16 @@ import { NextResponse } from "next/server";
 import { audit } from "@/lib/auth";
 import { getSetting } from "@/lib/settings";
 import { addVideo, listVideos, reorderVideos, videoDir, VIDEO_MAX_BYTES } from "@/lib/theater";
+import { encodeState, ffmpegPath, resumeEncodes, TARGET_HEIGHT, TARGET_KBPS } from "@/lib/theater-encode";
 import { bad, guard, readJson } from "../_lib";
 export const dynamic = "force-dynamic";
 
 /** The whole playlist for the admin page, with where files live and the caption. */
 export async function GET() {
   const g = await guard(); if (g instanceof NextResponse) return g;
+  await resumeEncodes();
   const [rows, title] = await Promise.all([listVideos(), getSetting("THEATER_TITLE")]);
-  return NextResponse.json({ rows, title, dir: videoDir(), maxBytes: VIDEO_MAX_BYTES });
+  return NextResponse.json({ rows, title, dir: videoDir(), maxBytes: VIDEO_MAX_BYTES, encoder: !!ffmpegPath(), target: { height: TARGET_HEIGHT, kbps: TARGET_KBPS }, ...encodeState() });
 }
 /** Add an external video by URL. */
 export async function POST(req: Request) {

@@ -465,7 +465,7 @@ function Theater({ night }: { night: boolean }) {
     if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
     const items = show.items;
     const dead = new Set<number>();
-    let alive = true, current = -1, offset = -1;
+    let alive = true, current = -1, offset = -1, stalled = false;
     const clock = () => Date.now() / 1000; // server and client clocks agree well enough for a film
     // the clock says which film and how far in; load it and jump there once its length is known
     // The clock says which film and how far in. Small drift is corrected by nudging the playback rate (invisible);
@@ -480,27 +480,46 @@ function Theater({ night }: { night: boolean }) {
       const d = video.duration;
       if (s.offset >= 0 && Number.isFinite(d) && d > 0) {
         const drift = video.currentTime - s.offset; // + means we are ahead
-        if (video.ended || Math.abs(drift) > 8) { video.currentTime = s.offset % d; video.playbackRate = 1; }
-        else video.playbackRate = Math.abs(drift) < 0.4 ? 1 : drift > 0 ? 0.94 : 1.06;
+        if (video.ended || Math.abs(drift) > 20) { video.currentTime = s.offset % d; video.playbackRate = 1; }
+        else video.playbackRate = stalled ? 1 : Math.abs(drift) < 0.4 ? 1 : drift > 0 ? 0.94 : 1.06;
       }
-      if (video.paused) void video.play().catch(() => {});
+      if (video.paused && !stalled) void video.play().catch(() => {});
     };
     tuneRef.current = tune;
+    // Buffer before showing: the film starts (and resumes after a stall) only once a few seconds are loaded ahead,
+    // so it plays smoothly instead of in fits; lost time is made up by the gentle rate nudge in tune().
+    const AHEAD = 6;
+    const ahead = () => { const b = video.buffered, t = video.currentTime; for (let k = 0; k < b.length; k++) if (b.start(k) <= t + 0.1 && b.end(k) >= t) return b.end(k) - t; return 0; };
+    let waitTimer: ReturnType<typeof setInterval> | null = null;
+    const playWhenBuffered = () => {
+      if (waitTimer) return;
+      stalled = true;
+      waitTimer = setInterval(() => {
+        if (!alive) { clearInterval(waitTimer!); waitTimer = null; return; }
+        const d = video.duration;
+        const enough = ahead() >= AHEAD || video.readyState >= 4 || (Number.isFinite(d) && d - video.currentTime < AHEAD + 1);
+        if (!enough || farRef.current) return;
+        clearInterval(waitTimer!); waitTimer = null; stalled = false;
+        void video.play().catch(() => {});
+      }, 250);
+    };
     const onMeta = () => {
       const d = video.duration;
       if (video.videoWidth && video.videoHeight) setAspect(video.videoWidth / video.videoHeight);
       if (offset >= 0 && Number.isFinite(d) && d > 0) video.currentTime = offset % d;
-      void video.play().catch(() => {});
+      playWhenBuffered();
     };
+    const onWaiting = () => { if (!video.seeking || ahead() < 1) { video.pause(); playWhenBuffered(); } };
     const onPlaying = () => { if (alive) { setPlaying(true); theater.playing = true; theater.title = show.title; bumpTheater(); } };
     const onEnded = () => tune(); // the schedule says what is next; the same film again is a seek, not a reload
     const onErr = () => { if (!alive) return; dead.add(current); current = -1; tune(); };
-    video.addEventListener("loadedmetadata", onMeta); video.addEventListener("playing", onPlaying); video.addEventListener("ended", onEnded); video.addEventListener("error", onErr);
+    video.addEventListener("loadedmetadata", onMeta); video.addEventListener("playing", onPlaying); video.addEventListener("ended", onEnded); video.addEventListener("error", onErr); video.addEventListener("waiting", onWaiting);
     tune();
     const sync = setInterval(tune, 4000);
     return () => {
       alive = false; clearInterval(sync);
-      video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("playing", onPlaying); video.removeEventListener("ended", onEnded); video.removeEventListener("error", onErr);
+      video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("playing", onPlaying); video.removeEventListener("ended", onEnded); video.removeEventListener("error", onErr); video.removeEventListener("waiting", onWaiting);
+      if (waitTimer) clearInterval(waitTimer);
       video.pause(); video.removeAttribute("src"); video.load();
       theater.playing = false; bumpTheater();
     };

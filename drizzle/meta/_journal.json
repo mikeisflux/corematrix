@@ -57,6 +57,13 @@
       "when": 1793079627519,
       "tag": "0007_theater",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793164470834,
+      "tag": "0008_theater_status",
+      "breakpoints": true
     }
   ]
 }

@@ -16,14 +16,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const base = { "Content-Type": type, "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600" };
   const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
   if (!range) {
-    return new NextResponse(Readable.toWeb(fs.createReadStream(file)) as ReadableStream, { status: 200, headers: { ...base, "Content-Length": String(size) } });
+    return new NextResponse(Readable.toWeb(fs.createReadStream(file, { highWaterMark: 1 << 20 })) as ReadableStream, { status: 200, headers: { ...base, "Content-Length": String(size) } });
   }
   let start = range[1] ? Number(range[1]) : 0;
   let end = range[2] ? Number(range[2]) : size - 1;
   if (!range[1] && range[2]) { start = Math.max(0, size - Number(range[2])); end = size - 1; }
   end = Math.min(end, size - 1);
   if (start > end || start >= size) return new NextResponse(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
-  return new NextResponse(Readable.toWeb(fs.createReadStream(file, { start, end })) as ReadableStream, {
+  return new NextResponse(Readable.toWeb(fs.createReadStream(file, { start, end, highWaterMark: 1 << 20 })) as ReadableStream, {
     status: 206,
     headers: { ...base, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": String(end - start + 1) },
   });

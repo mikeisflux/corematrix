@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Empty, Input, ConfirmButton } from "./shared";
 import { scheduleAt } from "@/lib/theater-schedule";
 
-interface Row { id: string; title: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; createdAt: number }
-interface Resp { rows: Row[]; title: string; dir: string; maxBytes: number }
+interface Row { id: string; title: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; status: string; createdAt: number }
+interface Resp { rows: Row[]; title: string; dir: string; maxBytes: number; encoder: boolean; target: { height: number; kbps: number }; encoding: string | null; queued: string[] }
 
 const fmtDur = (s: number) => (s > 0 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : "?");
 const fmtBytes = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(2)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(0)} MB` : b > 0 ? `${Math.round(b / 1024)} KB` : "");
@@ -31,7 +31,9 @@ export default function Theater() {
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
   const rows = list.data?.rows ?? [];
-  const enabled = rows.filter((r) => r.enabled);
+  const enabled = rows.filter((r) => r.enabled && r.status === "ready");
+  const processing = rows.some((r) => r.status === "processing");
+  useEffect(() => { if (!processing) return; const t = setInterval(list.reload, 10000); return () => clearInterval(t); }, [processing, list.reload]);
   const total = enabled.reduce((a, r) => a + r.duration, 0);
   const sched = enabled.length ? scheduleAt(enabled, Date.now() / 1000) : null;
   void tick;
@@ -116,6 +118,7 @@ export default function Theater() {
     [ids[i], ids[j]] = [ids[j], ids[i]];
     try { await api("/api/admin/theater", { method: "PATCH", json: { order: ids } }); list.reload(); } catch (e) { toast.err((e as Error).message); }
   };
+  const encode = async (id: string) => { try { await api(`/api/admin/theater/${id}/encode`, { method: "POST" }); toast.ok("Queued for downsampling"); list.reload(); } catch (e) { toast.err((e as Error).message); } };
   const remove = async (id: string) => { try { await api(`/api/admin/theater/${id}`, { method: "DELETE" }); toast.ok("Removed"); list.reload(); } catch (e) { toast.err((e as Error).message); } };
 
   return (
@@ -140,7 +143,10 @@ export default function Theater() {
               <div style={{ height: 6, background: "var(--surface-2)", border: "1px solid var(--rule)" }}><div style={{ height: "100%", width: `${progress.pct}%`, background: "var(--heat-1)" }} /></div>
             </div>
           )}
-          <p className="admMuted" style={{ fontSize: 12 }}>Browsers play H.264 MP4 everywhere. Encode at 720p or 1080p, 4–8 Mbps: every frame is copied onto the 3D screen, so a 4K file makes it stutter and gains nothing on a 32 ft screen seen from the benches. Uploads go up in 8 MB pieces and resume: if the connection drops or the tab closes, pick the same file again and it continues from where it stopped.</p>
+          <p className="admMuted" style={{ fontSize: 12 }}>Uploads go up in 8 MB pieces and resume: if the connection drops or the tab closes, pick the same file again and it continues from where it stopped.</p>
+          {list.data && (list.data.encoder
+            ? <p className="admNote admNote--ok" style={{ fontSize: 12 }}>After upload each film is downsampled on the server for the screen: H.264 at most {list.data.target.height}p and about {(list.data.target.kbps / 1000).toFixed(1)} Mbps, with the index up front so it starts and seeks instantly. It plays once that is done (a feature film takes several minutes); films that are already small are only repackaged.</p>
+            : <p className="admNote admNote--err" style={{ fontSize: 12 }}>ffmpeg is not installed on the server, so films play as uploaded. Install it (<span className="admMono">sudo apt install ffmpeg</span>, then restart the app) and uploads will be downsampled to {list.data.target.height}p automatically, which is what stops the screen from stalling.</p>)}
         </div>
         <div className="admCard">
           <div className="admCard__hd"><b>Add by link</b><span className="admMuted">a direct .mp4/.webm address</span></div>
@@ -170,11 +176,12 @@ export default function Theater() {
                 <td><input className="admInput" style={{ minWidth: 220 }} defaultValue={r.title} onBlur={(e) => { if (e.target.value !== r.title) void patch(r.id, { title: e.target.value }); }} /></td>
                 <td>{r.kind === "file" ? <><Badge kind="info">upload</Badge> <a href={`/api/theater/file/${r.id}`} target="_blank" rel="noreferrer">play</a></> : <><Badge kind="dim">link</Badge> <a href={r.src} target="_blank" rel="noreferrer" className="admMono" style={{ fontSize: 11 }}>{r.src.slice(0, 48)}{r.src.length > 48 ? "…" : ""}</a></>}</td>
                 <td className="num">{fmtDur(r.duration)}</td>
-                <td className="num">{fmtBytes(r.bytes)}</td>
+                <td className="num">{fmtBytes(r.bytes)}{r.status === "processing" && <div><Badge kind="warn">{list.data?.encoding === r.id ? "downsampling…" : "queued"}</Badge></div>}</td>
                 <td><input type="checkbox" checked={!!r.enabled} onChange={(e) => void patch(r.id, { enabled: e.target.checked })} /></td>
                 <td className="act">
                   <button className="admBtn admBtn--sm" disabled={i === 0} onClick={() => void move(i, -1)} title="Earlier">↑</button>{" "}
                   <button className="admBtn admBtn--sm" disabled={i === rows.length - 1} onClick={() => void move(i, 1)} title="Later">↓</button>{" "}
+                  {r.kind === "file" && r.status === "ready" && list.data?.encoder && <><button className="admBtn admBtn--sm" onClick={() => void encode(r.id)} title="Re-encode for the screen">Downsample</button>{" "}</>}
                   <ConfirmButton className="admBtn admBtn--sm" message={`Remove "${r.title}"${r.kind === "file" ? " and delete the file from the server" : ""}?`} onConfirm={() => remove(r.id)}>Remove</ConfirmButton>
                 </td>
               </tr>

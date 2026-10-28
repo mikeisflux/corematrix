@@ -472,5 +472,6 @@ export const theaterVideos = sqliteTable("theater_videos", {
   duration: real("duration").notNull().default(0), // seconds; 0 = unknown
   position: integer("position").notNull().default(0),
   enabled: integer("enabled").notNull().default(1),
+  status: text("status").notNull().default("ready"), // ready | processing (being downsampled for the screen)
   createdAt: integer("created_at").notNull(),
 });

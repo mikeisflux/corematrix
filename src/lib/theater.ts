@@ -38,13 +38,17 @@ export async function getVideo(id: string): Promise<TheaterVideo | null> {
 export async function addVideo(input: { title: string; kind: "file" | "url"; src: string; mime?: string | null; bytes?: number; duration?: number; id?: string }): Promise<TheaterVideo> {
   await ensureMigrated();
   const [{ maxPos }] = await db.select({ maxPos: sql<number>`coalesce(max(position), -1)` }).from(schema.theaterVideos);
-  const row = { id: input.id ?? newId(), title: input.title.trim().slice(0, 120) || "Untitled", kind: input.kind, src: input.src, mime: input.mime ?? null, bytes: input.bytes ?? 0, duration: Math.max(0, input.duration ?? 0), position: Number(maxPos) + 1, enabled: 1, createdAt: now() };
+  const row = { id: input.id ?? newId(), title: input.title.trim().slice(0, 120) || "Untitled", kind: input.kind, src: input.src, mime: input.mime ?? null, bytes: input.bytes ?? 0, duration: Math.max(0, input.duration ?? 0), position: Number(maxPos) + 1, enabled: 1, status: "ready", createdAt: now() };
   await db.insert(schema.theaterVideos).values(row);
   return row;
 }
-export async function updateVideo(id: string, patch: { title?: string; enabled?: boolean; duration?: number }): Promise<TheaterVideo | null> {
+export async function updateVideo(id: string, patch: { title?: string; enabled?: boolean; duration?: number; status?: string; src?: string; mime?: string; bytes?: number }): Promise<TheaterVideo | null> {
   await ensureMigrated();
   const set: Partial<TheaterVideo> = {};
+  if (typeof patch.status === "string") set.status = patch.status;
+  if (typeof patch.src === "string") set.src = patch.src;
+  if (typeof patch.mime === "string") set.mime = patch.mime;
+  if (typeof patch.bytes === "number") set.bytes = patch.bytes;
   if (typeof patch.title === "string") set.title = patch.title.trim().slice(0, 120) || "Untitled";
   if (typeof patch.enabled === "boolean") set.enabled = patch.enabled ? 1 : 0;
   if (typeof patch.duration === "number" && Number.isFinite(patch.duration)) set.duration = Math.max(0, patch.duration);
@@ -69,7 +73,7 @@ export async function playlist() {
   return {
     title: (title || "Now showing").slice(0, 60),
     serverTime: Date.now(),
-    items: rows.filter((r) => r.enabled).map((r) => ({ id: r.id, title: r.title, url: r.kind === "file" ? `/api/theater/file/${r.id}` : r.src, duration: r.duration })),
+    items: rows.filter((r) => r.enabled && r.status === "ready").map((r) => ({ id: r.id, title: r.title, url: r.kind === "file" ? `/api/theater/file/${r.id}` : r.src, duration: r.duration })),
   };
 }
 export { scheduleAt } from "@/lib/theater-schedule";
