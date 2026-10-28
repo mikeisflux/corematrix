@@ -377,7 +377,19 @@ export function buildAvatarClips(): THREE.AnimationClip[] {
     qTrack("shin_l", D, 32, () => e(0.05)), qTrack("shin_r", D, 32, () => e(0.05)),
     qTrack("shoe_l", D, 32, () => e(0)), qTrack("shoe_r", D, 32, () => e(0)),
   ]);
-  return [idle, gait("walk", 1.0, 0.5, 0.05, 0.07, 0.4, 0.42, 1.0), gait("run", 0.6, 0.9, 0.2, 0.13, 1.25, 0.85, 1.5), ...buildEmoteClips()];
+  // seated: hips dropped to chair height (seat tops are about 1.5 ft), thighs level, shins down, hands in the lap, a slow look-about
+  const sit = new THREE.AnimationClip("sit", D, [
+    pTrack("hips", D, 32, HIPS, (t) => [0, -1.35 + S(t * 2, 0.5) * 0.01, 0.15]),
+    qTrack("hips", D, 32, () => e(0, 0, 0)),
+    qTrack("torso", D, 32, (t) => e(0.08 + S(t * 2, 0.5) * 0.012, -S(t) * 0.03, 0)),
+    qTrack("head", D, 32, (t) => e(-0.04 + S(t * 2, 1.2) * 0.03, Math.sin(S(t) * 1.4) * 0.2, 0)),
+    qTrack("shoulder_l", D, 32, (t) => e(0.55 + S(t * 2, 0.5) * 0.02, 0, -0.2)), qTrack("shoulder_r", D, 32, (t) => e(0.55 - S(t * 2, 0.5) * 0.02, 0, 0.2)),
+    qTrack("forearm_l", D, 32, () => e(-0.9, 0.35, 0)), qTrack("forearm_r", D, 32, () => e(-0.9, -0.35, 0)),
+    qTrack("thigh_l", D, 32, () => e(-1.5, 0, -0.06)), qTrack("thigh_r", D, 32, () => e(-1.5, 0, 0.06)),
+    qTrack("shin_l", D, 32, () => e(1.45)), qTrack("shin_r", D, 32, () => e(1.45)),
+    qTrack("shoe_l", D, 32, () => e(0.1)), qTrack("shoe_r", D, 32, () => e(0.1)),
+  ]);
+  return [idle, gait("walk", 1.0, 0.5, 0.05, 0.07, 0.4, 0.42, 1.0), gait("run", 0.6, 0.9, 0.2, 0.13, 1.25, 0.85, 1.5), sit, ...buildEmoteClips()];
 }
 
 /** Emotes people can trigger: one-shot clips, all bones keyed so they read cleanly over whatever was playing. */

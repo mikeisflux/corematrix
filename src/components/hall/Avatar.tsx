@@ -12,6 +12,7 @@ import { live, type LivePlayer } from "@/lib/hall/live";
 import { getPrefs } from "@/lib/hall/prefs";
 import { perf } from "@/lib/hall/perf";
 import { conbot } from "@/lib/hall/conbot";
+import { nearestSeat, seating, type Seat } from "@/lib/hall/seats";
 import { social, guestName, bumpSocial, useSocial } from "@/lib/hall/social";
 import { EMOTES } from "@/lib/hall/modelkit/avatar";
 import { Suspense } from "react";
@@ -19,9 +20,9 @@ import { Suspense } from "react";
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
 export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
 /** Where the walker is, for things that react to the player (ConBot) without going through React. */
-export const player = { x: 0, z: 0, h: 0 };
+export const player = { x: 0, z: 0, h: 0, seated: false };
 /** The walker's animation state; the emote panel and number keys write emotes into it. */
-export const playerMotion: Motion = { speed: 0, emote: null };
+export const playerMotion: Motion = { speed: 0, emote: null, sit: false };
 /**
  * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a
  * find bar, a menu, another window), which would leave the figure walking
@@ -204,10 +205,32 @@ export function Player() {
   const fp = useRef(false);
   const me = useHall((s) => s.me);
   const lastReport = useRef(0);
+  // sitting: the figure snaps onto the seat facing the way the chair faces; any movement input stands it up again
+  const seat = useRef<Seat | null>(null);
+  const mayUse = (s: Seat) => s.booth == null || useHall.getState().myBooths.some((b) => b.id === s.booth);
+  const sitDown = (s: Seat) => {
+    if (!mayUse(s)) { useHall.getState().setToast("That chair is the exhibitor's. Benches in the theater are open to everyone."); return; }
+    seat.current = s; motion.sit = true; motion.speed = 0; motion.emote = null;
+    pos.current.set(s.x, 0, s.z); heading.current = s.yaw;
+    // the view: behind you on a bench (watching the screen); from the aisle at your table, since the roll-up and tower are right behind the chair
+    yaw.current = s.booth != null ? s.yaw + Math.PI : s.yaw;
+    player.seated = true; useHall.getState().setSeated(s); social.pending.dirty = true;
+  };
+  const standUp = () => {
+    const s = seat.current; if (!s) return;
+    seat.current = null; motion.sit = false; player.seated = false; useHall.getState().setSeated(null);
+    const fp = freePoint(s.x + Math.sin(s.yaw) * 1.6, s.z + Math.cos(s.yaw) * 1.6);
+    pos.current.set(fp.x, 0, fp.z); social.pending.dirty = true;
+  };
+  const toggleSit = () => {
+    if (seat.current) { standUp(); return; }
+    const s = nearestSeat(pos.current.x, pos.current.z, mayUse);
+    if (s) sitDown(s); else useHall.getState().setToast("Walk up to your chair or a theater bench to sit.");
+  };
   const report = (leave = false) => {
     const pend = social.pending;
     const fresh = (t: number) => Date.now() - t < 6000;
-    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: motion.speed, n: me?.displayName || guestName() || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null };
+    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: me?.displayName || guestName() || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null };
     pend.dirty = false;
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
       .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
@@ -227,6 +250,7 @@ export function Player() {
   useEffect(() => {
     if (!walkPoint) return;
     const fp = freePoint(walkPoint.x, walkPoint.z);
+    if (seat.current) { seat.current = null; motion.sit = false; player.seated = false; useHall.getState().setSeated(null); }
     pos.current.set(fp.x, 0, fp.z);
     if (walkPoint.face) { heading.current = Math.atan2(walkPoint.face.x - fp.x, walkPoint.face.z - fp.z); yaw.current = heading.current; }
     setWalkPoint(null);
@@ -235,6 +259,7 @@ export function Player() {
     if (walkTarget == null) return;
     const sp = freePoint(standPoint(walkTarget).x, standPoint(walkTarget).z);
     const b = boothSpace(walkTarget);
+    if (seat.current) { seat.current = null; motion.sit = false; player.seated = false; useHall.getState().setSeated(null); }
     pos.current.set(sp.x, 0, sp.z);
     if (b) heading.current = Math.atan2(b.x - sp.x, b.z - sp.z);
     yaw.current = heading.current;
@@ -247,6 +272,7 @@ export function Player() {
       const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
       if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); else if (useHall.getState().nearBot) useHall.getState().setPanel("conbot"); }
       if (e.key === "v" || e.key === "V") { fp.current = !fp.current; setFirstPerson(fp.current); }
+      if (e.key === "c" || e.key === "C") toggleSit();
       const n = Number(e.key); if (n >= 1 && n <= EMOTES.length) { const em = EMOTES[n - 1]; social.pending.e = { n: em.id, t: Date.now() }; social.pending.dirty = true; bumpSocial(); }
     };
     window.addEventListener("keydown", onKey);
@@ -270,7 +296,11 @@ export function Player() {
     yaw.current += input.yawDrag; input.yawDrag = 0;
     pitch.current = THREE.MathUtils.clamp(pitch.current + input.pitchDrag, -0.45, 0.6); input.pitchDrag = 0;
     const run = isDown("shift") || input.run;
-    const len = Math.hypot(fx, fz);
+    let len = Math.hypot(fx, fz);
+    // a sit request from the HUD button or a click on a seat
+    const rq = seating.request;
+    if (rq) { seating.request = null; if (rq.seat === "stand") standUp(); else if (Math.hypot(rq.seat.x - pos.current.x, rq.seat.z - pos.current.z) < 14) { if (seat.current) standUp(); sitDown(rq.seat); } else useHall.getState().setToast("Walk closer to sit there."); }
+    if (seat.current) { if (len > 0.3) standUp(); else len = 0; }
     if (len <= 0.01) motion.speed = 0;
     if (len > 0.01) {
       const nx = fx / Math.max(1, len), nz = fz / Math.max(1, len);
@@ -291,7 +321,7 @@ export function Player() {
     group.current.position.copy(pos.current);
     group.current.rotation.y = heading.current;
     player.x = pos.current.x; player.z = pos.current.z; player.h = heading.current;
-    if (social.pending.e && (!motion.emote || motion.emote.at !== social.pending.e.t)) motion.emote = { name: social.pending.e.n, at: social.pending.e.t };
+    if (!seat.current && social.pending.e && (!motion.emote || motion.emote.at !== social.pending.e.t)) motion.emote = { name: social.pending.e.n, at: social.pending.e.t };
     // share where we are: 6×/s while moving, once a second standing still, at once when an emote or reaction fired
     if (social.pending.dirty || state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
     // camera
@@ -313,6 +343,8 @@ export function Player() {
         if (dist < bd) { bd = dist; best = b.id; }
       }
       if (best !== near.current) { near.current = best; useHall.getState().setNear(best); }
+      const ns = seat.current ? null : nearestSeat(pos.current.x, pos.current.z, mayUse);
+      if ((ns?.id ?? null) !== (useHall.getState().nearSeat?.id ?? null)) useHall.getState().setNearSeat(ns);
     }
   });
 
@@ -479,7 +511,7 @@ function Other({ id }: { id: string }) {
     c.x += (p.x - c.x) * k; c.z += (p.z - c.z) * k;
     let dh = p.h - c.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); c.h += dh * k;
     g.position.set(c.x, 0, c.z); g.rotation.y = c.h;
-    motion.speed = p.s;
+    motion.speed = p.s === 3 ? 0 : p.s; motion.sit = p.s === 3;
     if (p.e && Date.now() - p.e.t < 6000 && (!motion.emote || motion.emote.at !== p.e.t)) motion.emote = { name: p.e.n, at: p.e.t };
     if (p.r && Date.now() - p.r.t < 4000) { const cur = social.reactions.get(id); if (!cur || cur.until - 3000 < p.r.t) { social.reactions.set(id, { k: p.r.k, until: p.r.t + 3000 }); bumpSocial(); } }
     if (p.a && p.a !== cfg && JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a);

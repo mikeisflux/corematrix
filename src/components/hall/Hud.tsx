@@ -19,6 +19,7 @@ import { AvatarPanel } from "./panels/AvatarPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { ConBotPanel } from "./panels/ConBotPanel";
 import { EmotesPanel } from "./panels/EmotesPanel";
+import { requestSit } from "@/lib/hall/seats";
 import { PeoplePanel } from "./panels/PeoplePanel";
 import { DmPanel } from "./panels/DmPanel";
 import { useSocial } from "@/lib/hall/social";
@@ -42,6 +43,8 @@ export function Hud() {
   const setMode = useHall((s) => s.setMode);
   const near = useHall((s) => s.near);
   const nearBot = useHall((s) => s.nearBot);
+  const nearSeat = useHall((s) => s.nearSeat);
+  const seated = useHall((s) => s.seated);
   const th = useTheater();
   const soc = useSocial();
   const booths = useHall((s) => s.booths);
@@ -163,6 +166,13 @@ export function Hud() {
           <span className={`rounded-md px-1.5 text-[11px] ${th.sound ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10"}`}>{th.sound ? "🔊 sound on · off when you leave the arcade" : "🔇 tap here or click the screen for sound"}</span>
         </button>
       )}
+      {mode === "walk" && panel === "none" && (seated || nearSeat) && (
+        <button onClick={() => requestSit(seated ? "stand" : nearSeat!)} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up" style={{ marginBottom: nearBooth || nearBot ? 52 : 0 }}>
+          <span className="text-lg">🪑</span>
+          <span>{seated ? <><b>Seated</b> · tap or move to stand up</> : <><b>{nearSeat!.booth != null ? "Sit at your table" : "Take a seat"}</b>{nearSeat!.booth == null ? " · theater bench" : ""}</>}</span>
+          <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">C</span>
+        </button>
+      )}
       {mode === "walk" && !nearBooth && nearBot && panel === "none" && (
         <button onClick={() => setPanel("conbot")} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
           <span className="text-lg">🤖</span>
@@ -172,7 +182,7 @@ export function Hud() {
       )}
       {toast && <div className="absolute bottom-16 left-1/2 -translate-x-1/2 panel rounded-full px-4 py-2 text-sm fade-up">{toast}</div>}
       {!loaded && <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg)]/70 text-sm text-slate-300">Opening the hall…</div>}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "arrows / WASD walk · drag the mouse to look · shift run · E open booth · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "arrows / WASD walk · drag the mouse to look · shift run · E open booth · C sit · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
     </div>
   );
 }

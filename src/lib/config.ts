@@ -32,6 +32,7 @@ export const MIN_BOOST_CENTS = 100;
 export const BANNER = {
   defaultHeight: 6,
   maxHeight: 16,
+  islandMaxHeight: 10, // four roll-ups ring a 3 ft tower: 5 × 10 is the biggest that fits without the banners crossing
   artistMaxHeight: 6,
   perFootCents: 200, // one-time, per foot above the default
   heights: [6, 8, 10, 12, 16] as const,

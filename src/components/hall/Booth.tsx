@@ -10,6 +10,8 @@ import { useHall, track, type HallBooth } from "@/lib/hall/store";
 import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
 import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
 import { Prop } from "./models";
+import { registerSeat, unregisterSeat, requestSit, seatOf } from "@/lib/hall/seats";
+import { useEffect } from "react";
 
 interface Props { booth: HallBooth; night: boolean; hovered: boolean; selected: boolean; preview?: boolean }
 
@@ -119,7 +121,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const island = space.size === "20x20";
   const artist = space.kind === "artist";
   const glow = night ? 0.35 : 0;
-  const bh = Math.min(artist ? BANNER.artistMaxHeight : BANNER.maxHeight, Math.max(BANNER.defaultHeight, booth.bannerHeight || BANNER.defaultHeight)), bw = bannerWidth(bh);
+  const bh = Math.min(artist ? BANNER.artistMaxHeight : island ? BANNER.islandMaxHeight : BANNER.maxHeight, Math.max(BANNER.defaultHeight, booth.bannerHeight || BANNER.defaultHeight)), bw = bannerWidth(bh);
   const bannerClick = (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { if (!openSite(booth.id, booth.website, "banner")) select(booth.id); else select(booth.id); } };
   const tip = (hovered || selected) && !preview && (
     <Html position={[0, (island ? sign.height : 9) + 3, 0]} center zIndexRange={[50, 0]} style={{ pointerEvents: "none" }}>
@@ -148,6 +150,10 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     const freeLo = bh + 1, freeHi = th - 0.5, stack = 0.7 + 0.6 + 2.4;
     const stackLo = Math.max(freeLo, (freeLo + freeHi) / 2 - stack / 2);
     const faceBandY = stackLo + 0.35, faceLogoY = stackLo + 0.7 + 0.6 + 1.2;
+    // roll-up distance from the tower centre: against the face for a 3 ft banner, out to half its width plus a hand for wider
+    // ones so neighbouring banners clear each other; the chair sits a seat's depth in front of it, never past the table edge (6.1)
+    const rd = Math.max(TOWER_W / 2 + 0.5, bw / 2 + 0.4);
+    const cd = Math.min(5.6, Math.max(4.3, rd + 1.25));
     return (
       <group position={[space.x, 0, space.z]} {...common}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial map={floorArt ?? undefined} color={floorArt && !hovered && !selected ? "#ffffff" : floorColor} roughness={1} transparent opacity={preview ? 0.6 : floorArt ? 1 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
@@ -178,11 +184,11 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
-        {/* a chair behind each table, centred in front of the roll-up, facing the table */}
-        {([[0, -4.3, Math.PI], [0, 4.3, 0], [4.3, 0, Math.PI / 2], [-4.3, 0, -Math.PI / 2]] as const).map(([x, z, r], i) => <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><Prop name="chair" fallback={chairFallback} /></group>)}
-        {/* roll-up banner against each tower face, facing out (3×6 by default, up to 8×16 when upgraded) */}
-        {([[0, -2.0, Math.PI], [0, 2.0, 0], [-2.0, 0, -Math.PI / 2], [2.0, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
-          <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={rollups[i]} glow={glow} onClick={bannerClick} /></group>
+        {/* a chair behind each table, centred in front of the roll-up, facing the table (tucked up to the table when the roll-ups are wide) */}
+        {([[0, -1, Math.PI], [0, 1, 0], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const).map(([x, z, r], i) => <Chair key={i} booth={booth.id} n={i} x={x * cd} z={z * cd} rot={r} fallback={chairFallback} />)}
+        {/* roll-up banner on each side of the tower, facing out (3×6 by default, up to 8×16 when upgraded); wide ones stand further out so the four never cross at the corners */}
+        {([[0, -1, Math.PI], [0, 1, 0], [-1, 0, -Math.PI / 2], [1, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
+          <group key={i} position={[x * rd, 0, z * rd]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={rollups[i]} glow={glow} onClick={bannerClick} /></group>
         ))}
         {night && !booth.house && <pointLight position={[0, th + 2, 0]} intensity={120} distance={50} color={booth.accent} />}
         {booth.house && <Flagship color={booth.color} logo={cubeLogo} banner={banner} th={th} />}
@@ -203,7 +209,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* retractable banner stand */}
         <group position={[-w / 2 + 1.1, 0, 0]} rotation={[0, Math.PI / 2, 0]}><RollUp bw={3} bh={6} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
         {/* chair, beside the roll-up so neither hides the other */}
-        <group position={[-w / 2 + 1.8, 0, 2.4]} rotation={[0, Math.PI / 2, 0]}><Prop name="chair" fallback={chairFallback} /></group>
+        <Chair booth={booth.id} n={0} x={-w / 2 + 1.8} z={2.4} rot={Math.PI / 2} fallback={chairFallback} />
         {sign.level >= 2 && <HangingSign tex={hang} y={sign.height} w={9} night={night} onClick={bannerClick} />}
         {tip}
       </group>
@@ -237,7 +243,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       {/* tables */}
       {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bannerClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />}
       {/* a chair behind each table, facing the aisle */}
-      {(wide ? [-5, 5] : [0]).map((z) => <group key={z} position={[w / 2 - 4.6, 0, z + 1.6]} rotation={[0, Math.PI / 2, 0]}><Prop name="chair" fallback={chairFallback} /></group>)}
+      {(wide ? [-5, 5] : [0]).map((z, i) => <Chair key={z} booth={booth.id} n={i} x={w / 2 - 4.6} z={z + 1.6} rot={Math.PI / 2} fallback={chairFallback} />)}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
       {(wide ? [-5, 5] : [0]).map((z) => (
         <group key={z} position={[-w / 2 + 1.1, 0, z]} rotation={[0, Math.PI / 2, 0]}><RollUp bw={bw} bh={bh} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
@@ -321,6 +327,23 @@ function HangingSign({ tex, y, w, night, onClick, big }: { tex: THREE.Texture; y
       {[-w / 2 + 1, w / 2 - 1].map((z) => <mesh key={z} geometry={BAR} material={ALU} position={[0, h / 2 + (CEILING - top) / 2, z]} scale={[1, CEILING - top, 1]} />)}
     </group>
   );
+}
+
+/** A folding chair that is also a seat: it registers its world position and facing so the booth's owner can sit on it (C, the HUD button or a click). */
+function Chair({ booth, n, x, z, rot, fallback }: { booth: number; n: number; x: number; z: number; rot: number; fallback: React.ReactNode }) {
+  const ref = useRef<THREE.Group>(null);
+  const id = `booth:${booth}:${n}`;
+  useEffect(() => {
+    const g = ref.current; if (!g) return;
+    g.updateWorldMatrix(true, false);
+    const p = new THREE.Vector3(), q = new THREE.Quaternion();
+    g.getWorldPosition(p); g.getWorldQuaternion(q);
+    const f = new THREE.Vector3(0, 0, 1).applyQuaternion(q); // the chair faces its local +z
+    registerSeat({ id, x: p.x, z: p.z, yaw: Math.atan2(f.x, f.z), booth });
+    return () => unregisterSeat(id);
+  }, [id, booth, x, z, rot]);
+  const sit = (e: { stopPropagation: () => void }) => { e.stopPropagation(); const s = seatOf(id); if (s) requestSit(s); };
+  return <group ref={ref} position={[x, 0, z]} rotation={[0, rot, 0]} onClick={sit}><Prop name="chair" fallback={fallback} /></group>;
 }
 
 /** The house booth's extras: LED floor ring, light columns on the corners, lit tower edges and cap, a spinning logo cube on the tower, scrolling marquee banners, always-on glow. */

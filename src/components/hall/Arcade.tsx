@@ -7,6 +7,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { signTexture } from "./textures";
 import { ARCADE } from "@/lib/hall/layout";
 import { BENCHES, player } from "./Avatar";
+import { BENCH_SEATS, requestSit } from "@/lib/hall/seats";
 import { theater, bumpTheater, setTheaterSound } from "@/lib/hall/theater";
 import { scheduleAt } from "@/lib/theater-schedule";
 
@@ -566,7 +567,7 @@ function Theater({ night }: { night: boolean }) {
       </group>
       {/* benches: two rows, an aisle down the middle, facing the screen */}
       {BENCHES.map((b, i) => (
-        <group key={i} position={[b.x - ARCADE.x, 0, b.z]}>
+        <group key={i} position={[b.x - ARCADE.x, 0, b.z]} onClick={(e) => { e.stopPropagation(); const px = e.point.x; let best = BENCH_SEATS[0], bd = Infinity; for (const sp of BENCH_SEATS) { const d = Math.hypot(sp.x - px, sp.z - b.z); if (d < bd) { bd = d; best = sp; } } requestSit(best); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
           <mesh position={[0, 1.35, 0]} castShadow><boxGeometry args={[b.w, 0.45, b.d]} /><meshStandardMaterial color="#141a33" roughness={0.6} metalness={0.2} /></mesh>
           <mesh position={[0, 2.3, -b.d / 2 + 0.1]}><boxGeometry args={[b.w, 1.5, 0.18]} /><meshStandardMaterial color="#141a33" roughness={0.6} metalness={0.2} /></mesh>
           <mesh position={[0, 1.12, b.d / 2 - 0.05]}><boxGeometry args={[b.w, 0.06, 0.06]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={neon * 0.6} toneMapped={false} /></mesh>

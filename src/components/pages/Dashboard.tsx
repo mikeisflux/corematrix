@@ -243,7 +243,7 @@ function Grow({ p, me, onDone, setMsg }: { p: Detail["booth"]; me: Me; onDone: (
     setBusy(false);
   };
   const [height, setHeight] = useState<number>(0);
-  const bannerMax = p.kind === "artist" ? BANNER.artistMaxHeight : BANNER.maxHeight;
+  const bannerMax = p.kind === "artist" ? BANNER.artistMaxHeight : p.size === "20x20" ? BANNER.islandMaxHeight : BANNER.maxHeight;
   const bannerNow = p.bannerHeight || BANNER.defaultHeight;
   const bannerChoices = BANNER.heights.filter((h) => h > bannerNow && h <= bannerMax);
   const banner = async () => {

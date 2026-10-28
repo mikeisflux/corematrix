@@ -208,8 +208,8 @@ export async function startBannerHeight(boothId: number, buyerId: string, height
   await ensureMigrated();
   const p = await getBooth(boothId);
   if (!p?.ownerId || p.ownerId !== buyerId) throw new Error("You can only upgrade a booth you own");
-  const max = p.kind === "artist" ? BANNER.artistMaxHeight : BANNER.maxHeight;
-  if (!(BANNER.heights as readonly number[]).includes(height) || height > max) throw new Error(p.kind === "artist" ? `Artists' Alley banners are capped at ${BANNER.artistMaxHeight} ft` : `Banners go up to ${BANNER.maxHeight} ft`);
+  const max = p.kind === "artist" ? BANNER.artistMaxHeight : p.size === "20x20" ? BANNER.islandMaxHeight : BANNER.maxHeight;
+  if (!(BANNER.heights as readonly number[]).includes(height) || height > max) throw new Error(p.kind === "artist" ? `Artists' Alley banners are capped at ${BANNER.artistMaxHeight} ft` : p.size === "20x20" ? `Island roll-ups are capped at ${BANNER.islandMaxHeight} ft` : `Banners go up to ${BANNER.maxHeight} ft`);
   if (height <= p.bannerHeight) throw new Error(`Your banner is already ${p.bannerHeight} ft`);
   const amt = bannerUpgradeCents(p.bannerHeight, height);
   const tx: typeof schema.transactions.$inferInsert = {

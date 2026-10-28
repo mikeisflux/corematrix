@@ -1,4 +1,5 @@
 "use client";
+import type { Seat } from "./seats";
 import { create } from "zustand";
 import type { CostumeId } from "@/lib/hall/costumes";
 
@@ -109,6 +110,8 @@ interface HallState {
   walkPoint: { x: number; z: number; face?: { x: number; z: number } } | null; // teleport beside a person
   near: number | null;
   nearBot: boolean;
+  nearSeat: Seat | null;       // a seat the player may take within reach
+  seated: Seat | null;         // the seat the player is on
   quality: Quality;
   previewDraft: { boothId: number; color: string; style: string; cloth: string; name: string } | null;
   setBooths: (p: HallBooth[]) => void;
@@ -132,6 +135,8 @@ interface HallState {
   setWalkPoint: (p: HallState["walkPoint"]) => void;
   setNear: (id: number | null) => void;
   setNearBot: (v: boolean) => void;
+  setNearSeat: (s: Seat | null) => void;
+  setSeated: (s: Seat | null) => void;
   setQuality: (q: Quality) => void;
 }
 export type Quality = "high" | "medium" | "low";
@@ -177,6 +182,8 @@ export const useHall = create<HallState>((set) => ({
   walkPoint: null,
   near: null,
   nearBot: false,
+  nearSeat: null,
+  seated: null,
   quality: "medium",
   previewDraft: null,
   setBooths: (booths) => set({ booths: new Map(booths.map((p) => [p.id, p])), loaded: true }),
@@ -206,6 +213,8 @@ export const useHall = create<HallState>((set) => ({
   setWalkPoint: (walkPoint) => set({ walkPoint }),
   setNear: (near) => set({ near }),
   setNearBot: (nearBot) => set({ nearBot }),
+  setNearSeat: (nearSeat) => set({ nearSeat }),
+  setSeated: (seated) => set({ seated }),
   setQuality: (quality) => set({ quality }),
 }));
 

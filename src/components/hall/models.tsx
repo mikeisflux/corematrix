@@ -67,12 +67,13 @@ function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onCl
 
 /** Shared per-avatar motion state: 0 idle, 1 walk, 2 run. Written every frame by the mover, never via React. */
 /** What a figure is doing: speed drives idle/walk/run; an emote (name + the moment it was triggered) plays once on top, unless the figure is moving. */
-export interface Motion { speed: number; emote?: { name: string; at: number } | null }
+export interface Motion { speed: number; emote?: { name: string; at: number } | null; sit?: boolean }
 
 /** The rigged GLB avatar with idle/walk/run crossfades and recoloring by material name. */
 export const ONESHOT = new Set(["wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"]);
 /** idle/walk/run from speed, or the emote while it lasts (moving cancels it). Shared by the GLB rig and the primitive fallback. */
 export function wantedClip(motion: Motion, actions: Record<string, THREE.AnimationAction | undefined>, st: { at: number; until: number; name: string }): string {
+  if (motion.sit && actions.sit) { st.until = 0; return "sit"; }
   const em = motion.emote;
   if (em && em.at !== st.at && actions[em.name]) { st.at = em.at; st.name = em.name; st.until = performance.now() + (actions[em.name]!.getClip().duration - 0.15) * 1000; }
   if (motion.speed >= 1) st.until = 0;

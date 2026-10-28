@@ -10,7 +10,7 @@ const Body = z.object({
   x: z.number().finite().optional(),
   z: z.number().finite().optional(),
   h: z.number().finite().optional(),
-  s: z.number().int().min(0).max(2).optional(),
+  s: z.number().int().min(0).max(3).optional(), // 0 idle, 1 walk, 2 run, 3 seated
   n: z.string().max(40).optional(),
   a: z.object({ body: z.enum(["a", "b"]), skin: z.string().max(9), hair: z.string().max(10), hairColor: z.string().max(9), shirt: z.string().max(9), pants: z.string().max(9), costume: z.string().max(12).optional() }).optional(),
   e: z.object({ n: z.string().max(16), t: z.number() }).nullable().optional(),

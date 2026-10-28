@@ -24,6 +24,7 @@ export function Tips() {
             <li>🕹️ <b>Walk</b> with the stick at the bottom left; push to the edge to run.</li>
             <li>👀 <b>Look</b> by dragging anywhere else on the screen.</li>
             <li>🪧 <b>Booths</b>: walk up and tap the card that appears.</li>
+            <li>🪑 <b>Sit</b>: walk up to your chair or a theater bench and tap the seat card.</li>
           </>
         ) : (
           <>
@@ -31,6 +32,7 @@ export function Tips() {
             <li>🖱️ <b>Look</b> by dragging the mouse. V for first person, M for the map.</li>
             <li>🪧 <b>Booths</b>: walk up and press E. Click a banner to visit the exhibitor.</li>
             <li>🙌 <b>Emotes</b> on keys 1 to 8.</li>
+            <li>🪑 <b>Sit</b> with C at your own table or on a theater bench.</li>
           </>
         )}
         <li>👥 <b>People</b> with a green triangle are real. Click them to chat; 👥 lists everyone here.</li>
