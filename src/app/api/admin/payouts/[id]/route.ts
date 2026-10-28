@@ -4,7 +4,7 @@ import { guard, readJson, str } from "../../_lib";
 export const dynamic = "force-dynamic";
 /* POST { action: "paid", reference, note? } | { action: "reject", reason } */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("payouts"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const b = await readJson<{ action?: string; reference?: string; note?: string; reason?: string }>(req);
   try {

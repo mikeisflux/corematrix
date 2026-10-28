@@ -6,7 +6,7 @@ import { siteUrl } from "@/lib/settings";
 import { guard, pageParams, paged, like } from "../_lib";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("webhooks"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const url = new URL(req.url);
   const provider = url.searchParams.get("provider") || "";

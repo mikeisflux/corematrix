@@ -1,15 +1,18 @@
 /* Shared helpers for /api/admin/* routes (not a route itself). */
 import { NextResponse } from "next/server";
 import { requireAdmin, type User } from "@/lib/auth";
+import { canAccess, type AdminArea } from "@/lib/permissions";
 
 export const forbidden = () => NextResponse.json({ error: "forbidden" }, { status: 403 });
 export const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 export const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 });
 
-/* const g = await guard(); if (g instanceof NextResponse) return g; */
-export async function guard(): Promise<User | NextResponse> {
+/* const g = await guard("booths"); if (g instanceof NextResponse) return g; */
+export async function guard(area?: AdminArea): Promise<User | NextResponse> {
   const admin = await requireAdmin();
-  return admin ?? forbidden();
+  if (!admin) return forbidden();
+  if (area && !canAccess(admin, area)) return NextResponse.json({ error: `You don't have access to ${area}` }, { status: 403 });
+  return admin;
 }
 export function pageParams(url: URL, defaultSize = 50) {
   const page = Math.max(1, Number(url.searchParams.get("page") || 1) || 1);

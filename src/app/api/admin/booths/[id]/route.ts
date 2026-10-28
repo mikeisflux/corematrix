@@ -10,7 +10,7 @@ import { guard, bad, notFound, readJson, int, optStr, bool } from "../../_lib";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("booths"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [booth] = await db.select().from(schema.booths).where(eq(schema.booths.id, Number(id)));
   if (!booth) return notFound();
@@ -23,7 +23,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 /* PATCH fields: name, tagline, description, website, hidden, notForSaleUntil(ms|null), valueCents; actions: release, transfer{email}, shield{days}, feature{days} */
 export async function PATCH(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("booths"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [booth] = await db.select().from(schema.booths).where(eq(schema.booths.id, Number(id)));
   if (!booth) return notFound();

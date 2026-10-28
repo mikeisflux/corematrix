@@ -4,7 +4,7 @@ import { guard, pageParams } from "../_lib";
 export const dynamic = "force-dynamic";
 /** Session list; ?format=json streams every session with samples as a download. */
 export async function GET(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("performance"); if (g instanceof NextResponse) return g;
   const url = new URL(req.url);
   if (url.searchParams.get("format") === "json") {
     const body = JSON.stringify({ kind: "forevercomiccon-perf-export", exportedAt: new Date().toISOString(), sessions: await exportPerf() }, null, 1);

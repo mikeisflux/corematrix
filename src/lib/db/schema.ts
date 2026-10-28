@@ -20,7 +20,8 @@ export const users = sqliteTable("users", {
   cardUserAgent: text("card_user_agent"),
   avatar: text("avatar"), // JSON AvatarConfig (body, skin, hair, hairColor, outfit)
   passwordHash: text("password_hash"), // optional: scrypt hash for email+password sign-in (admins, mostly)
-  isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
+  isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false), // superadmin: every admin area
+  permissions: text("permissions"), // JSON list of admin areas for staff who are not superadmins (see lib/permissions.ts)
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),
 });
@@ -82,6 +83,7 @@ export const booths = sqliteTable(
     totalClicks: integer("total_clicks").notNull().default(0),
     totalImpressions: integer("total_impressions").notNull().default(0),
     salesCount: integer("sales_count").notNull().default(0),
+    teamId: text("team_id"), // the owner's team that staffs this booth (members may sit at its table)
   },
   (t) => [index("booths_owner_idx").on(t.ownerId), index("booths_value_idx").on(t.valueCents)],
 );
@@ -475,3 +477,42 @@ export const theaterVideos = sqliteTable("theater_videos", {
   status: text("status").notNull().default("ready"), // ready | processing (being downsampled for the screen)
   createdAt: integer("created_at").notNull(),
 });
+
+/** Friend requests and friendships: one row per pair, from the requester; status flips to accepted. */
+export const friendships = sqliteTable(
+  "friendships",
+  {
+    id: text("id").primaryKey(),
+    fromId: text("from_id").notNull(),
+    toId: text("to_id").notNull(),
+    status: text("status").notNull().default("pending"), // pending | accepted
+    createdAt: integer("created_at").notNull(),
+    acceptedAt: integer("accepted_at"),
+  },
+  (t) => [index("friendships_from_idx").on(t.fromId), index("friendships_to_idx").on(t.toId)],
+);
+
+/** An exhibitor's teams: named groups of people who staff their booths. */
+export const teams = sqliteTable(
+  "teams",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    name: text("name").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("teams_owner_idx").on(t.ownerId)],
+);
+
+/** Team members: a friend (user id) or an email invite that attaches to the account when that person signs in. */
+export const teamMembers = sqliteTable(
+  "team_members",
+  {
+    id: text("id").primaryKey(),
+    teamId: text("team_id").notNull(),
+    userId: text("user_id"),
+    email: text("email").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("team_members_team_idx").on(t.teamId), index("team_members_user_idx").on(t.userId), index("team_members_email_idx").on(t.email)],
+);

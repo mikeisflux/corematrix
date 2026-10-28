@@ -6,7 +6,7 @@ import { finishWebhook, processDivinityEvent } from "@/lib/orders";
 import { guard, bad, notFound } from "../../../_lib";
 export const dynamic = "force-dynamic";
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("webhooks"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [ev] = await db.select().from(schema.webhookEvents).where(eq(schema.webhookEvents.id, id));
   if (!ev) return notFound();

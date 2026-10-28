@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrSetVisitor } from "@/lib/visitor";
 import { updatePlayer, removePlayer } from "@/lib/presence";
+import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "bad body" }, { status: 400 });
   const b = parsed.data;
   if (b.leave || b.x === undefined || b.z === undefined) { removePlayer(id); return NextResponse.json({ ok: true, id }); }
-  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: b.e ?? null, r: b.r ?? null });
+  const u = await currentUser().catch(() => null);
+  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: b.e ?? null, r: b.r ?? null, uid: u?.id ?? null });
   const out = NextResponse.json({ ok: true, id });
   for (const c of res.cookies.getAll()) out.cookies.set(c);
   return out;

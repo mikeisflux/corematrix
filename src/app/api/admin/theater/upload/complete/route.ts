@@ -6,7 +6,7 @@ import { guard, readJson } from "../../../_lib";
 export const dynamic = "force-dynamic";
 /** All chunks are in: assemble the film into the playlist. With {cancel:true} the half-finished upload is thrown away instead. */
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ id?: string; cancel?: boolean }>(req);
   const id = String(b.id || "");
   if (b.cancel) { abandonUpload(id); return NextResponse.json({ ok: true }); }

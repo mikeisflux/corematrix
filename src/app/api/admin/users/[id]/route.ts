@@ -4,10 +4,11 @@ import { db, schema } from "@/lib/db";
 import { audit, requestPasswordReset, setPassword } from "@/lib/auth";
 import { addCoins } from "@/lib/arcade";
 import { guard, bad, notFound, readJson, int, optStr } from "../../_lib";
+import { isAdminArea } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("users"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [user] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!user) return notFound();
@@ -22,7 +23,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 /* PATCH { displayName?, handle?, notifyEmail?, isAdmin?, creditDeltaCents?, coinsDelta?, reason?, action?: "reset_password" | "set_password" | "sign_out_all" | "clear_card" } */
 export async function PATCH(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("users"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!u) return notFound();
@@ -40,25 +41,34 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (typeof b.displayName === "string") data.displayName = optStr(b.displayName, 60);
   if (typeof b.handle === "string") data.handle = optStr(b.handle, 40);
   if (typeof b.notifyEmail === "boolean") data.notifyEmail = b.notifyEmail;
-  if (typeof b.isAdmin === "boolean") { if (id === g.id && !b.isAdmin) return bad("You cannot remove your own admin access."); data.isAdmin = b.isAdmin; }
+  if (typeof b.email === "string") {
+    const email = b.email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad("Enter a valid email");
+    if (email !== u.email) { const [dup] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)); if (dup) return bad("That email already has an account"); data.email = email; }
+  }
+  if (typeof b.isAdmin === "boolean") { if (!g.isAdmin) return bad("Only a superadmin can change admin access.", 403); if (id === g.id && !b.isAdmin) return bad("You cannot remove your own admin access."); data.isAdmin = b.isAdmin; }
+  if (Array.isArray(b.permissions)) { if (!g.isAdmin) return bad("Only a superadmin can change permissions.", 403); const perms = b.permissions.filter(isAdminArea); data.permissions = perms.length ? JSON.stringify(perms) : null; }
   const creditDelta = int(b.creditDeltaCents, 0), coinsDelta = int(b.coinsDelta, 0);
   if (creditDelta) { if (u.creditCents + creditDelta < 0) return bad("Credit cannot go negative."); data.creditCents = u.creditCents + creditDelta; }
   if (Object.keys(data).length) await db.update(schema.users).set(data).where(eq(schema.users.id, id));
   if (coinsDelta) await addCoins(id, coinsDelta, "admin", reason);
-  await audit(g.id, "user.update", "user", id, { displayName: u.displayName, handle: u.handle, isAdmin: u.isAdmin, creditCents: u.creditCents, coins: u.coins }, { ...data, coinsDelta: coinsDelta || undefined, reason }, g.email);
+  await audit(g.id, "user.update", "user", id, { email: u.email, displayName: u.displayName, handle: u.handle, isAdmin: u.isAdmin, permissions: u.permissions, creditCents: u.creditCents, coins: u.coins }, { ...data, coinsDelta: coinsDelta || undefined, reason }, g.email);
   const [row] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   return NextResponse.json({ user: row });
 }
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("users"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   if (id === g.id) return bad("You cannot delete yourself.");
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!u) return notFound();
   const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(schema.booths).where(eq(schema.booths.ownerId, id));
   if (Number(n) > 0) return bad("User still owns booths. Release or transfer them first.");
+  if (u.isAdmin && !g.isAdmin) return bad("Only a superadmin can delete an admin.", 403);
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, id));
   await db.delete(schema.notifications).where(eq(schema.notifications.userId, id));
+  await db.delete(schema.teamMembers).where(eq(schema.teamMembers.userId, id));
+  await db.delete(schema.friendships).where(sql`from_id = ${id} OR to_id = ${id}`);
   await db.delete(schema.users).where(eq(schema.users.id, id));
   await audit(g.id, "user.delete", "user", id, { email: u.email }, undefined, g.email);
   return NextResponse.json({ ok: true });

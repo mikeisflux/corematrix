@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ id: string }> };
 const T = schema.emailTemplates, V = schema.emailTemplateVersions;
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [row] = await db.select().from(T).where(eq(T.id, id));
   if (!row) return notFound();
@@ -21,7 +21,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   return NextResponse.json({ row: { ...row, versions } });
 }
 export async function PUT(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [before] = await db.select().from(T).where(eq(T.id, id));
   if (!before) return notFound();
@@ -37,7 +37,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 }
 /* actions: preview, test, restore {versionId}, version {versionId} */
 export async function POST(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [t] = await db.select().from(T).where(eq(T.id, id));
   if (!t) return notFound();
@@ -72,7 +72,7 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 }
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [t] = await db.select().from(T).where(eq(T.id, id));
   if (!t) return notFound();

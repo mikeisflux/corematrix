@@ -6,7 +6,7 @@ import { guard } from "../../../_lib";
 
 export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const force = new URL(req.url).searchParams.get("force") === "1";
   const r = await seedTemplates(force, g.email);
   await audit(g.id, "template.seed", "email_template", null, undefined, { ...r, force }, g.email);

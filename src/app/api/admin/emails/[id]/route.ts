@@ -14,7 +14,7 @@ function parseJson<T>(s: string | null, fallback: T): T { try { return s ? (JSON
 
 /* GET → { row, thread, me } */
 export async function GET(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const { id } = await ctx.params;
   const [row] = await db.select().from(m).where(eq(m.id, id)).limit(1);
@@ -31,7 +31,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const b = await readJson<{ read?: boolean; starred?: boolean; archived?: boolean }>(req);
   const data: { read?: boolean; starred?: boolean; archived?: boolean } = {};
@@ -45,7 +45,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 /* actions: resend — re-calls sendMail with the stored fields; a fresh log row is written. */
 export async function POST(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [row] = await db.select().from(m).where(eq(m.id, id)).limit(1);
   if (!row) return notFound();
@@ -68,7 +68,7 @@ export async function POST(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [row] = await db.select({ id: m.id, subject: m.subject, fromEmail: m.fromEmail, status: m.status }).from(m).where(eq(m.id, id)).limit(1);
   if (!row) return notFound();

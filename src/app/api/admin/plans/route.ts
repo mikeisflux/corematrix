@@ -8,7 +8,7 @@ import { now } from "@/lib/util";
 import { guard, bad, notFound, readJson, int } from "../_lib";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("plans"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const url = new URL(req.url);
   const status = url.searchParams.get("status") || "";
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 }
 /* POST { action: "run_renewals" | "charge" | "extend" | "cancel" | "comp", boothId?, days?, tier? } */
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("plans"); if (g instanceof NextResponse) return g;
   const b = await readJson(req);
   if (b.action === "run_renewals") { const r = await runRenewals(); await audit(g.id, "plans.run_renewals", "plan", null, undefined, r, g.email); return NextResponse.json(r); }
   const boothId = int(b.boothId, 0);

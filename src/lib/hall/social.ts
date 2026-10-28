@@ -10,6 +10,8 @@ import type { DmMessage } from "@/lib/dm";
 
 export interface Bubble { text: string; until: number }
 export const social = {
+  friendsVersion: 0, // bumps when a friend request arrives or is answered, so open panels refetch
+
   bubbles: new Map<string, Bubble>(),
   reactions: new Map<string, { k: string; until: number }>(),
   pending: { e: null as { n: string; t: number } | null, r: null as { k: string; t: number } | null, dirty: false },

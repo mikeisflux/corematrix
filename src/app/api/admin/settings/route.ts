@@ -10,7 +10,7 @@ const PROTECTED = new Set(["SESSION_SECRET"]);
 const mask = (v: string) => (v ? `•••${v.slice(-4)}` : "");
 
 export async function GET(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("settings"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const url = new URL(req.url);
   const reveal = url.searchParams.get("reveal") === "1" ? url.searchParams.get("key") : null;
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ groups, custom });
 }
 export async function PUT(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("settings"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ key?: string; value?: string }>(req);
   const key = String(b.key || "").trim().slice(0, 100);
   if (!/^[A-Z0-9_]+$/.test(key) || PROTECTED.has(key) || typeof b.value !== "string") return bad("invalid key/value");
@@ -44,7 +44,7 @@ export async function PUT(req: Request) {
   return NextResponse.json({ ok: true });
 }
 export async function DELETE(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("settings"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ key?: string }>(req);
   const key = String(b.key || "").trim();
   if (!key || PROTECTED.has(key)) return bad("invalid key");

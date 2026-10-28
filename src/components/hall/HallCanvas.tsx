@@ -65,6 +65,8 @@ export function HallCanvas() {
         if (!mine) { showBubble(msg.from, msg.body, 6000); if (!(d.active && d.active.id === other && useHall.getState().panel === "dm")) setToast(`💬 ${msg.fromName}: ${msg.body.slice(0, 80)}`); }
         bumpSocial();
       }
+      else if (m.type === "friend") { setToast(m.kind === "request" ? `🤝 ${m.from.name} sent you a friend request · open 👥 People` : `🤝 ${m.from.name} accepted your friend request`); social.friendsVersion++; bumpSocial(); }
+      else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)); }
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
     };
     es.onmessage = onMessage;

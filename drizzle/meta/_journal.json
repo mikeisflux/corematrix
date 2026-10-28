@@ -64,6 +64,20 @@
       "when": 1793164470834,
       "tag": "0008_theater_status",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793232000000,
+      "tag": "0009_friends_teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793233000000,
+      "tag": "0010_user_permissions",
+      "breakpoints": true
     }
   ]
 }

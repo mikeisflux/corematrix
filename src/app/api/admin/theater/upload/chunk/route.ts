@@ -4,7 +4,7 @@ import { bad, guard } from "../../../_lib";
 export const dynamic = "force-dynamic";
 /** One chunk of a film, raw bytes in the body; ?id= names the upload and ?index= the chunk. Safe to repeat. */
 export async function PUT(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const sp = new URL(req.url).searchParams;
   const id = sp.get("id") || "", index = Number(sp.get("index"));
   const data = Buffer.from(await req.arrayBuffer());

@@ -6,7 +6,7 @@ import { guard, notFound } from "../../../_lib";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [a] = await db.select().from(schema.mailAttachments).where(eq(schema.mailAttachments.id, id));
   if (!a) return notFound();

@@ -5,7 +5,7 @@ import { bad, guard, notFound, readJson } from "../../_lib";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const b = await readJson<{ title?: string; enabled?: boolean; duration?: number }>(req);
   if (b.title !== undefined && typeof b.title !== "string") return bad("title must be text");
@@ -14,7 +14,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   return NextResponse.json({ row });
 }
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const row = await deleteVideo(id);
   if (!row) return notFound();

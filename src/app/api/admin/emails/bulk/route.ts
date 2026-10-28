@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const ACTIONS: Record<string, { read?: boolean; starred?: boolean; archived?: boolean }> = { read: { read: true }, unread: { read: false }, star: { starred: true }, unstar: { starred: false }, archive: { archived: true }, unarchive: { archived: false } };
 
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ ids?: unknown; action?: unknown }>(req);
   const ids = Array.isArray(b.ids) ? b.ids.filter((x): x is string => typeof x === "string" && x.length > 0).slice(0, 500) : [];
   const action = String(b.action || "");

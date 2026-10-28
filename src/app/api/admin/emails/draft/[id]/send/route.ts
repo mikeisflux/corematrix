@@ -16,7 +16,7 @@ function wrapHtml(html: string) {
 }
 /* POST { testToMe?: boolean } — send a draft. On success the draft row is deleted and the new log id returned. */
 export async function POST(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [d] = await db.select().from(schema.mailMessages).where(and(eq(schema.mailMessages.id, id), eq(schema.mailMessages.status, "draft")));
   if (!d) return notFound();

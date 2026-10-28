@@ -27,6 +27,7 @@ import { PerfOverlay } from "./PerfOverlay";
 import { useTheater, setTheaterSound } from "@/lib/hall/theater";
 import { Minimap } from "./Minimap";
 import { Tips } from "./Tips";
+import { SignupNudge } from "./SignupNudge";
 
 export function Hud() {
   const stats = useHall((s) => s.stats);
@@ -80,6 +81,7 @@ export function Hud() {
       <PerfOverlay />
       {loaded && <Minimap />}
       {loaded && <Tips />}
+      {loaded && <SignupNudge />}
       <div className="absolute left-2 top-2 flex flex-col items-start gap-2 fade-up md:left-1/2 md:top-3 md:-translate-x-1/2 md:items-center">
         <button onClick={() => toggle("stats")} className="pointer-events-auto panel flex items-center gap-2 rounded-full px-3 py-1.5 text-xs hover:border-white/20 md:gap-4 md:px-4 md:py-2 md:text-sm">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />{stats?.online ?? 1} on the floor</span>

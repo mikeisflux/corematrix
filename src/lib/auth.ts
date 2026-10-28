@@ -1,3 +1,4 @@
+import { parsePermissions } from "@/lib/permissions";
 import { cookies, headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
@@ -40,6 +41,7 @@ export async function requireAdmin(): Promise<User | null> {
   const u = await currentUser();
   if (!u) return null;
   if (u.isAdmin) return u;
+  if (parsePermissions(u.permissions).length > 0) return u; // staff with some admin areas; each route checks its own area
   const list = ((await getSetting("ADMIN_EMAILS")) || process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (list.includes(u.email.toLowerCase())) {
     await db.update(schema.users).set({ isAdmin: true }).where(eq(schema.users.id, u.id));

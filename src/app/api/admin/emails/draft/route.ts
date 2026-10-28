@@ -18,7 +18,7 @@ async function load(id: string) {
 
 /* POST — upsert a draft (mail row, direction "out", status "draft"). Bcc lives in headers.bcc. */
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const b = await readJson<DraftBody>(req);
   const fields = { toEmail: optStr(b.to, 2000), cc: optStr(b.cc, 2000), subject: str(b.subject, 300).trim(), html: str(b.html, 500_000), threadId: optStr(b.threadId, 64), headers: JSON.stringify({ bcc: str(b.bcc, 2000).trim(), draftUpdatedAt: new Date().toISOString() }) };

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin, clientIp } from "@/lib/auth";
 import { getSetting, siteName } from "@/lib/settings";
 import AdminSidebar from "@/components/admin/Sidebar";
+import { areasOf } from "@/lib/permissions";
 import "./admin.css";
 
 export const metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -19,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   return (
     <div className="adm">
-      <AdminSidebar adminName={admin.displayName ?? admin.email} adminEmail={admin.email} siteName={await siteName()} />
+      <AdminSidebar adminName={admin.displayName ?? admin.email} adminEmail={admin.email} siteName={await siteName()} areas={areasOf(admin)} superadmin={admin.isAdmin} />
       <main className="admMain">{children}</main>
     </div>
   );

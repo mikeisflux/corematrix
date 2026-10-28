@@ -17,6 +17,7 @@ export function DmPanel() {
   const active = soc.dm.active;
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const me = useHall((s) => s.me);
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!active) return;
@@ -38,6 +39,9 @@ export function DmPanel() {
   return (
     <>
       <PanelHeader title={active.name} sub={onFloor ? "On the floor now · private chat" : "Not on the floor right now · they get it when they're back"} onBack={() => setPanel("people")} />
+      {onFloor?.uid && me && onFloor.uid !== me.id && (
+        <button onClick={() => void api<{ status: string }>("/api/friends", { method: "POST", body: JSON.stringify({ to: onFloor.uid }) }).then((r) => useHall.getState().setToast(r.status === "accepted" ? `🤝 You and ${active.name} are friends now` : `🤝 Friend request sent to ${active.name}`)).catch((e: Error) => useHall.getState().setToast(e.message))} className="mx-3 mt-2 btn-ghost w-[calc(100%-1.5rem)] text-xs">➕ Add {active.name} as a friend</button>
+      )}
       <div className="max-h-[45vh] space-y-1.5 overflow-y-auto scroll p-3">
         {soc.dm.messages.length === 0 && <p className="text-xs text-slate-400">Say hi. Only {active.name} sees this.</p>}
         {soc.dm.messages.map((m) => {

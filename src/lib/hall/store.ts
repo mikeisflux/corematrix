@@ -95,7 +95,7 @@ interface HallState {
   featured: Featured[];
   stats: HallStats | null;
   me: Me | null;
-  myBooths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }>;
+  myBooths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }>;
   loaded: boolean;
   hovered: number | null;
   selected: number | null;

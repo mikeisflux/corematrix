@@ -4,7 +4,7 @@ import { db, ensureMigrated, schema } from "@/lib/db";
 import { guard, pageParams, paged, like } from "../_lib";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("booths"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const url = new URL(req.url);
   const p = schema.booths, u = schema.users;

@@ -4,6 +4,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
 import { dailyCheckIn } from "@/lib/arcade";
+import { staffedBooths } from "@/lib/social-graph";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,9 @@ export async function GET() {
     .from(schema.booths)
     .where(and(eq(schema.booths.ownerId, u.id), eq(schema.booths.hidden, false)))
     .orderBy(desc(schema.booths.valueCents));
+  // booths I staff through someone's team ride along, marked so the hall lets me sit there but the dashboard stays the owner's
+  const mineIds = new Set(booths.map((b) => b.id));
+  const staffed = (await staffedBooths(u.id, u.email).catch(() => [])).filter((b) => !mineIds.has(b.id));
   const [unread] = await db
     .select({ n: sql<number>`count(*)` })
     .from(schema.notifications)
@@ -36,7 +40,7 @@ export async function GET() {
       avatar: u.avatar ? JSON.parse(u.avatar) : null,
       unread: Number(unread?.n ?? 0),
     },
-    booths,
+    booths: [...booths.map((b) => ({ ...b, role: "owner" as const })), ...staffed.map((b) => ({ ...b, role: "staff" as const }))],
   });
 }
 

@@ -20,7 +20,7 @@ const snippet = (t: string | null) => (t || "").replace(/\s+/g, " ").trim().slic
 
 /* GET ?folder=inbox|starred|sent|drafts|archived|failed|all &q= &page= &pageSize= (&status= &channel=) */
 export async function GET(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const url = new URL(req.url);
   const folder = url.searchParams.get("folder") || "inbox";

@@ -7,7 +7,9 @@ export type LiveMessage =
   | { type: "booth"; booth: { art?: Record<string, number>; house?: boolean; bannerHeight?: number; bookSlots?: number; logoVersion?: number; id: number; valueCents: number; name: string | null; color: string; accent: string; style: string; cloth: string; category: string; tier: string; hasLogo: boolean; tagline: string | null; website: string | null; size: string; kind: string; label: string; hall: string } }
   | { type: "presence"; online: number }
   | { type: "hello"; id: string } // the visitor id this stream is registered under
-  | { type: "players"; players: Array<{ id: string; n: string; a: unknown; x: number; z: number; h: number; s: number; e?: { n: string; t: number } | null; r?: { k: string; t: number } | null }> }
+  | { type: "players"; players: Array<{ id: string; n: string; a: unknown; x: number; z: number; h: number; s: number; e?: { n: string; t: number } | null; r?: { k: string; t: number } | null; uid?: string | null }> }
+  | { type: "friend"; kind: "request" | "accepted"; from: { id: string; name: string } }
+  | { type: "team"; name: string; from: { id: string; name: string } }
   | { type: "chat"; message: { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number; playerId?: string } }
   | { type: "dm"; message: { id: string; from: string; fromName: string; to: string; body: string; createdAt: number } }
   | { type: "stats"; totalSalesCents: number; totalViews: number; claimed: number };

@@ -8,13 +8,13 @@ import { SAMPLE_VARS } from "@/lib/email-templates";
 
 export const dynamic = "force-dynamic";
 export async function GET() {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const rows = await db.select({ id: schema.emailTemplates.id, slug: schema.emailTemplates.slug, name: schema.emailTemplates.name, description: schema.emailTemplates.description, subject: schema.emailTemplates.subject, html: schema.emailTemplates.html, text: schema.emailTemplates.text, isActive: schema.emailTemplates.isActive, version: schema.emailTemplates.version, updatedAt: schema.emailTemplates.updatedAt, versionCount: sql<number>`(select count(*) from email_template_versions v where v.template_id = ${schema.emailTemplates.id})` }).from(schema.emailTemplates).orderBy(schema.emailTemplates.slug);
   return NextResponse.json({ rows, sampleVars: SAMPLE_VARS });
 }
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const b = await readJson(req);
   const slug = str(b.slug, 60).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
   const name = str(b.name, 120).trim();

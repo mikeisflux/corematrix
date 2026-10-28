@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
 
 /** The whole playlist for the admin page, with where files live and the caption. */
 export async function GET() {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   await resumeEncodes();
   const [rows, title] = await Promise.all([listVideos(), getSetting("THEATER_TITLE")]);
   return NextResponse.json({ rows, title, dir: videoDir(), maxBytes: VIDEO_MAX_BYTES, encoder: !!ffmpegPath(), target: { height: TARGET_HEIGHT, kbps: TARGET_KBPS }, ...encodeState() });
 }
 /** Add an external video by URL. */
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ url?: string; title?: string; duration?: number }>(req);
   const url = String(b.url || "").trim();
   if (!/^https?:\/\/.+/.test(url) && !url.startsWith("/")) return bad("Enter a direct video link (https://… .mp4 or .webm)");
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 }
 /** Reorder: the ids in play order. */
 export async function PATCH(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ order?: string[] }>(req);
   if (!Array.isArray(b.order) || b.order.some((x) => typeof x !== "string")) return bad("order must be a list of ids");
   await reorderVideos(b.order.slice(0, 500));

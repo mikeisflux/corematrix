@@ -8,7 +8,7 @@ import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
-interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string }
+interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
   booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
@@ -30,8 +30,9 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   const load = useCallback(async () => {
     const d = await api<{ user: Me; booths: MyBooth[] }>("/api/me");
     setMe(d.user);
-    setBooths(d.booths);
-    if (!sel && d.booths[0]) setSel(d.booths[0].id);
+    const own = d.booths.filter((b) => b.role !== "staff"); // booths I staff for someone else are theirs to manage
+    setBooths(own);
+    if (!sel && own[0]) setSel(own[0].id);
   }, [sel]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -167,6 +168,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <Edit p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
           <Books p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
+          <Teams booths={booths} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Code title="Conversion pixel" blurb="Put this on your thank-you / signup success page. Pass the order value in cents with ?v= to see revenue next to clicks." code={`<img src="${origin}/api/px/${p.id}?v=0" width="1" height="1" alt="" />`} />
@@ -336,6 +338,91 @@ function Plan({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string
           {p.subscriptionStatus === "active" && <button className="mt-3 text-xs text-slate-400 hover:text-white" disabled={busy} onClick={cancel}>Cancel plan</button>}
         </>
       )}
+    </div>
+  );
+}
+
+interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null }> }
+interface Person { id: string; name: string; handle: string | null }
+/** Teams of people who staff my booths: they can sit at the chairs of the booths a team is assigned to. Friends by name, anyone by email. */
+function Teams({ booths, setMsg }: { booths: MyBooth[]; setMsg: (s: string) => void }) {
+  const [teams, setTeams] = useState<TeamView[] | null>(null);
+  const [friends, setFriends] = useState<Person[]>([]);
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api<{ teams: TeamView[] }>("/api/teams").then((d) => setTeams(d.teams)).catch(() => setTeams([]));
+    api<{ friends: Person[] }>("/api/friends").then((d) => setFriends(d.friends)).catch(() => {});
+  }, []);
+  const run = async (f: () => Promise<{ teams: TeamView[] }>, ok?: string) => {
+    setBusy(true);
+    try { const d = await f(); setTeams(d.teams); if (ok) setMsg(ok); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(false);
+  };
+  const create = () => { const name = newName.trim(); if (!name) return; void run(() => api("/api/teams", { method: "POST", body: JSON.stringify({ name }) }), `Team "${name}" created. Add people and pick the booths it staffs.`); setNewName(""); };
+  return (
+    <div className="rounded-2xl border border-white/10 p-4">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Teams</div>
+      <p className="mt-1 text-xs text-slate-300">People on a team can sit at the chairs of the booths that team staffs (walk up to the chair, press C). Meet people on the show floor and add them as friends under 👥 People, then put them on a team here. Anyone else can be added by email; it attaches when they sign in with it.</p>
+      <div className="mt-3 space-y-3">
+        {teams === null && <p className="text-xs text-slate-500">Loading…</p>}
+        {teams?.map((t) => <TeamCard key={t.id} t={t} booths={booths} friends={friends} busy={busy} run={run} />)}
+        <form onSubmit={(e) => { e.preventDefault(); create(); }} className="flex gap-2">
+          <input value={newName} onChange={(e) => setNewName(e.target.value.slice(0, 40))} placeholder={teams?.length ? "Another team, e.g. Saturday crew" : "Name your first team, e.g. Booth crew"} className="input flex-1 text-sm" />
+          <button type="submit" className="btn-primary text-xs" disabled={busy || !newName.trim()}>Create team</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+function TeamCard({ t, booths, friends, busy, run }: { t: TeamView; booths: MyBooth[]; friends: Person[]; busy: boolean; run: (f: () => Promise<{ teams: TeamView[] }>, ok?: string) => Promise<void> }) {
+  const [name, setName] = useState(t.name);
+  const [email, setEmail] = useState("");
+  const [friendId, setFriendId] = useState("");
+  const onTeam = new Set(t.members.map((m) => m.userId).filter(Boolean));
+  const addable = friends.filter((f) => !onTeam.has(f.id));
+  const toggleBooth = (id: number) => { const next = t.booths.includes(id) ? t.booths.filter((b) => b !== id) : [...t.booths, id]; void run(() => api(`/api/teams/${t.id}`, { method: "PATCH", body: JSON.stringify({ booths: next }) })); };
+  const addFriend = () => { if (!friendId) return; void run(() => api(`/api/teams/${t.id}/members`, { method: "POST", body: JSON.stringify({ userId: friendId }) }), "Added. They've been told they can sit at your booth."); setFriendId(""); };
+  const addEmail = () => { const e = email.trim(); if (!e) return; void run(() => api(`/api/teams/${t.id}/members`, { method: "POST", body: JSON.stringify({ email: e }) }), `${e} added to ${t.name}.`); setEmail(""); };
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} onBlur={() => { if (name.trim() && name !== t.name) void run(() => api(`/api/teams/${t.id}`, { method: "PATCH", body: JSON.stringify({ name }) })); }} className="input w-56 text-sm font-semibold" title="Click to rename" />
+        <span className="text-[11px] text-slate-500">{t.members.length} {t.members.length === 1 ? "person" : "people"}</span>
+        <button type="button" onClick={() => { if (confirm(`Delete team "${t.name}"? Its people lose their seats at your booths.`)) void run(() => api(`/api/teams/${t.id}`, { method: "DELETE" }), "Team deleted."); }} className="btn-ghost ml-auto text-xs text-rose-300" disabled={busy}>Delete</button>
+      </div>
+      <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Staffs these booths</div>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {booths.map((b) => (
+          <label key={b.id} className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-xs ${t.booths.includes(b.id) ? "border-amber-300/50 bg-amber-300/10" : "border-white/10"}`}>
+            <input type="checkbox" checked={t.booths.includes(b.id)} onChange={() => toggleBooth(b.id)} disabled={busy} /> <span className="h-2.5 w-2.5 rounded-sm" style={{ background: b.color }} /> {b.name || `Booth #${b.id}`}
+          </label>
+        ))}
+      </div>
+      <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">People</div>
+      {t.members.length === 0 && <p className="mt-1 text-xs text-slate-500">Nobody yet.</p>}
+      <ul className="mt-1 space-y-1">
+        {t.members.map((m) => (
+          <li key={m.id} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1 text-sm">
+            <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{m.name && <span className="ml-1.5 text-[11px] text-slate-500">{m.email}</span>}{!m.userId && <span className="ml-1.5 rounded-full bg-white/10 px-1.5 text-[10px] text-slate-400">invited · joins when they sign in</span>}</span>
+            <button type="button" onClick={() => void run(() => api(`/api/teams/${t.id}/members?member=${m.id}`, { method: "DELETE" }))} className="rounded-md px-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white" disabled={busy} aria-label="Remove">✕</button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <div className="flex gap-1.5">
+          <select value={friendId} onChange={(e) => setFriendId(e.target.value)} className="input text-xs" disabled={addable.length === 0}>
+            <option value="">{friends.length === 0 ? "No friends yet (meet people in the hall)" : addable.length === 0 ? "All your friends are on this team" : "Add a friend…"}</option>
+            {addable.map((f) => <option key={f.id} value={f.id}>{f.name}{f.handle ? ` (@${f.handle})` : ""}</option>)}
+          </select>
+          <button type="button" onClick={addFriend} className="btn-ghost text-xs" disabled={busy || !friendId}>Add</button>
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); addEmail(); }} className="flex gap-1.5">
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="or an email address" className="input w-56 text-xs" type="email" />
+          <button type="submit" className="btn-ghost text-xs" disabled={busy || !email.trim()}>Invite</button>
+        </form>
+      </div>
     </div>
   );
 }

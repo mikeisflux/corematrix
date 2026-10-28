@@ -4,7 +4,7 @@ import { guard } from "../../_lib";
 export const dynamic = "force-dynamic";
 /** One session; ?format=text returns the pasteable report. */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("performance"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const s = await getPerf(id);
   if (!s) return NextResponse.json({ error: "not found" }, { status: 404 });

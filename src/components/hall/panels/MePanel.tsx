@@ -47,8 +47,8 @@ export function MePanel() {
             {myBooths.map((p) => (
               <li key={p.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] p-2">
                 <button onClick={() => { select(p.id); setFlyTo(p.id); }} className="h-8 w-8 rounded-lg" style={{ background: p.color }} />
-                <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{p.name}</div><div className="text-[11px] text-slate-400">Booth #{p.id} · {formatMoney(p.valueCents)}</div></div>
-                <Link href={`/app/dashboard?booth=${p.id}`} className="btn-ghost text-xs">Manage</Link>
+                <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{p.name}</div><div className="text-[11px] text-slate-400">Booth #{p.id} · {p.role === "staff" ? `on ${p.team ?? "a team"} · you can sit here` : formatMoney(p.valueCents)}</div></div>
+                {p.role !== "staff" && <Link href={`/app/dashboard?booth=${p.id}`} className="btn-ghost text-xs">Manage</Link>}
               </li>
             ))}
           </ul>

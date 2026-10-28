@@ -9,7 +9,7 @@ import { guard, bad, notFound, readJson, int, optStr } from "../../_lib";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("transactions"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, id));
   if (!tx) return notFound();
@@ -25,7 +25,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 /* POST { action: "refund" | "mark_paid" | "mark_failed" | "resend_receipt" | "note", amountCents?, reason?, note? } */
 export async function POST(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("transactions"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, id));
   if (!tx) return notFound();

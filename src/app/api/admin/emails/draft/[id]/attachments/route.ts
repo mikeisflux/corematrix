@@ -14,7 +14,7 @@ async function draft(id: string) {
   return d ?? null;
 }
 export async function POST(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   if (!(await draft(id))) return notFound();
   let fd: FormData;
@@ -33,7 +33,7 @@ export async function POST(req: Request, ctx: Ctx) {
   return NextResponse.json({ attachments, total });
 }
 export async function DELETE(req: Request, ctx: Ctx) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("emails"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
   if (!(await draft(id))) return notFound();
   const b = await readJson<{ attachmentId?: string }>(req);

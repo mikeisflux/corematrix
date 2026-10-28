@@ -17,6 +17,7 @@ export interface LivePlayer {
   s: number; // 0 idle, 1 walk, 2 run
   e?: { n: string; t: number } | null; // last emote (name, when)
   r?: { k: string; t: number } | null; // last reaction (emoji, when)
+  uid?: string | null; // signed-in account, so people can befriend each other on the floor
   t: number; // last update, ms
 }
 
@@ -31,6 +32,10 @@ export function updatePlayer(p: Omit<LivePlayer, "t">) {
 }
 export function removePlayer(id: string) {
   if (players.delete(id)) publish({ type: "players", players: roster() });
+}
+/** The visitor ids (tabs) a signed-in person is on the floor with right now. */
+export function visitorsOf(userId: string): string[] {
+  return roster().filter((p) => p.uid === userId).map((p) => p.id);
 }
 export function roster(): LivePlayer[] {
   const cutoff = Date.now() - STALE_MS;

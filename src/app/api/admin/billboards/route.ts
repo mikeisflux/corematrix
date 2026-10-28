@@ -6,7 +6,7 @@ import { now } from "@/lib/util";
 import { guard, bad, notFound, readJson, int } from "../_lib";
 export const dynamic = "force-dynamic";
 export async function GET() {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("billboards"); if (g instanceof NextResponse) return g;
   await ensureMigrated();
   const bb = schema.billboards, u = schema.users;
   const rows = await db.select({ id: bb.id, slot: bb.slot, headline: bb.headline, body: bb.body, website: bb.website, imageUrl: bb.imageUrl, color: bb.color, startsAt: bb.startsAt, endsAt: bb.endsAt, amountCents: bb.amountCents, seen: bb.seen, opens: bb.opens, clicks: bb.clicks, status: bb.status, createdAt: bb.createdAt, ownerId: bb.ownerId, ownerEmail: u.email, boothId: bb.boothId }).from(bb).leftJoin(u, eq(u.id, bb.ownerId)).orderBy(desc(bb.createdAt)).limit(300);
@@ -14,7 +14,7 @@ export async function GET() {
 }
 /* POST { id, action: "end" | "reject" | "activate" | "extend", days? } */
 export async function POST(req: Request) {
-  const g = await guard(); if (g instanceof NextResponse) return g;
+  const g = await guard("billboards"); if (g instanceof NextResponse) return g;
   const b = await readJson<{ id?: string; action?: string; days?: number }>(req);
   const [row] = await db.select().from(schema.billboards).where(eq(schema.billboards.id, String(b.id || "")));
   if (!row) return notFound();
