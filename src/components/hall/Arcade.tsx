@@ -7,7 +7,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { signTexture } from "./textures";
 import { ARCADE } from "@/lib/hall/layout";
 import { BENCHES, player } from "./Avatar";
-import { theater, bumpTheater } from "@/lib/hall/theater";
+import { theater, bumpTheater, setTheaterSound } from "@/lib/hall/theater";
 import { scheduleAt } from "@/lib/theater-schedule";
 
 /** The theater screen: 4:3 for the public-domain classics, 32 ft wide, its bottom edge a foot over the stage. */
@@ -457,7 +457,10 @@ function Theater({ night }: { night: boolean }) {
   }, []);
   const tex = useMemo(() => { if (!video) return null; const t = new THREE.VideoTexture(video); t.colorSpace = THREE.SRGBColorSpace; return t; }, [video]);
   const [playing, setPlaying] = useState(false);
-  const [aspect, setAspect] = useState(4 / 3); // the picture's own shape; anything else is letterboxed on the 4:3 screen
+  const [aspect, setAspect] = useState(4 / 3);
+  const tuneRef = useRef<() => void>(() => {});
+  const farRef = useRef(false);
+  const audio = useRef({ muted: true, volume: 1 }); // the picture's own shape; anything else is letterboxed on the 4:3 screen
   useEffect(() => {
     if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
     const items = show.items;
@@ -465,16 +468,24 @@ function Theater({ night }: { night: boolean }) {
     let alive = true, current = -1, offset = -1;
     const clock = () => Date.now() / 1000; // server and client clocks agree well enough for a film
     // the clock says which film and how far in; load it and jump there once its length is known
+    // The clock says which film and how far in. Small drift is corrected by nudging the playback rate (invisible);
+    // only a big gap (a stall, a tab that slept) seeks. Nothing happens while nobody is near enough to see the screen.
     const tune = () => {
+      if (farRef.current) { if (!video.paused) video.pause(); return; }
       const s = scheduleAt(items, clock());
       let i = s.index, tries = 0;
       while (dead.has(i) && tries++ < items.length) i = (i + 1) % items.length;
       if (dead.has(i)) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
-      if (i !== current) { current = i; offset = s.offset; video.src = items[i].url; video.load(); return; }
+      if (i !== current) { current = i; offset = s.offset; video.playbackRate = 1; video.src = items[i].url; video.load(); return; }
       const d = video.duration;
-      if (s.offset >= 0 && Number.isFinite(d) && d > 0 && (video.ended || Math.abs(video.currentTime - s.offset) > 3)) video.currentTime = s.offset % d;
+      if (s.offset >= 0 && Number.isFinite(d) && d > 0) {
+        const drift = video.currentTime - s.offset; // + means we are ahead
+        if (video.ended || Math.abs(drift) > 8) { video.currentTime = s.offset % d; video.playbackRate = 1; }
+        else video.playbackRate = Math.abs(drift) < 0.4 ? 1 : drift > 0 ? 0.94 : 1.06;
+      }
       if (video.paused) void video.play().catch(() => {});
     };
+    tuneRef.current = tune;
     const onMeta = () => {
       const d = video.duration;
       if (video.videoWidth && video.videoHeight) setAspect(video.videoWidth / video.videoHeight);
@@ -486,7 +497,7 @@ function Theater({ night }: { night: boolean }) {
     const onErr = () => { if (!alive) return; dead.add(current); current = -1; tune(); };
     video.addEventListener("loadedmetadata", onMeta); video.addEventListener("playing", onPlaying); video.addEventListener("ended", onEnded); video.addEventListener("error", onErr);
     tune();
-    const sync = setInterval(tune, 15000);
+    const sync = setInterval(tune, 4000);
     return () => {
       alive = false; clearInterval(sync);
       video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("playing", onPlaying); video.removeEventListener("ended", onEnded); video.removeEventListener("error", onErr);
@@ -495,14 +506,23 @@ function Theater({ night }: { night: boolean }) {
     };
   }, [video, show]);
   const z = ARCADE.z + ARCADE.d / 2 - 8;
-  // sound follows the walker: on only when they asked and are near the screen, fading with distance
-  useFrame(() => {
+  // Sound plays only while the walker is inside the arcade and has asked for it (the pill, or a click on the screen);
+  // stepping out of the plaza switches it off. Far from the screen the film pauses and its frames stop uploading,
+  // so the theater costs nothing to people elsewhere in the hall.
+  useFrame(({ camera }) => {
     if (!video) return;
+    const st = useHall.getState();
+    const inArcade = st.mode === "walk" && Math.abs(player.x - ARCADE.x) < ARCADE.w / 2 && Math.abs(player.z - ARCADE.z) < ARCADE.d / 2;
+    if (inArcade !== theater.near) { theater.near = inArcade; if (!inArcade && theater.sound) theater.sound = false; bumpTheater(); }
+    const camDist = Math.hypot(camera.position.x - ARCADE.x, camera.position.z - (z + 4.5));
+    const far = camDist > 190;
+    if (far !== farRef.current) { farRef.current = far; if (far) video.pause(); else tuneRef.current(); }
+    if (far && tex) tex.needsUpdate = false;
+    const muted = !(theater.sound && inArcade);
+    if (muted !== audio.current.muted) { audio.current.muted = muted; video.muted = muted; }
     const d = Math.hypot(player.x - ARCADE.x, player.z - (z + 4.5));
-    const near = d < 48 && useHall.getState().mode === "walk";
-    if (near !== theater.near) { theater.near = near; bumpTheater(); }
-    video.muted = !(theater.sound && near);
-    video.volume = THREE.MathUtils.clamp(1 - (d - 14) / 34, 0.15, 1);
+    const volume = THREE.MathUtils.clamp(1 - (d - 16) / 40, 0.2, 1);
+    if (!muted && Math.abs(volume - audio.current.volume) > 0.03) { audio.current.volume = volume; video.volume = volume; }
   });
   const neon = night ? 2.8 : 1.4;
   return (
@@ -514,7 +534,10 @@ function Theater({ night }: { night: boolean }) {
         {/* the audience is on the -z side: backing behind the picture, neon bezel just in front of it */}
         <mesh position={[0, 0, 0.45]}><boxGeometry args={[SCREEN_W + 2.4, SCREEN_H + 2.4, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
         {/* the picture at its own aspect, fitted inside the 4:3 screen; the backing shows as black bars around anything wider or taller */}
-        <mesh rotation={[0, Math.PI, 0]}><planeGeometry args={playing ? [Math.min(SCREEN_W, SCREEN_H * aspect), Math.min(SCREEN_H, SCREEN_W / aspect)] : [SCREEN_W, SCREEN_H]} /><meshBasicMaterial map={playing && tex ? tex : poster} toneMapped={false} /></mesh>
+        <mesh rotation={[0, Math.PI, 0]} onClick={(e) => { e.stopPropagation(); if (!theater.playing) return; if (!theater.near) { useHall.getState().setToast("Step into the arcade to hear the film."); return; } setTheaterSound(!theater.sound); useHall.getState().setToast(theater.sound ? "Sound on. It switches off when you leave the arcade." : "Sound off."); }}
+          onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+          <planeGeometry args={playing ? [Math.min(SCREEN_W, SCREEN_H * aspect), Math.min(SCREEN_H, SCREEN_W / aspect)] : [SCREEN_W, SCREEN_H]} /><meshBasicMaterial map={playing && tex ? tex : poster} toneMapped={false} />
+        </mesh>
         {[[0, SCREEN_H / 2 + 1.25, SCREEN_W + 2.4, 0.16], [0, -SCREEN_H / 2 - 1.25, SCREEN_W + 2.4, 0.16], [-SCREEN_W / 2 - 1.3, 0, 0.16, SCREEN_H + 2.4], [SCREEN_W / 2 + 1.3, 0, 0.16, SCREEN_H + 2.4]].map(([x, y, w, h], i) => (
           <mesh key={i} position={[x, y, -0.2]}><boxGeometry args={[w, h, 0.16]} /><meshStandardMaterial color={i < 2 ? "#ff2bd6" : "#00f5ff"} emissive={i < 2 ? "#ff2bd6" : "#00f5ff"} emissiveIntensity={neon} toneMapped={false} /></mesh>
         ))}

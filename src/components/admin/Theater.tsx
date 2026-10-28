@@ -90,7 +90,7 @@ export default function Theater() {
               <div style={{ height: 6, background: "var(--surface-2)", border: "1px solid var(--rule)" }}><div style={{ height: "100%", width: `${progress.pct}%`, background: "var(--heat-1)" }} /></div>
             </div>
           )}
-          <p className="admMuted" style={{ fontSize: 12 }}>Browsers play H.264 MP4 everywhere; a 1080p file at 5–8 Mbps looks sharp on the 34 ft screen. Keep the tab open until the bar finishes.</p>
+          <p className="admMuted" style={{ fontSize: 12 }}>Browsers play H.264 MP4 everywhere. Encode at 720p or 1080p, 4–8 Mbps: every frame is copied onto the 3D screen, so a 4K file makes it stutter and gains nothing on a 32 ft screen seen from the benches. Keep the tab open until the bar finishes.</p>
         </div>
         <div className="admCard">
           <div className="admCard__hd"><b>Add by link</b><span className="admMuted">a direct .mp4/.webm address</span></div>
