@@ -1,8 +1,10 @@
 "use client";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { social, showBubble, bumpSocial } from "@/lib/hall/social";
-import { Canvas } from "@react-three/fiber";
+import { usePrefs } from "@/lib/hall/prefs";
+import { perf } from "@/lib/hall/perf";
+import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Scene } from "./Scene";
 import { useHall, api, type HallBooth, type HallEvent, type HallStats, type Me, type HallBillboard, type Featured } from "@/lib/hall/store";
@@ -76,20 +78,60 @@ export function HallCanvas() {
     };
   }, [setBooths, upsertBooth, pushEvent, setStats, setMe, setBillboards, setFeatured, setToast]);
 
+  // Frame cap: the canvas renders on demand and a timer asks for frames at the chosen rate, so the card is never run
+  // flat out (an uncapped 160 fps pulls full power and heat for nothing on a 60 Hz screen). 0 = the screen's own rate.
+  const prefs = usePrefs();
+  const [lost, setLost] = useState(false);
+  const onCreated = ({ gl, invalidate }: { gl: THREE.WebGLRenderer; invalidate: () => void }) => {
+    const el = gl.domElement;
+    el.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault();
+      perf.contextLost++;              // the perf capture posts it with the next batch of samples
+      setLost(true);
+      // the browser restores the context on its own within a few seconds; if it does not, reload into safe settings
+      setTimeout(() => { if (!gl.getContext().isContextLost()) return; const u = new URL(location.href); u.searchParams.set("safe", "1"); location.replace(u.toString()); }, 6000);
+    });
+    el.addEventListener("webglcontextrestored", () => { setLost(false); invalidate(); });
+  };
   // ACES on the renderer covers the low tier (no composer); the composer applies the same curve in its own pass.
   return (
+    <>
+    {lost && <div className="absolute inset-0 z-50 grid place-items-center bg-slate-950/90 text-center text-sm text-slate-200"><div><div className="text-lg font-bold">Graphics reset</div><div className="mt-1 text-slate-400">The graphics driver dropped out. Waiting for it to come back; if it does not, the hall reloads in safe mode.</div></div></div>}
     <Canvas
       style={{ touchAction: "none" }}
       shadows="percentage"
+      frameloop={prefs.fpsCap ? "demand" : "always"}
+      onCreated={onCreated}
       dpr={[1, 1.25]}
       camera={{ position: [0, 150, 180], fov: 45, near: 0.5, far: 2200 }}
       gl={{ antialias: false, powerPreference: "high-performance", stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12 }}
       onPointerMissed={() => { if (useHall.getState().mode === "map") useHall.getState().select(null); }}
       className="h-full w-full"
     >
+      <FrameTicker cap={prefs.fpsCap} />
       <Suspense fallback={null}>
         <Scene />
       </Suspense>
     </Canvas>
+    </>
   );
+}
+
+/** Asks for a frame every 1/cap seconds, paced on the screen's own refresh so the cadence is even. */
+function FrameTicker({ cap }: { cap: number }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    if (!cap) return;
+    const step = 1000 / cap;
+    let last = 0, raf = 0;
+    const loop = (t: number) => {
+      raf = requestAnimationFrame(loop);
+      if (t - last < step - 1.5) return;      // 1.5 ms slack so a 60 Hz screen at a 60 cap lands on every vsync
+      last = t - ((t - last) % step);
+      invalidate();
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [cap, invalidate]);
+  return null;
 }

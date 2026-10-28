@@ -12,6 +12,7 @@ const Body = z.object({
   url: z.string().max(300).optional(),
   device: z.object({ gpu: z.string().max(300), vendor: z.string().max(120), ua: z.string().max(400), cores: z.number(), memory: z.number().nullable(), screen: z.string().max(20), viewport: z.string().max(20), dpr: z.number(), touch: z.boolean() }),
   samples: z.array(Bucket).max(120),
+  lost: z.number().int().min(0).max(100).optional(), // graphics context resets since the last post
 });
 
 /** The hall posts 1-second frame buckets here; the visitor cookie ties them to one session row. */
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "bad body" }, { status: 400 });
   const u = await currentUser();
   try { await appendPerf({ ...parsed.data, visitorId, userId: u?.id ?? null }); }
+  // a reset is stored as a marker sample so it shows on the timeline and in the summary
   catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }); }
   const out = NextResponse.json({ ok: true });
   for (const c of res.cookies.getAll()) out.cookies.set(c);

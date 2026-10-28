@@ -57,7 +57,11 @@ export function SettingsPanel() {
           <Row label="Crowd" hint="Fewer people on the floor means more frames">
             <Seg value={p.crowd} options={[{ v: "full", l: "Full" }, { v: "light", l: "Light" }, { v: "none", l: "None" }]} onChange={(v) => set({ crowd: v })} />
           </Row>
+          <Row label="Frame rate cap" hint={p.fpsCap ? `${p.fpsCap} fps: enough for a smooth walk, keeps the card cool and quiet` : "Uncapped: runs the card flat out"}>
+            <Seg value={String(p.fpsCap) as "30" | "60" | "0"} options={[{ v: "30", l: "30" }, { v: "60", l: "60" }, { v: "0", l: "Max" }]} onChange={(v) => set({ fpsCap: Number(v) as 30 | 60 | 0 })} />
+          </Row>
           <Row label="After hours" hint="Night lighting with the neon up"><Toggle on={night} onChange={toggleNight} /></Row>
+          <button onClick={() => set({ quality: "low", crowd: "light", fpsCap: 30 })} className="mt-1 w-full rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-left text-xs"><b className="text-amber-200">Safe mode</b> <span className="text-slate-400">· low quality, light crowd, 30 fps. Use this if your screen flickers, the driver resets or the PC restarts while you walk.</span></button>
         </div>
         <div className="py-2">
           <div className="pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Controls</div>

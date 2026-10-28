@@ -13,11 +13,13 @@ export type PerfSession = typeof schema.perfSessions.$inferSelect;
 export interface PerfSummary {
   durationS: number; frames: number; avgFps: number; minFps: number; p95ms: number; worstMs: number; longFrames: number;
   avgCalls: number; maxCalls: number; avgTris: number; quality: Record<string, number>; modes: Record<string, number>; dpr: number;
-  avgCpu: number; avgRender: number;
+  avgCpu: number; avgRender: number; resets: number;
 }
 
-export function summarize(samples: PerfBucket[]): PerfSummary {
-  if (samples.length === 0) return { durationS: 0, frames: 0, avgFps: 0, minFps: 0, p95ms: 0, worstMs: 0, longFrames: 0, avgCalls: 0, maxCalls: 0, avgTris: 0, quality: {}, modes: {}, dpr: 1, avgCpu: 0, avgRender: 0 };
+export function summarize(all: PerfBucket[]): PerfSummary {
+  const resets = all.reduce((a, b) => a + (b.lost ?? 0), 0);
+  const samples = all.filter((b) => !b.lost);
+  if (samples.length === 0) return { durationS: 0, frames: 0, avgFps: 0, minFps: 0, p95ms: 0, worstMs: 0, longFrames: 0, avgCalls: 0, maxCalls: 0, avgTris: 0, quality: {}, modes: {}, dpr: 1, avgCpu: 0, avgRender: 0, resets: 0 };
   const frames = samples.reduce((a, b) => a + b.f, 0);
   // wall-clock span: a frame longer than a second leaves gaps between buckets
   const secs = Math.max(samples.length, samples[samples.length - 1].t - samples[0].t + 1);
@@ -39,11 +41,13 @@ export function summarize(samples: PerfBucket[]): PerfSummary {
     dpr: samples[samples.length - 1].dpr,
     avgCpu: Math.round((samples.reduce((a, b) => a + (b.cpu ?? 0), 0) / samples.length) * 10) / 10,
     avgRender: Math.round((samples.reduce((a, b) => a + (b.rend ?? 0), 0) / samples.length) * 10) / 10,
+    resets,
   };
 }
 
 /** Append buckets to a session (creating it on first contact). The visitor cookie must match. */
-export async function appendPerf(input: { id: string; visitorId: string; userId: string | null; label?: string | null; url?: string | null; device: PerfDevice; samples: PerfBucket[] }) {
+export async function appendPerf(input: { id: string; visitorId: string; userId: string | null; label?: string | null; url?: string | null; device: PerfDevice; samples: PerfBucket[]; lost?: number }) {
+  if (input.lost) input.samples = [...input.samples, { t: -1, f: 0, avg: 0, p95: 0, max: 0, calls: 0, tris: 0, mode: "w", q: "l", npc: 0, dpr: 1, long: 0, lost: input.lost }];
   await ensureMigrated();
   const [row] = await db.select().from(schema.perfSessions).where(eq(schema.perfSessions.id, input.id)).limit(1);
   const t = now();
@@ -93,6 +97,7 @@ export function perfReport(s: NonNullable<Awaited<ReturnType<typeof getPerf>>>):
     `fps avg ${m.avgFps} min ${m.minFps} · frame p95 ${m.p95ms} ms worst ${m.worstMs} ms · long frames (>50 ms) ${m.longFrames} of ${m.frames}`,
     `draw calls avg ${m.avgCalls} max ${m.maxCalls} · triangles avg ${m.avgTris.toLocaleString("en-US")} · render dpr ${m.dpr}`,
     `main thread ${m.avgCpu} ms per frame, of which renderer.render ${m.avgRender} ms → ${verdict(m.avgCpu, m.avgFps)}`,
+    `graphics context resets (driver dropped out): ${m.resets}`,
     `quality: ${pct(m.quality)} · mode: ${pct(m.modes)}`,
     "timeline (t s: fps / p95 ms / cpu ms / render ms / calls / quality / mode / npcs):",
   ];

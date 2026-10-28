@@ -45,10 +45,11 @@ export function PerfCapture() {
     if (!perf.sessionId) { perf.sessionId = newId(); perf.startedAt = Date.now(); }
     try { perf.device = deviceInfo(gl.getContext()); } catch { perf.device = null; }
     const flushNow = (beacon: boolean) => {
-      if (pending.current.length === 0 || !perf.device) return;
-      if (!getPrefs().capture) { pending.current = []; return; }
-      const body = JSON.stringify({ id: perf.sessionId, device: perf.device, samples: pending.current, url: location.pathname + location.search, label: getPrefs().label || undefined });
-      pending.current = [];
+      const lost = perf.contextLost - perf.lostSent;   // graphics resets since the last post ride along with the samples
+      if ((pending.current.length === 0 && !lost) || !perf.device) return;
+      if (!getPrefs().capture) { pending.current = []; perf.lostSent = perf.contextLost; return; }
+      const body = JSON.stringify({ id: perf.sessionId, device: perf.device, samples: pending.current, url: location.pathname + location.search, label: getPrefs().label || undefined, lost: lost || undefined });
+      pending.current = []; perf.lostSent = perf.contextLost;
       if (beacon && navigator.sendBeacon) { navigator.sendBeacon("/api/perf", new Blob([body], { type: "application/json" })); return; }
       void fetch("/api/perf", { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
     };
@@ -111,7 +112,8 @@ export function PerfCapture() {
     // after 15 s of walking below 30 fps, point at the usual culprit once: a laptop running the browser on its integrated chip
     if (!hinted && bucket.mode === "w") {
       const recent = perf.history.slice(-10);
-      if (perf.history.length >= 15 && recent.reduce((a, b) => a + b.f, 0) / recent.length < 30) {
+      const floor = getPrefs().fpsCap === 30 ? 24 : 30;   // a 30 fps cap sits at 30 on purpose
+      if (perf.history.length >= 15 && recent.reduce((a, b) => a + b.f, 0) / recent.length < floor) {
         hinted = true;
         useHall.getState().setToast(`Running at ${bucket.f} fps. If this PC has two graphics chips the browser may be on the weak one: open ⚙ Settings for the fix.`);
       }

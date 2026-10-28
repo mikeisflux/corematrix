@@ -33,14 +33,14 @@ export function Scene() {
   const prefs = usePrefs();
   // a locked tier (gear menu) wins over the frame-rate monitor
   useEffect(() => { setQuality(prefs.quality === "auto" ? guessQuality() : prefs.quality); }, [setQuality, prefs.quality]);
-  useEffect(() => { setDpr(quality === "high" ? Math.min(1.75, window.devicePixelRatio) : quality === "medium" ? Math.min(1.25, window.devicePixelRatio) : 1); }, [quality, setDpr]);
+  useEffect(() => { setDpr(quality === "high" ? Math.min(1.5, window.devicePixelRatio) : quality === "medium" ? Math.min(1.25, window.devicePixelRatio) : 1); }, [quality, setDpr]);
   const crowdScale = prefs.crowd === "none" ? 0 : prefs.crowd === "light" ? 0.4 : 1;
   const crowd = { high: [110, 140], medium: [60, 80], low: [28, 40] }[quality].map((n) => Math.round(n * crowdScale));
   return (
     <>
       {prefs.quality === "auto" && (
         <PerformanceMonitor
-          bounds={() => [40, 58]}
+          bounds={() => (prefs.fpsCap === 30 ? [20, 29] : [40, 58])}  // a capped hall never exceeds the cap; judge it against that
           flipflops={3}
           onDecline={() => setQuality(step(quality, -1))}
           onIncline={() => setQuality(step(quality, 1))}

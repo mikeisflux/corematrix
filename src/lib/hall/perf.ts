@@ -4,12 +4,12 @@
  * overlay polls it a few times a second.
  */
 /** One second of frames. cpu = main-thread ms per frame (scripts + draw submission), rend = the part spent inside renderer.render; the rest of the frame is the GPU or vsync. */
-export interface PerfBucket { t: number; f: number; avg: number; p95: number; max: number; calls: number; tris: number; mode: "w" | "m"; q: "h" | "m" | "l"; npc: number; dpr: number; long: number; cpu?: number; rend?: number }
+export interface PerfBucket { t: number; f: number; avg: number; p95: number; max: number; calls: number; tris: number; mode: "w" | "m"; q: "h" | "m" | "l"; npc: number; dpr: number; long: number; cpu?: number; rend?: number; lost?: number }
 export interface PerfDevice { gpu: string; vendor: string; ua: string; cores: number; memory: number | null; screen: string; viewport: string; dpr: number; touch: boolean }
 export const perf = {
   sessionId: "",
   fps: 0, ms: 0, p95: 0, calls: 0, tris: 0, npcs: 0, cpu: 0, rend: 0,
-  frames: 0, longFrames: 0, startedAt: 0,
+  frames: 0, longFrames: 0, startedAt: 0, contextLost: 0, lostSent: 0,
   device: null as PerfDevice | null,
   /** every bucket of this visit (capped), so the player can export it without the server */
   history: [] as PerfBucket[],

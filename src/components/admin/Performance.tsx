@@ -48,7 +48,7 @@ export default function Performance({ initialId }: { initialId: string | null })
         {list.data && rows.length === 0 && <Empty>No sessions yet. Walk the floor on the live site and come back; the first samples land after 10 seconds.</Empty>}
         {rows.length > 0 && (
           <div className="admTableWrap"><table className="admTable">
-            <thead><tr><th>Started</th><th>Who</th><th>GPU</th><th>Screen</th><th className="num">Length</th><th className="num">Avg fps</th><th className="num">Min</th><th className="num">p95 ms</th><th className="num">CPU ms</th><th className="num">Calls</th><th>Quality</th><th>Mode</th></tr></thead>
+            <thead><tr><th>Started</th><th>Who</th><th>GPU</th><th>Screen</th><th className="num">Length</th><th className="num">Avg fps</th><th className="num">Min</th><th className="num">p95 ms</th><th className="num">CPU ms</th><th className="num">Resets</th><th className="num">Calls</th><th>Quality</th><th>Mode</th></tr></thead>
             <tbody>{rows.map((r) => {
               const m = r.summary; const q = Object.entries(m.quality).sort((a, b) => b[1] - a[1])[0]?.[0];
               const walk = Math.round(((m.modes.w ?? 0) / Math.max(1, m.durationS)) * 100);
@@ -63,6 +63,7 @@ export default function Performance({ initialId }: { initialId: string | null })
                   <td className="num">{m.minFps}</td>
                   <td className="num">{m.p95ms}</td>
                   <td className="num">{m.avgCpu || "-"}</td>
+                  <td className="num">{m.resets ? <Badge kind="bad">{m.resets}</Badge> : "0"}</td>
                   <td className="num">{m.avgCalls}</td>
                   <td>{q === "h" ? "high" : q === "m" ? "medium" : q === "l" ? "low" : "-"}</td>
                   <td>{walk}% walk</td>
@@ -104,7 +105,7 @@ function SessionDetail({ d, onCopy, onDownload }: { d: Detail; onCopy: (t: strin
         <div className="admTile" style={{ ["--c" as string]: m.avgFps >= 50 ? "var(--heat-1)" : m.avgFps >= 30 ? "var(--heat-7)" : "var(--heat-6)" }}><div className="admLabel">Average fps</div><div className="admTile__n">{m.avgFps}</div><div className="admTile__sub">min {m.minFps}</div></div>
         <div className="admTile"><div className="admLabel">Frame time p95</div><div className="admTile__n">{m.p95ms}<span style={{ fontSize: 14 }}> ms</span></div><div className="admTile__sub">worst {m.worstMs} ms · {m.longFrames} frames over 50 ms</div></div>
         <div className="admTile"><div className="admLabel">Draw calls</div><div className="admTile__n">{m.avgCalls}</div><div className="admTile__sub">max {m.maxCalls} · {m.avgTris.toLocaleString("en-US")} triangles avg</div></div>
-        <div className="admTile" style={{ ["--c" as string]: "var(--heat-2)" }}><div className="admLabel">Main thread</div><div className="admTile__n">{m.avgCpu || "-"}<span style={{ fontSize: 14 }}> ms/frame</span></div><div className="admTile__sub">{m.avgRender ? `${m.avgRender} ms in render · ` : ""}{verdict(m.avgCpu, m.avgFps)}</div></div>
+        <div className="admTile" style={{ ["--c" as string]: "var(--heat-2)" }}><div className="admLabel">Main thread</div><div className="admTile__n">{m.avgCpu || "-"}<span style={{ fontSize: 14 }}> ms/frame</span></div><div className="admTile__sub">{m.avgRender ? `${m.avgRender} ms in render · ` : ""}{verdict(m.avgCpu, m.avgFps)}{m.resets ? ` · ${m.resets} graphics reset${m.resets === 1 ? "" : "s"}` : ""}</div></div>
         <div className="admTile"><div className="admLabel">Quality tiers</div><div className="admTile__n" style={{ fontSize: 18 }}>{Object.entries(m.quality).map(([k, v]) => `${k === "h" ? "high" : k === "m" ? "medium" : "low"} ${Math.round((v / Math.max(1, m.durationS)) * 100)}%`).join(" · ") || "-"}</div><div className="admTile__sub">render dpr {m.dpr}</div></div>
       </div>
       <div className="admMuted" style={{ fontSize: 12 }}><b style={{ color: "var(--text)" }}>{s.device.gpu}</b> · {s.device.vendor} · {s.device.cores} cores · {s.device.memory ?? "?"} GB · screen {s.device.screen} · viewport {s.device.viewport} · dpr {s.device.dpr}{s.device.touch ? " · touch" : ""}<div style={{ fontSize: 11 }}>{s.device.ua}</div></div>
@@ -118,7 +119,8 @@ function SessionDetail({ d, onCopy, onDownload }: { d: Detail; onCopy: (t: strin
 }
 
 /** One series over time with a hover crosshair. Quality-tier changes and map/walk switches show as faint bands under the line. */
-function Timeline({ samples, metric }: { samples: PerfBucket[]; metric: "f" | "p95" | "cpu" | "calls" | "tris" }) {
+function Timeline({ samples: all, metric }: { samples: PerfBucket[]; metric: "f" | "p95" | "cpu" | "calls" | "tris" }) {
+  const samples = all.filter((b) => !b.lost);
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const W = 900, H = 220, PL = 44, PR = 12, PT = 12, PB = 26;
