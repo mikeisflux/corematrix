@@ -72,10 +72,10 @@ export const ART_SLOTS = {
   },
   tower: {
     name: "Tower wrap",
-    ratio: "2:7",
-    width: 800, height: 2800,
+    ratio: "1:8",
+    width: 300, height: 2400,
     where: "Wraps all four faces of your island tower from the plinth to the cap, replacing the fabric, the banner band and the logo board.",
-    physical: "8 ft wide × 28 ft tall on the premier booth (100 px per foot); other islands show the same art on their shorter tower.",
+    physical: "3 ft wide × 24 ft tall on the premier booth (100 px per foot); other islands show the same art on their shorter tower.",
     tip: "Design one face; it repeats on all four. The roll-up banners stand in front of the lower part of each face (the bottom 16 ft on the premier booth), so put the hero art in the top half.",
   },
   floor: {

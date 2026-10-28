@@ -27,6 +27,8 @@ const ALU_DARK = new THREE.MeshStandardMaterial({ color: "#4b5563", metalness: 0
 const FRAME = new THREE.MeshStandardMaterial({ color: "#161a24", roughness: 0.6, metalness: 0.1 });
 const MAT_WHITE = new THREE.MeshStandardMaterial({ color: "#e9ecf1", roughness: 0.8 });
 const BAR = new THREE.CylinderGeometry(0.045, 0.045, 1, 8); // unit length along y, rotated per use
+/** Island tower footprint: a thin 3 ft shaft so the roll-ups, chairs and tables all fit around it. */
+const TOWER_W = 3;
 const uprights = new Map<number, THREE.BufferGeometry>();
 /** Pole + round base plate as one geometry per height (8 ft walls, 3 ft rails, 3.2 ft alley drape). */
 function uprightGeo(h: number): THREE.BufferGeometry {
@@ -142,24 +144,25 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     const hangY = Math.min(CEILING - 4, th + (booth.house ? 13 : 7));
     // the roll-ups (up to 16 ft) stand right in front of each face, so the band and logo live above them,
     // centred in the free part of the face: band 1.9 ft, gap, 4 ft logo board
-    const freeLo = bh + 1, freeHi = th - 0.5, stack = 1.9 + 0.8 + 4;
+    // the tower is a thin 3 ft shaft, so the band is 2.8 ft wide (0.7 tall) and the logo board 2.4 ft
+    const freeLo = bh + 1, freeHi = th - 0.5, stack = 0.7 + 0.6 + 2.4;
     const stackLo = Math.max(freeLo, (freeLo + freeHi) / 2 - stack / 2);
-    const faceBandY = stackLo + 0.95, faceLogoY = stackLo + 1.9 + 0.8 + 2;
+    const faceBandY = stackLo + 0.35, faceLogoY = stackLo + 0.7 + 0.6 + 1.2;
     return (
       <group position={[space.x, 0, space.z]} {...common}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial map={floorArt ?? undefined} color={floorArt && !hovered && !selected ? "#ffffff" : floorColor} roughness={1} transparent opacity={preview ? 0.6 : floorArt ? 1 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
-        {/* fabric-wrapped tower on a plinth, aluminium corner trims, a cap, a banner and logo board on each face (or the owner's wrap on all four faces) */}
-        <mesh position={[0, 0.25, 0]} material={FRAME}><boxGeometry args={[8.8, 0.5, 8.8]} /></mesh>
-        <mesh position={[0, th / 2, 0]} castShadow onClick={bannerClick}><boxGeometry args={[8, th, 8]} /><meshStandardMaterial map={towerArt ?? drape} color="#ffffff" roughness={towerArt ? 0.6 : 0.9} emissiveMap={towerArt ?? undefined} emissive={towerArt ? "#ffffff" : "#000000"} emissiveIntensity={towerArt ? glow : 0} /></mesh>
-        {[[-4, -4], [4, -4], [-4, 4], [4, 4]].map(([x, z], i) => <mesh key={i} position={[x, th / 2, z]} material={ALU_DARK}><boxGeometry args={[0.3, th, 0.3]} /></mesh>)}
-        <mesh position={[0, th + 0.25, 0]} material={FRAME}><boxGeometry args={[8.6, 0.5, 8.6]} /></mesh>
+        {/* thin fabric-wrapped tower (3 ft square) on a plinth, aluminium corner trims, a cap, a banner and logo board on each face (or the owner's wrap on all four faces) */}
+        <mesh position={[0, 0.25, 0]} material={FRAME}><boxGeometry args={[TOWER_W + 0.8, 0.5, TOWER_W + 0.8]} /></mesh>
+        <mesh position={[0, th / 2, 0]} castShadow onClick={bannerClick}><boxGeometry args={[TOWER_W, th, TOWER_W]} /><meshStandardMaterial map={towerArt ?? drape} color="#ffffff" roughness={towerArt ? 0.6 : 0.9} emissiveMap={towerArt ?? undefined} emissive={towerArt ? "#ffffff" : "#000000"} emissiveIntensity={towerArt ? glow : 0} /></mesh>
+        {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z], i) => <mesh key={i} position={[x * TOWER_W / 2, th / 2, z * TOWER_W / 2]} material={ALU_DARK}><boxGeometry args={[0.2, th, 0.2]} /></mesh>)}
+        <mesh position={[0, th + 0.25, 0]} material={FRAME}><boxGeometry args={[TOWER_W + 0.6, 0.5, TOWER_W + 0.6]} /></mesh>
         {/* banner band with the logo board above it, stacked in the part of the face that shows above the roll-ups */}
         {!towerArt && ([0, Math.PI / 2, Math.PI, -Math.PI / 2] as const).map((r, i) => (
           <group key={i} rotation={[0, r, 0]}>
-            <mesh position={[0, faceBandY, 4.02]} material={FRAME}><boxGeometry args={[7.8, 7.6 / 4 + 0.2, 0.05]} /></mesh>
-            <mesh position={[0, faceBandY, 4.06]} onClick={bannerClick}><planeGeometry args={[7.6, 7.6 / 4]} /><meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} /></mesh>
-            <mesh position={[0, faceLogoY, 4.02]} material={MAT_WHITE}><boxGeometry args={[4.3, 4.3, 0.05]} /></mesh>
-            <mesh position={[0, faceLogoY, 4.06]}><planeGeometry args={[4, 4]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
+            <mesh position={[0, faceBandY, TOWER_W / 2 + 0.02]} material={FRAME}><boxGeometry args={[2.9, 0.8, 0.05]} /></mesh>
+            <mesh position={[0, faceBandY, TOWER_W / 2 + 0.06]} onClick={bannerClick}><planeGeometry args={[2.8, 0.7]} /><meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} /></mesh>
+            <mesh position={[0, faceLogoY, TOWER_W / 2 + 0.02]} material={MAT_WHITE}><boxGeometry args={[2.6, 2.6, 0.05]} /></mesh>
+            <mesh position={[0, faceLogoY, TOWER_W / 2 + 0.06]}><planeGeometry args={[2.4, 2.4]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
           </group>
         ))}
         {/* hanging sign */}
@@ -175,10 +178,10 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
-        {/* a chair behind each table, tucked beside the roll-up */}
-        {([[2.5, -4.9, Math.PI], [-2.5, 4.9, 0], [4.9, 2.5, Math.PI / 2], [-4.9, -2.5, -Math.PI / 2]] as const).map(([x, z, r], i) => <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><Prop name="chair" fallback={chairFallback} /></group>)}
-        {/* roll-up banner behind each table, facing out (3×6 by default, up to 8×16 when upgraded) */}
-        {([[0, -5.6, Math.PI], [0, 5.6, 0], [-5.6, 0, -Math.PI / 2], [5.6, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
+        {/* a chair behind each table, centred in front of the roll-up, facing the table */}
+        {([[0, -4.3, Math.PI], [0, 4.3, 0], [4.3, 0, Math.PI / 2], [-4.3, 0, -Math.PI / 2]] as const).map(([x, z, r], i) => <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><Prop name="chair" fallback={chairFallback} /></group>)}
+        {/* roll-up banner against each tower face, facing out (3×6 by default, up to 8×16 when upgraded) */}
+        {([[0, -2.0, Math.PI], [0, 2.0, 0], [-2.0, 0, -Math.PI / 2], [2.0, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
           <group key={i} position={[x, 0, z]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={rollups[i]} glow={glow} onClick={bannerClick} /></group>
         ))}
         {night && !booth.house && <pointLight position={[0, th + 2, 0]} intensity={120} distance={50} color={booth.accent} />}
@@ -344,8 +347,8 @@ function Flagship({ color, logo, banner, th }: { color: string; logo: THREE.Text
         <meshStandardMaterial map={logo} emissiveMap={logo} emissive="#ffffff" emissiveIntensity={0.7} />
       </mesh>
       {/* LED tape down the tower edges and around the cap */}
-      {[[-4.2, -4.2], [4.2, -4.2], [-4.2, 4.2], [4.2, 4.2]].map(([x, z], i) => <mesh key={i} position={[x, th / 2, z]}><boxGeometry args={[0.12, th, 0.12]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} toneMapped={false} /></mesh>)}
-      <mesh position={[0, th + 0.55, 0]}><boxGeometry args={[8.9, 0.12, 8.9]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} toneMapped={false} /></mesh>
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z], i) => <mesh key={i} position={[x * (TOWER_W / 2 + 0.15), th / 2, z * (TOWER_W / 2 + 0.15)]}><boxGeometry args={[0.12, th, 0.12]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} toneMapped={false} /></mesh>)}
+      <mesh position={[0, th + 0.55, 0]}><boxGeometry args={[TOWER_W + 0.9, 0.12, TOWER_W + 0.9]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} toneMapped={false} /></mesh>
       {corners.map(([x, z], i) => (
         <group key={i} position={[x, 0, z]}>
           <mesh position={[0, 5, 0]}><boxGeometry args={[0.7, 10, 0.7]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.1} toneMapped={false} /></mesh>
