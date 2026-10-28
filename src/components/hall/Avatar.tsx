@@ -227,20 +227,24 @@ export function Player() {
     const s = nearestSeat(pos.current.x, pos.current.z, mayUse);
     if (s) sitDown(s); else useHall.getState().setToast("Walk up to your chair or a theater bench to sit.");
   };
-  const report = (leave = false) => {
+  const report = (leave = false, away = false) => {
     const pend = social.pending;
     const fresh = (t: number) => Date.now() - t < 6000;
-    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: me?.displayName || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null };
+    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: me?.displayName || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null, w: away || document.hidden || undefined };
     pend.dirty = false;
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
       .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
   };
-  // tell the floor when we leave walk mode or the page
+  // tell the floor when we leave walk mode or the page; while the tab is in the background (no frames run) a slow
+  // heartbeat keeps our spot as "away" instead of letting it time out
   useEffect(() => {
     if (mode !== "walk") return;
     const bye = () => report(true);
     window.addEventListener("pagehide", bye);
-    return () => { window.removeEventListener("pagehide", bye); bye(); };
+    const beat = setInterval(() => { if (document.hidden) report(false, true); }, 3000);
+    const back = () => { if (!document.hidden) report(false, false); };
+    document.addEventListener("visibilitychange", back);
+    return () => { window.removeEventListener("pagehide", bye); document.removeEventListener("visibilitychange", back); clearInterval(beat); bye(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -489,10 +493,11 @@ function OverheadNotes({ id }: { id: string }) {
 const MARKER_MAT = new THREE.MeshBasicMaterial({ color: "#5ee6c3", toneMapped: false });
 const MARKER_GEO = new THREE.ConeGeometry(0.55, 1.1, 3);
 /** The "real person" marker: a glowing triangle that floats, bobs and turns above a live visitor so nobody mistakes them for the crowd. */
-function LiveMarker() {
+const AWAY_MAT = new THREE.MeshBasicMaterial({ color: "#64748b" });
+function LiveMarker({ away }: { away?: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => { const m = ref.current; if (!m) return; m.position.y = 8.9 + Math.sin(clock.elapsedTime * 2.4) * 0.25; m.rotation.y = clock.elapsedTime * 1.6; });
-  return <mesh ref={ref} geometry={MARKER_GEO} material={MARKER_MAT} rotation={[Math.PI, 0, 0]} position={[0, 8.9, 0]} />;
+  useFrame(({ clock }) => { const m = ref.current; if (!m) return; m.position.y = 8.9 + (away ? 0 : Math.sin(clock.elapsedTime * 2.4) * 0.25); m.rotation.y = away ? 0 : clock.elapsedTime * 1.6; });
+  return <mesh ref={ref} geometry={MARKER_GEO} material={away ? AWAY_MAT : MARKER_MAT} rotation={[Math.PI, 0, 0]} position={[0, 8.9, 0]} />;
 }
 function Other({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null);
@@ -500,6 +505,7 @@ function Other({ id }: { id: string }) {
   const [cfg, setCfg] = useState<AvatarConfig>(() => live.players.get(id)?.a ?? DEFAULT_AVATAR);
   const [name, setName] = useState(() => live.players.get(id)?.n ?? "Visitor");
   const [title, setTitle] = useState<string | null>(() => live.players.get(id)?.j ?? null);
+  const [away, setAway] = useState<boolean>(() => !!live.players.get(id)?.w);
   const cur = useRef<{ x: number; z: number; h: number } | null>(null);
   const [near, setNear] = useState(false);
   const nearT = useRef(0);
@@ -518,16 +524,17 @@ function Other({ id }: { id: string }) {
     if (p.a && p.a !== cfg && JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a);
     if (p.n !== name) setName(p.n);
     if ((p.j ?? null) !== title) setTitle(p.j ?? null);
+    if (!!p.w !== away) setAway(!!p.w);
     if (clock.elapsedTime - nearT.current > 0.5) { nearT.current = clock.elapsedTime; const d = Math.hypot(camera.position.x - c.x, camera.position.z - c.z); g.visible = d < 260; const n = d < 80; if (n !== near) setNear(n); }
   });
   return (
     <group ref={group} onClick={(e) => { e.stopPropagation(); openDm(id, name); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <AvatarModel config={cfg} motion={motion} />
-      <LiveMarker />
+      <LiveMarker away={away} />
       <OverheadNotes id={id} />
       {near && (
         <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">live</span></div>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className={`text-[9px] font-bold uppercase tracking-wider ${away ? "text-slate-400" : "text-emerald-300"}`}>{away ? "away" : "live"}</span></div>
         </Html>
       )}
     </group>

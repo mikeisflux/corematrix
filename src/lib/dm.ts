@@ -21,7 +21,8 @@ export async function sendDm(from: string, fromName: string, to: string, body: s
   publishTo([from, to], { type: "dm", message: msg });
   // keep the pair's thread at KEEP messages and drop anything older than TTL across the table, cheaply
   if (Math.random() < 0.05) await db.delete(schema.dms).where(sql`${schema.dms.createdAt} < ${now() - TTL}`);
-  const extra = await db.select({ id: schema.dms.id }).from(schema.dms).where(between(from, to)).orderBy(desc(schema.dms.createdAt)).offset(KEEP);
+  // SQLite needs a LIMIT before an OFFSET
+  const extra = await db.select({ id: schema.dms.id }).from(schema.dms).where(between(from, to)).orderBy(desc(schema.dms.createdAt)).limit(1000).offset(KEEP);
   if (extra.length) await db.delete(schema.dms).where(sql`${schema.dms.id} IN (${sql.join(extra.map((e) => sql`${e.id}`), sql`, `)})`);
   return msg;
 }

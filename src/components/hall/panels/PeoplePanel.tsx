@@ -66,8 +66,8 @@ export function PeoplePanel() {
           <div className="space-y-1">
             {people.map((p) => (
               <div key={p.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-2.5 py-1.5 text-sm">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" />
-                <span className="min-w-0 flex-1 truncate">{p.n}<span className="ml-1.5 text-[11px] text-slate-500">{mode === "walk" ? `${dist(p)} ft` : ""}</span></span>
+                <span className={`h-2 w-2 shrink-0 rounded-full ${p.w ? "bg-slate-500" : "bg-emerald-300 shadow-[0_0_6px_#5ee6c3]"}`} />
+                <span className="min-w-0 flex-1 truncate">{p.n}<span className="ml-1.5 text-[11px] text-slate-500">{p.w ? "away · in another tab" : mode === "walk" ? `${dist(p)} ft` : ""}</span></span>
                 {(() => { const rel = relation(p.uid); return rel === "none" ? <button title="Add friend" onClick={() => void addFriend(p.uid!, p.n)} className="rounded-lg px-1.5 py-0.5 hover:bg-white/10">➕</button> : rel === "friend" ? <span title="Friend" className="px-1 text-[11px] text-emerald-300">🤝</span> : rel === "asked" ? <span title="Request sent" className="px-1 text-[11px] text-slate-500">sent</span> : rel === "pending" ? <span className="px-1 text-[11px] text-amber-300">asked you ↓</span> : !me && p.uid ? <button title="Sign in to add friends" onClick={() => setPanel("me")} className="rounded-lg px-1.5 py-0.5 text-slate-500 hover:bg-white/10">➕</button> : null; })()}
                 <button title="Wave" onClick={() => fireReaction("👋")} className="rounded-lg px-1.5 py-0.5 hover:bg-white/10">👋</button>
                 <button title="Message" onClick={() => openDm(p.id, p.n)} className="rounded-lg px-1.5 py-0.5 hover:bg-white/10">💬</button>

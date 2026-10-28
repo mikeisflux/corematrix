@@ -14,6 +14,7 @@ const Body = z.object({
   s: z.number().int().min(0).max(3).optional(), // 0 idle, 1 walk, 2 run, 3 seated
   n: z.string().max(40).optional(),
   j: z.string().max(40).nullable().optional(), // job title under the name
+  w: z.boolean().optional(), // away: the tab is in the background, keep my spot
   a: z.object({ body: z.enum(["a", "b"]), skin: z.string().max(9), hair: z.string().max(10), hairColor: z.string().max(9), shirt: z.string().max(9), pants: z.string().max(9), costume: z.string().max(12).optional() }).optional(),
   e: z.object({ n: z.string().max(16), t: z.number() }).nullable().optional(),
   r: z.object({ k: z.string().max(8), t: z.number() }).nullable().optional(),
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
   const b = parsed.data;
   if (b.leave || b.x === undefined || b.z === undefined) { removePlayer(id); return NextResponse.json({ ok: true, id }); }
   const u = await currentUser().catch(() => null);
-  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: b.e ?? null, r: b.r ?? null, uid: u?.id ?? null, j: u?.title ?? null });
+  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: b.e ?? null, r: b.r ?? null, uid: u?.id ?? null, j: u?.title ?? null, w: b.w === true });
   const out = NextResponse.json({ ok: true, id });
   for (const c of res.cookies.getAll()) out.cookies.set(c);
   return out;
