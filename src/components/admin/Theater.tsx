@@ -26,7 +26,7 @@ export default function Theater() {
   const toast = useToast();
   const [title, setTitle] = useState<string | null>(null);
   const [url, setUrl] = useState(""); const [urlTitle, setUrlTitle] = useState("");
-  const [progress, setProgress] = useState<{ name: string; pct: number } | null>(null);
+  const [progress, setProgress] = useState<{ name: string; pct: number; rate?: number; eta?: number | null } | null>(null);
   const [tick, setTick] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
@@ -61,24 +61,43 @@ export default function Theater() {
         try { localStorage.setItem(key, id); } catch {}
       } catch (e) { toast.err((e as Error).message); setProgress(null); return; }
     }
-    const done = () => have.size;
-    setProgress({ name: file.name, pct: Math.round((done() / chunks) * 100) });
-    for (let i = 0; i < chunks; i++) {
-      if (have.has(i)) continue;
+    // four chunks in flight at once to fill the connection; byte-level progress from each request so the bar never looks stuck
+    const sent = new Map<number, number>();
+    const startedAt = Date.now(); let doneBytes = have.size * chunkBytes;
+    const report = () => {
+      const bytes = Math.min(file.size, doneBytes + Array.from(sent.values()).reduce((a, b) => a + b, 0));
+      const secs = (Date.now() - startedAt) / 1000; const rate = secs > 1 ? (bytes - have.size * chunkBytes) / secs : 0;
+      const eta = rate > 0 ? Math.max(0, Math.round((file.size - bytes) / rate)) : null;
+      setProgress({ name: file.name, pct: Math.round((bytes / file.size) * 100), rate, eta });
+    };
+    report();
+    const putChunk = (i: number) => new Promise<"ok" | "gone" | "fail">((resolve) => {
       const blob = file.slice(i * chunkBytes, Math.min(file.size, (i + 1) * chunkBytes));
-      let ok = false;
-      for (let attempt = 0; attempt < 10 && !ok; attempt++) {
-        try {
-          const r = await fetch(`/api/admin/theater/upload/chunk?id=${id}&index=${i}`, { method: "PUT", body: blob, headers: { "Content-Type": "application/octet-stream" } });
-          if (r.status === 404) { toast.err("The server forgot this upload; starting it again"); try { localStorage.removeItem(key); } catch {} setProgress(null); return upload(file); }
-          if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `chunk ${i} failed (${r.status})`);
-          ok = true;
-        } catch { await sleep(Math.min(15000, 1000 * 2 ** attempt)); }
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", `/api/admin/theater/upload/chunk?id=${id}&index=${i}`);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.timeout = 180000;
+      xhr.upload.onprogress = (e) => { sent.set(i, e.loaded); report(); };
+      xhr.onload = () => { sent.delete(i); if (xhr.status >= 200 && xhr.status < 300) { doneBytes += blob.size; resolve("ok"); } else resolve(xhr.status === 404 ? "gone" : "fail"); report(); };
+      xhr.onerror = xhr.ontimeout = () => { sent.delete(i); resolve("fail"); };
+      xhr.send(blob);
+    });
+    const queue = Array.from({ length: chunks }, (_, i) => i).filter((i) => !have.has(i));
+    let failed = false, gone = false;
+    const worker = async () => {
+      while (queue.length && !failed && !gone) {
+        const i = queue.shift()!;
+        let ok = false;
+        for (let attempt = 0; attempt < 10 && !ok && !gone; attempt++) {
+          const r = await putChunk(i);
+          if (r === "ok") ok = true; else if (r === "gone") gone = true; else await sleep(Math.min(15000, 1000 * 2 ** attempt));
+        }
+        if (ok) have.add(i); else failed = true;
       }
-      if (!ok) { toast.err(`Upload paused at ${Math.round((done() / chunks) * 100)}%: check the connection and pick the same file again to resume.`); setProgress(null); return; }
-      have.add(i);
-      setProgress({ name: file.name, pct: Math.round((done() / chunks) * 100) });
-    }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    if (gone) { toast.err("The server forgot this upload; starting it again"); try { localStorage.removeItem(key); } catch {} setProgress(null); return upload(file); }
+    if (failed) { toast.err(`Upload paused at ${Math.round((have.size / chunks) * 100)}%: check the connection and pick the same file again to resume.`); setProgress(null); return; }
     try {
       await api("/api/admin/theater/upload/complete", { method: "POST", json: { id } });
       try { localStorage.removeItem(key); } catch {}
@@ -117,7 +136,7 @@ export default function Theater() {
           <input ref={fileInput} type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" multiple onChange={(e) => void onFiles(e.target.files)} disabled={!!progress} />
           {progress && (
             <div>
-              <div className="admMuted" style={{ fontSize: 12 }}>Uploading {progress.name} · {progress.pct}%</div>
+              <div className="admMuted" style={{ fontSize: 12 }}>Uploading {progress.name} · {progress.pct}%{progress.rate ? ` · ${(progress.rate / 1024 ** 2).toFixed(1)} MB/s` : ""}{progress.eta != null && progress.rate ? ` · about ${progress.eta >= 90 ? `${Math.round(progress.eta / 60)} min` : `${progress.eta} s`} left` : ""}</div>
               <div style={{ height: 6, background: "var(--surface-2)", border: "1px solid var(--rule)" }}><div style={{ height: "100%", width: `${progress.pct}%`, background: "var(--heat-1)" }} /></div>
             </div>
           )}

@@ -13,6 +13,14 @@ export const CHUNK_BYTES = 8 * 1024 * 1024;
 const STALE_MS = 3 * 86_400_000;
 
 export interface UploadManifest { id: string; name: string; type: string; ext: string; size: number; duration: number; chunks: number; received: number[]; createdAt: number; updatedAt: number }
+/** Chunks land in parallel, so each one leaves its own marker file instead of racing to rewrite the manifest. */
+const markerPath = (id: string, index: number) => path.join(dir(), `${id}.${index}.ok`);
+function receivedChunks(id: string): number[] {
+  const prefix = `${id}.`;
+  const out: number[] = [];
+  for (const f of fs.readdirSync(dir())) { if (f.startsWith(prefix) && f.endsWith(".ok")) { const n = Number(f.slice(prefix.length, -3)); if (Number.isInteger(n)) out.push(n); } }
+  return out.sort((a, b) => a - b);
+}
 
 function dir(): string { const d = path.join(videoDir(), ".uploads"); fs.mkdirSync(d, { recursive: true }); return d; }
 const manifestPath = (id: string) => path.join(dir(), `${id}.json`);
@@ -21,19 +29,20 @@ const safeId = (id: string) => /^[a-z0-9]{6,32}$/.test(id);
 
 export function readManifest(id: string): UploadManifest | null {
   if (!safeId(id)) return null;
-  try { return JSON.parse(fs.readFileSync(manifestPath(id), "utf8")) as UploadManifest; } catch { return null; }
+  try { const m = JSON.parse(fs.readFileSync(manifestPath(id), "utf8")) as UploadManifest; m.received = receivedChunks(id); return m; } catch { return null; }
 }
 function writeManifest(m: UploadManifest) {
   const tmp = manifestPath(m.id) + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(m));
   fs.renameSync(tmp, manifestPath(m.id));
 }
-/** Forget half-finished uploads nobody has touched for days. */
+/** Forget half-finished uploads nobody has touched for days (the .part file's mtime moves with every chunk). */
 export function sweepStale() {
   try {
     for (const f of fs.readdirSync(dir())) {
-      const p = path.join(dir(), f);
-      try { if (Date.now() - fs.statSync(p).mtimeMs > STALE_MS) fs.unlinkSync(p); } catch { /* raced */ }
+      if (!f.endsWith(".part")) continue;
+      const id = f.slice(0, -5);
+      try { if (Date.now() - fs.statSync(path.join(dir(), f)).mtimeMs > STALE_MS) abandonUpload(id); } catch { /* raced */ }
     }
   } catch { /* nothing to sweep */ }
 }
@@ -61,9 +70,8 @@ export function writeChunk(id: string, index: number, data: Buffer): UploadManif
   if (data.length !== expected) return { error: `chunk ${index} should be ${expected} bytes, got ${data.length}` };
   const fd = fs.openSync(partPath(id), "r+");
   try { fs.writeSync(fd, data, 0, data.length, index * CHUNK_BYTES); } finally { fs.closeSync(fd); }
-  if (!m.received.includes(index)) m.received.push(index);
-  m.updatedAt = now();
-  writeManifest(m);
+  fs.writeFileSync(markerPath(id, index), "");
+  m.received = receivedChunks(id);
   return m;
 }
 
@@ -77,6 +85,7 @@ export async function finishUpload(id: string): Promise<{ row: Awaited<ReturnTyp
   const filename = `${m.id}.${m.ext}`;
   fs.renameSync(partPath(id), path.join(videoDir(), filename));
   try { fs.unlinkSync(manifestPath(id)); } catch { /* fine */ }
+  for (let i = 0; i < m.chunks; i++) { try { fs.unlinkSync(markerPath(id, i)); } catch { /* fine */ } }
   const row = await addVideo({ id: m.id, title: m.name, kind: "file", src: filename, mime: m.type, bytes: m.size, duration: m.duration });
   return { row };
 }
@@ -84,4 +93,5 @@ export function abandonUpload(id: string) {
   if (!safeId(id)) return;
   try { fs.unlinkSync(partPath(id)); } catch { /* gone */ }
   try { fs.unlinkSync(manifestPath(id)); } catch { /* gone */ }
+  for (const f of fs.readdirSync(dir())) if (f.startsWith(`${id}.`) && f.endsWith(".ok")) { try { fs.unlinkSync(path.join(dir(), f)); } catch { /* gone */ } }
 }

@@ -9,7 +9,7 @@ const p = await (await b.newContext()).newPage();
 let r = await p.request.post(`${base}/api/auth/password`, { data: { email: "divinitycomicsinc@gmail.com", password: "DFLKji4i9ksl" } }); console.log("login", r.status());
 // a 21 MB "webm" (random bytes with the real demo reel at the front so the type check and sniffing are happy)
 const reel = fs.readFileSync(`${out}/demo-reel.webm`);
-const file = Buffer.concat([reel, crypto.randomBytes(21 * 1024 * 1024 - reel.length)]);
+const file = Buffer.concat([reel, crypto.randomBytes(70 * 1024 * 1024 - reel.length)]);
 const sha = crypto.createHash("sha256").update(file).digest("hex");
 r = await p.request.post(`${base}/api/admin/theater/upload/init`, { data: { name: "Resumable test.webm", type: "video/webm", size: file.length, duration: 12 } });
 const init = await r.json(); console.log("init", r.status(), JSON.stringify(init));
@@ -19,7 +19,7 @@ const send = async (i) => { const rr = await p.request.put(`${base}/api/admin/th
 await send(1); await send(0); await send(1);
 r = await p.request.post(`${base}/api/admin/theater/upload/complete`, { data: { id } }); console.log("complete too early", r.status(), (await r.json()).error);
 const st = await (await p.request.get(`${base}/api/admin/theater/upload/status?id=${id}`)).json(); console.log("status received", st.received, "of", st.chunks);
-for (let i = 0; i < chunks; i++) if (!st.received.includes(i)) await send(i);
+await Promise.all(Array.from({ length: chunks }, (_, i) => i).filter((i) => !st.received.includes(i)).map(send)); // the rest in parallel, like the browser does
 r = await p.request.post(`${base}/api/admin/theater/upload/complete`, { data: { id } }); const done = await r.json(); console.log("complete", r.status(), done.row?.title, done.row?.bytes);
 // the stored file must be byte-identical
 const got = await (await p.request.get(`${base}/api/theater/file/${done.row.id}`)).body();
