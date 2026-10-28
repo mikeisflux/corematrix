@@ -40,19 +40,50 @@ export default function Theater() {
     try { await api("/api/admin/settings", { method: "PUT", json: { key: "THEATER_TITLE", value: title ?? "" } }); toast.ok("Caption saved"); list.reload(); }
     catch (e) { toast.err((e as Error).message); }
   };
+  // Resumable upload: 8 MB chunks, each retried on its own; the upload id is remembered per file so picking the same
+  // file again after a drop or a reload only sends the chunks that are still missing.
   const upload = async (file: File) => {
-    const duration = await probeDuration(URL.createObjectURL(file));
+    const key = `fcc_upload:${file.name}:${file.size}:${file.lastModified}`;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let id: string | null = null, chunkBytes = 8 * 1024 * 1024, chunks = 0;
+    const have = new Set<number>();
+    try { id = localStorage.getItem(key); } catch {}
+    if (id) {
+      try { const st = await api<{ chunkBytes: number; chunks: number; received: number[] }>(`/api/admin/theater/upload/status?id=${id}`); chunkBytes = st.chunkBytes; chunks = st.chunks; st.received.forEach((i) => have.add(i)); }
+      catch { id = null; }
+    }
     setProgress({ name: file.name, pct: 0 });
-    await new Promise<void>((resolve) => {
-      const xhr = new XMLHttpRequest();
-      const q = new URLSearchParams({ name: file.name, type: file.type, duration: String(duration), size: String(file.size) });
-      xhr.open("PUT", `/api/admin/theater/upload?${q}`);
-      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-      xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress({ name: file.name, pct: Math.round((e.loaded / e.total) * 100) }); };
-      xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) toast.ok(`${file.name} is in the playlist`); else { let m = "Upload failed"; try { m = JSON.parse(xhr.responseText).error || m; } catch {} toast.err(m); } resolve(); };
-      xhr.onerror = () => { toast.err("Upload failed (network)"); resolve(); };
-      xhr.send(file);
-    });
+    if (!id) {
+      const duration = await probeDuration(URL.createObjectURL(file));
+      try {
+        const r = await api<{ id: string; chunkBytes: number; chunks: number }>("/api/admin/theater/upload/init", { method: "POST", json: { name: file.name, type: file.type, size: file.size, duration } });
+        id = r.id; chunkBytes = r.chunkBytes; chunks = r.chunks;
+        try { localStorage.setItem(key, id); } catch {}
+      } catch (e) { toast.err((e as Error).message); setProgress(null); return; }
+    }
+    const done = () => have.size;
+    setProgress({ name: file.name, pct: Math.round((done() / chunks) * 100) });
+    for (let i = 0; i < chunks; i++) {
+      if (have.has(i)) continue;
+      const blob = file.slice(i * chunkBytes, Math.min(file.size, (i + 1) * chunkBytes));
+      let ok = false;
+      for (let attempt = 0; attempt < 10 && !ok; attempt++) {
+        try {
+          const r = await fetch(`/api/admin/theater/upload/chunk?id=${id}&index=${i}`, { method: "PUT", body: blob, headers: { "Content-Type": "application/octet-stream" } });
+          if (r.status === 404) { toast.err("The server forgot this upload; starting it again"); try { localStorage.removeItem(key); } catch {} setProgress(null); return upload(file); }
+          if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `chunk ${i} failed (${r.status})`);
+          ok = true;
+        } catch { await sleep(Math.min(15000, 1000 * 2 ** attempt)); }
+      }
+      if (!ok) { toast.err(`Upload paused at ${Math.round((done() / chunks) * 100)}%: check the connection and pick the same file again to resume.`); setProgress(null); return; }
+      have.add(i);
+      setProgress({ name: file.name, pct: Math.round((done() / chunks) * 100) });
+    }
+    try {
+      await api("/api/admin/theater/upload/complete", { method: "POST", json: { id } });
+      try { localStorage.removeItem(key); } catch {}
+      toast.ok(`${file.name} is in the playlist`);
+    } catch (e) { toast.err((e as Error).message); }
     setProgress(null); list.reload();
   };
   const onFiles = async (files: FileList | null) => { if (!files) return; for (const f of Array.from(files)) await upload(f); if (fileInput.current) fileInput.current.value = ""; };
@@ -90,7 +121,7 @@ export default function Theater() {
               <div style={{ height: 6, background: "var(--surface-2)", border: "1px solid var(--rule)" }}><div style={{ height: "100%", width: `${progress.pct}%`, background: "var(--heat-1)" }} /></div>
             </div>
           )}
-          <p className="admMuted" style={{ fontSize: 12 }}>Browsers play H.264 MP4 everywhere. Encode at 720p or 1080p, 4–8 Mbps: every frame is copied onto the 3D screen, so a 4K file makes it stutter and gains nothing on a 32 ft screen seen from the benches. Keep the tab open until the bar finishes.</p>
+          <p className="admMuted" style={{ fontSize: 12 }}>Browsers play H.264 MP4 everywhere. Encode at 720p or 1080p, 4–8 Mbps: every frame is copied onto the 3D screen, so a 4K file makes it stutter and gains nothing on a 32 ft screen seen from the benches. Uploads go up in 8 MB pieces and resume: if the connection drops or the tab closes, pick the same file again and it continues from where it stopped.</p>
         </div>
         <div className="admCard">
           <div className="admCard__hd"><b>Add by link</b><span className="admMuted">a direct .mp4/.webm address</span></div>
