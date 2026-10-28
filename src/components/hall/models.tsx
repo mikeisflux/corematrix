@@ -66,9 +66,19 @@ function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onCl
 }
 
 /** Shared per-avatar motion state: 0 idle, 1 walk, 2 run. Written every frame by the mover, never via React. */
-export interface Motion { speed: number }
+/** What a figure is doing: speed drives idle/walk/run; an emote (name + the moment it was triggered) plays once on top, unless the figure is moving. */
+export interface Motion { speed: number; emote?: { name: string; at: number } | null }
 
 /** The rigged GLB avatar with idle/walk/run crossfades and recoloring by material name. */
+export const ONESHOT = new Set(["wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"]);
+/** idle/walk/run from speed, or the emote while it lasts (moving cancels it). Shared by the GLB rig and the primitive fallback. */
+export function wantedClip(motion: Motion, actions: Record<string, THREE.AnimationAction | undefined>, st: { at: number; until: number; name: string }): string {
+  const em = motion.emote;
+  if (em && em.at !== st.at && actions[em.name]) { st.at = em.at; st.name = em.name; st.until = performance.now() + (actions[em.name]!.getClip().duration - 0.15) * 1000; }
+  if (motion.speed >= 1) st.until = 0;
+  if (st.until > performance.now()) return st.name;
+  return motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
+}
 export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motion: Motion; url: string }) {
   const { scene, animations } = useGLTF(url);
   const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}|${config.costume ?? "none"}`;
@@ -89,6 +99,7 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
   const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
   const current = useRef<string>("");
   const frame = useRef(0);
+  const emote = useRef({ at: 0, until: 0, name: "" });
   useEffect(() => () => { mixer.stopAllAction(); }, [mixer]);
   useFrame(({ camera }, dt) => {
     const o = ref.current; if (!o) return;
@@ -99,10 +110,10 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
     if (dist > 220) return;
     frame.current++;
     if (dist > 90 && frame.current % 2) return; // far figures animate at half rate
-    const want = motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
+    const want = wantedClip(motion, actions, emote.current);
     if (want !== current.current) {
       const next = actions[want]; const prev = actions[current.current];
-      if (next) { next.reset().setEffectiveWeight(1).fadeIn(0.18).play(); if (prev) prev.fadeOut(0.18); current.current = want; }
+      if (next) { next.reset().setLoop(ONESHOT.has(want) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity).setEffectiveWeight(1).fadeIn(0.18).play(); next.clampWhenFinished = ONESHOT.has(want); if (prev) prev.fadeOut(0.18); current.current = want; }
     }
     mixer.update(dist > 90 ? dt * 2 : dt);
   });

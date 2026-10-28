@@ -1,11 +1,15 @@
+import { NextResponse } from "next/server";
 import { subscribe, onlineCount, type LiveMessage } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { ensureMigrated } from "@/lib/db";
+import { getOrSetVisitor } from "@/lib/visitor";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   await ensureMigrated();
+  const res = new NextResponse(null); // only used to collect a Set-Cookie when the visitor is new
+  const visitorId = await getOrSetVisitor(res);
   const encoder = new TextEncoder();
   let unsub: (() => void) | null = null;
   let ping: NodeJS.Timeout | null = null;
@@ -18,7 +22,8 @@ export async function GET(req: Request) {
           /* closed */
         }
       };
-      unsub = subscribe(send);
+      unsub = subscribe(send, visitorId);
+      send({ type: "hello", id: visitorId }); // so the client can tell if this stream is registered under its real id
       send({ type: "presence", online: onlineCount() });
       ping = setInterval(() => {
         try {
@@ -38,7 +43,8 @@ export async function GET(req: Request) {
     unsub?.();
     if (ping) clearInterval(ping);
   });
-  return new Response(stream, {
-    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" },
-  });
+  const headers = new Headers({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) headers.set("Set-Cookie", setCookie);
+  return new Response(stream, { headers });
 }

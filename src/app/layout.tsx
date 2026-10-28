@@ -7,6 +7,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const display = Syne({ variable: "--font-display", subsets: ["latin"], weight: ["600", "700", "800"] });
 
+/** Phones: no pinch zoom (it fights the look controls) and draw under the notch. */
+export const viewport = { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover" as const, themeColor: "#0b1020" };
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: `${SITE_NAME} — the comic convention that never closes`, template: `%s · ${SITE_NAME}` },

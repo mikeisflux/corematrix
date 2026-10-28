@@ -13,6 +13,8 @@ const Body = z.object({
   s: z.number().int().min(0).max(2).optional(),
   n: z.string().max(40).optional(),
   a: z.object({ body: z.enum(["a", "b"]), skin: z.string().max(9), hair: z.string().max(10), hairColor: z.string().max(9), shirt: z.string().max(9), pants: z.string().max(9), costume: z.string().max(12).optional() }).optional(),
+  e: z.object({ n: z.string().max(16), t: z.number() }).nullable().optional(),
+  r: z.object({ k: z.string().max(8), t: z.number() }).nullable().optional(),
 });
 
 /** Where I am on the floor. The visitor cookie is the player id, so nobody can move somebody else. */
@@ -23,7 +25,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "bad body" }, { status: 400 });
   const b = parsed.data;
   if (b.leave || b.x === undefined || b.z === undefined) { removePlayer(id); return NextResponse.json({ ok: true, id }); }
-  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0 });
+  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: b.e ?? null, r: b.r ?? null });
   const out = NextResponse.json({ ok: true, id });
   for (const c of res.cookies.getAll()) out.cookies.set(c);
   return out;

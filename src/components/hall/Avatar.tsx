@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
-import { AvatarRig, useModelUrl, type Motion } from "./models";
+import { AvatarRig, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
 import { Html } from "@react-three/drei";
@@ -12,12 +12,16 @@ import { live, type LivePlayer } from "@/lib/hall/live";
 import { getPrefs } from "@/lib/hall/prefs";
 import { perf } from "@/lib/hall/perf";
 import { conbot } from "@/lib/hall/conbot";
+import { social, guestName, bumpSocial, useSocial } from "@/lib/hall/social";
+import { EMOTES } from "@/lib/hall/modelkit/avatar";
 import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
 export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
 /** Where the walker is, for things that react to the player (ConBot) without going through React. */
 export const player = { x: 0, z: 0, h: 0 };
+/** The walker's animation state; the emote panel and number keys write emotes into it. */
+export const playerMotion: Motion = { speed: 0, emote: null };
 /**
  * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a
  * find bar, a menu, another window), which would leave the figure walking
@@ -140,6 +144,7 @@ function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Mot
   const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
   const actions = useMemo(() => Object.fromEntries(avatarTemplate(body).clips.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [body, mixer]);
   const current = useRef("");
+  const emoteState = useRef({ at: 0, until: 0, name: "" });
   const ref = useRef<THREE.Object3D>(null);
   useEffect(() => () => { mixer.stopAllAction(); }, [mixer]);
   useFrame(({ camera }, dt) => {
@@ -147,10 +152,10 @@ function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Mot
     if (!o.visible || (o.parent && !o.parent.visible)) return;
     const p = o.parent ?? o;
     if (Math.hypot(camera.position.x - p.position.x, camera.position.z - p.position.z) > 220) return;
-    const want = motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
+    const want = wantedClip(motion, actions, emoteState.current);
     if (want !== current.current) {
       const next = actions[want], prev = actions[current.current];
-      if (next) { next.reset().setEffectiveWeight(1).fadeIn(0.18).play(); if (prev) prev.fadeOut(0.18); current.current = want; }
+      if (next) { next.reset().setLoop(ONESHOT.has(want) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity).setEffectiveWeight(1).fadeIn(0.18).play(); next.clampWhenFinished = ONESHOT.has(want); if (prev) prev.fadeOut(0.18); current.current = want; }
     }
     mixer.update(dt);
   });
@@ -177,21 +182,22 @@ export function Player() {
   useEffect(() => {
     if (mode !== "walk") return;
     const el = gl.domElement;
-    let down = false, lx = 0, ly = 0;
-    const onDown = (e: PointerEvent) => { if (e.button !== 0 && e.button !== 2) return; down = true; lx = e.clientX; ly = e.clientY; };
+    let down = false, lx = 0, ly = 0, pid = -1; // one pointer looks; on a phone the other thumb is on the joystick
+    const onDown = (e: PointerEvent) => { if (down || (e.button !== 0 && e.button !== 2)) return; down = true; pid = e.pointerId; lx = e.clientX; ly = e.clientY; };
     const onMove = (e: PointerEvent) => {
-      if (!down) return;
+      if (!down || e.pointerId !== pid) return;
       const pr = getPrefs();
       input.yawDrag -= (e.clientX - lx) * 0.0045 * pr.sensitivity; input.pitchDrag -= (e.clientY - ly) * 0.003 * pr.sensitivity * (pr.invertY ? -1 : 1);
       lx = e.clientX; ly = e.clientY;
     };
-    const onUp = () => { down = false; };
+    const onUp = (e: PointerEvent) => { if (e.pointerId !== pid) return; down = false; pid = -1; };
+    const onBlur = () => { down = false; pid = -1; };
     const onCtx = (e: Event) => e.preventDefault();
-    el.addEventListener("pointerdown", onDown); window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); window.addEventListener("blur", onUp); el.addEventListener("contextmenu", onCtx);
+    el.addEventListener("pointerdown", onDown); window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); window.addEventListener("pointercancel", onUp); window.addEventListener("blur", onBlur); el.addEventListener("contextmenu", onCtx);
     el.style.cursor = "grab";
-    return () => { el.removeEventListener("pointerdown", onDown); window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("blur", onUp); el.removeEventListener("contextmenu", onCtx); el.style.cursor = ""; };
+    return () => { el.removeEventListener("pointerdown", onDown); window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("pointercancel", onUp); window.removeEventListener("blur", onBlur); el.removeEventListener("contextmenu", onCtx); el.style.cursor = ""; };
   }, [mode, gl]);
-  const motion = useRef<Motion>({ speed: 0 }).current;
+  const motion = playerMotion;
   const near = useRef<number | null>(null);
   const lastNear = useRef(0);
   const [firstPerson, setFirstPerson] = useState(false);
@@ -199,7 +205,10 @@ export function Player() {
   const me = useHall((s) => s.me);
   const lastReport = useRef(0);
   const report = (leave = false) => {
-    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: motion.speed, n: me?.displayName || "Visitor", a: avatar };
+    const pend = social.pending;
+    const fresh = (t: number) => Date.now() - t < 6000;
+    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: motion.speed, n: me?.displayName || guestName() || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null };
+    pend.dirty = false;
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
       .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
   };
@@ -212,6 +221,16 @@ export function Player() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  // teleport beside a person (People panel → "walk over")
+  const walkPoint = useHall((s) => s.walkPoint);
+  const setWalkPoint = useHall((s) => s.setWalkPoint);
+  useEffect(() => {
+    if (!walkPoint) return;
+    const fp = freePoint(walkPoint.x, walkPoint.z);
+    pos.current.set(fp.x, 0, fp.z);
+    if (walkPoint.face) { heading.current = Math.atan2(walkPoint.face.x - fp.x, walkPoint.face.z - fp.z); yaw.current = heading.current; }
+    setWalkPoint(null);
+  }, [walkPoint, setWalkPoint]);
   useEffect(() => {
     if (walkTarget == null) return;
     const sp = freePoint(standPoint(walkTarget).x, standPoint(walkTarget).z);
@@ -228,6 +247,7 @@ export function Player() {
       const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
       if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); else if (useHall.getState().nearBot) useHall.getState().setPanel("conbot"); }
       if (e.key === "v" || e.key === "V") { fp.current = !fp.current; setFirstPerson(fp.current); }
+      const n = Number(e.key); if (n >= 1 && n <= EMOTES.length) { const em = EMOTES[n - 1]; social.pending.e = { n: em.id, t: Date.now() }; social.pending.dirty = true; bumpSocial(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -271,8 +291,9 @@ export function Player() {
     group.current.position.copy(pos.current);
     group.current.rotation.y = heading.current;
     player.x = pos.current.x; player.z = pos.current.z; player.h = heading.current;
-    // share where we are: 6×/s while moving, once a second standing still
-    if (state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
+    if (social.pending.e && (!motion.emote || motion.emote.at !== social.pending.e.t)) motion.emote = { name: social.pending.e.n, at: social.pending.e.t };
+    // share where we are: 6×/s while moving, once a second standing still, at once when an emote or reaction fired
+    if (social.pending.dirty || state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
     // camera
     const back = fp.current ? 0 : 20, up = fp.current ? 5.6 : 10;
     // keep the camera inside the building so it never ends up looking at the back of a wall
@@ -299,6 +320,7 @@ export function Player() {
   return (
     <group ref={group}>
       {!firstPerson && <AvatarModel config={avatar} motion={motion} />}
+      {!firstPerson && <OverheadNotes id="me" />}
       <pointLight position={[0, 7, 0]} intensity={6} distance={14} color="#ffffff" />
     </group>
   );
@@ -406,6 +428,32 @@ export function Others() {
   return <>{ids.map((id) => <Other key={id} id={id} />)}</>;
 }
 
+/** Open a private chat with someone on the floor. */
+export function openDm(id: string, name: string) {
+  social.dm.active = { id, name };
+  social.dm.messages = [];
+  const th = social.dm.threads.find((t) => t.with === id); if (th) { th.unread = 0; social.dm.unread = social.dm.threads.reduce((a, t) => a + t.unread, 0); }
+  bumpSocial();
+  useHall.getState().setPanel("dm");
+}
+/** Speech bubble (chat or private message) and a floating reaction over a figure's head. */
+function OverheadNotes({ id }: { id: string }) {
+  const s = useSocial();
+  const [, tick] = useState(0);
+  const b = s.bubbles.get(id), r = s.reactions.get(id);
+  const now = Date.now();
+  const liveB = b && b.until > now ? b : null, liveR = r && r.until > now ? r : null;
+  useEffect(() => { if (!liveB && !liveR) return; const t = setTimeout(() => tick((n) => n + 1), Math.max(50, Math.min(liveB ? liveB.until - now : Infinity, liveR ? liveR.until - now : Infinity) + 20)); return () => clearTimeout(t); }, [liveB, liveR, now]);
+  if (!liveB && !liveR) return null;
+  return (
+    <Html position={[0, 9.4, 0]} center zIndexRange={[45, 0]} style={{ pointerEvents: "none" }}>
+      <div className="flex flex-col items-center gap-1">
+        {liveR && <div className="text-3xl drop-shadow" style={{ animation: "fcc-float 3s ease-out forwards" }}>{liveR.k}</div>}
+        {liveB && <div className="max-w-[220px] rounded-2xl border border-white/15 bg-white px-3 py-1.5 text-center text-[12px] font-medium text-slate-900 shadow-lg">{liveB.text}</div>}
+      </div>
+    </Html>
+  );
+}
 const MARKER_MAT = new THREE.MeshBasicMaterial({ color: "#5ee6c3", toneMapped: false });
 const MARKER_GEO = new THREE.ConeGeometry(0.55, 1.1, 3);
 /** The "real person" marker: a glowing triangle that floats, bobs and turns above a live visitor so nobody mistakes them for the crowd. */
@@ -432,14 +480,17 @@ function Other({ id }: { id: string }) {
     let dh = p.h - c.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); c.h += dh * k;
     g.position.set(c.x, 0, c.z); g.rotation.y = c.h;
     motion.speed = p.s;
+    if (p.e && Date.now() - p.e.t < 6000 && (!motion.emote || motion.emote.at !== p.e.t)) motion.emote = { name: p.e.n, at: p.e.t };
+    if (p.r && Date.now() - p.r.t < 4000) { const cur = social.reactions.get(id); if (!cur || cur.until - 3000 < p.r.t) { social.reactions.set(id, { k: p.r.k, until: p.r.t + 3000 }); bumpSocial(); } }
     if (p.a && p.a !== cfg && JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a);
     if (p.n !== name) setName(p.n);
     if (clock.elapsedTime - nearT.current > 0.5) { nearT.current = clock.elapsedTime; const d = Math.hypot(camera.position.x - c.x, camera.position.z - c.z); g.visible = d < 260; const n = d < 80; if (n !== near) setNear(n); }
   });
   return (
-    <group ref={group}>
+    <group ref={group} onClick={(e) => { e.stopPropagation(); openDm(id, name); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <AvatarModel config={cfg} motion={motion} />
       <LiveMarker />
+      <OverheadNotes id={id} />
       {near && (
         <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
           <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" />{name}<span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">live</span></div>

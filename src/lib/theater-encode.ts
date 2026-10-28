@@ -18,6 +18,7 @@ const g = globalThis as unknown as { __fccEncodeQueue?: string[]; __fccEncoding?
 /** The ffmpeg binary, or null when the server has none (FFMPEG_PATH overrides the lookup). */
 export function ffmpegPath(): string | null {
   if (g.__fccFfmpeg !== undefined) return g.__fccFfmpeg;
+  if (process.env.THEATER_ENCODE === "off") { g.__fccFfmpeg = null; return null; } // play uploads as they are
   const candidates = [process.env.FFMPEG_PATH, "ffmpeg", "/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"].filter(Boolean) as string[];
   for (const c of candidates) { try { if (spawnSync(c, ["-version"], { stdio: "ignore" }).status === 0) { g.__fccFfmpeg = c; return c; } } catch { /* next */ } }
   g.__fccFfmpeg = null;

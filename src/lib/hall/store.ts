@@ -98,7 +98,7 @@ interface HallState {
   loaded: boolean;
   hovered: number | null;
   selected: number | null;
-  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings" | "conbot";
+  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings" | "conbot" | "emotes" | "people" | "dm";
   night: boolean;
   ride: boolean;
   flyTo: number | null;
@@ -106,6 +106,7 @@ interface HallState {
   mode: "map" | "walk";
   avatar: AvatarConfig;
   walkTarget: number | null;
+  walkPoint: { x: number; z: number; face?: { x: number; z: number } } | null; // teleport beside a person
   near: number | null;
   nearBot: boolean;
   quality: Quality;
@@ -128,6 +129,7 @@ interface HallState {
   setMode: (m: HallState["mode"]) => void;
   setAvatar: (a: Partial<AvatarConfig>) => void;
   setWalkTarget: (id: number | null) => void;
+  setWalkPoint: (p: HallState["walkPoint"]) => void;
   setNear: (id: number | null) => void;
   setNearBot: (v: boolean) => void;
   setQuality: (q: Quality) => void;
@@ -172,6 +174,7 @@ export const useHall = create<HallState>((set) => ({
   mode: "map",
   avatar: DEFAULT_AVATAR,
   walkTarget: null,
+  walkPoint: null,
   near: null,
   nearBot: false,
   quality: "medium",
@@ -200,6 +203,7 @@ export const useHall = create<HallState>((set) => ({
   setMode: (mode) => { try { localStorage.setItem("fcc_mode", mode); } catch {} set({ mode }); },
   setAvatar: (a) => set((s) => { const avatar = { ...s.avatar, ...a }; try { localStorage.setItem("fcc_avatar", JSON.stringify(avatar)); } catch {} return { avatar }; }),
   setWalkTarget: (walkTarget) => set({ walkTarget }),
+  setWalkPoint: (walkPoint) => set({ walkPoint }),
   setNear: (near) => set({ near }),
   setNearBot: (nearBot) => set({ nearBot }),
   setQuality: (quality) => set({ quality }),

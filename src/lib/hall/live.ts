@@ -2,7 +2,7 @@
 import type { AvatarConfig } from "@/lib/hall/store";
 
 /** Other people on the floor right now, straight from /api/live. Mutable shared state read every frame; `version` bumps when the roster changes. */
-export interface LivePlayer { id: string; n: string; a?: AvatarConfig; x: number; z: number; h: number; s: number }
+export interface LivePlayer { id: string; n: string; a?: AvatarConfig; x: number; z: number; h: number; s: number; e?: { n: string; t: number } | null; r?: { k: string; t: number } | null }
 export const live = {
   me: "",
   players: new Map<string, LivePlayer>(),

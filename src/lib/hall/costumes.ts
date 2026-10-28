@@ -5,7 +5,7 @@
  * avatar panel and the API validators. No three.js here so it is client- and
  * server-safe.
  */
-export const COSTUME_PARTS = ["cos_cape", "cos_mask", "cos_cowl", "cos_helmet", "cos_hat", "cos_antenna", "cos_chest", "cos_belt", "cos_emblem_star", "cos_emblem_bolt", "cos_emblem_ring", "cos_pads"] as const;
+export const COSTUME_PARTS = ["cos_cape", "cos_mask", "cos_cowl", "cos_cowl_eyes", "cos_helmet", "cos_hat", "cos_antenna", "cos_chest", "cos_belt", "cos_emblem_star", "cos_emblem_bolt", "cos_emblem_ring", "cos_pads"] as const;
 export type CostumePart = (typeof COSTUME_PARTS)[number];
 
 export interface Costume {
@@ -21,7 +21,7 @@ export type CostumeId = "none" | "caped" | "vigilante" | "ranger" | "sorcerer" |
 export const COSTUMES: Record<CostumeId, Costume> = {
   none: { name: "No costume", blurb: "Just you.", parts: [], colors: { costume: "#888888", costume2: "#888888", cape: "#888888", shirt: "", pants: "" } },
   caped: { name: "Caped hero", blurb: "Cape, domino mask, star on the chest.", parts: ["cos_cape", "cos_mask", "cos_emblem_star", "cos_belt"], colors: { costume: "#b91c1c", costume2: "#facc15", cape: "#b91c1c", shirt: "#1d4ed8", pants: "#1d4ed8" } },
-  vigilante: { name: "Night vigilante", blurb: "Cowl with ears, long cape, utility belt.", parts: ["cos_cowl", "cos_cape", "cos_belt", "cos_emblem_ring"], hideHair: true, colors: { costume: "#111827", costume2: "#6b7280", cape: "#0b0f1a", shirt: "#1f2937", pants: "#111827" } },
+  vigilante: { name: "Night vigilante", blurb: "Cowl with ears, long cape, utility belt.", parts: ["cos_cowl", "cos_cowl_eyes", "cos_cape", "cos_belt", "cos_emblem_ring"], hideHair: true, colors: { costume: "#111827", costume2: "#6b7280", cape: "#0b0f1a", shirt: "#1f2937", pants: "#111827" } },
   ranger: { name: "Space ranger", blurb: "Visored helmet, chest plate, shoulder pads.", parts: ["cos_helmet", "cos_chest", "cos_pads", "cos_belt"], hideHair: true, colors: { costume: "#f1f5f9", costume2: "#06b6d4", cape: "#f1f5f9", shirt: "#0ea5e9", pants: "#e2e8f0" } },
   sorcerer: { name: "Sorcerer", blurb: "Pointed hat and a flowing cape.", parts: ["cos_hat", "cos_cape", "cos_belt"], colors: { costume: "#4c1d95", costume2: "#f59e0b", cape: "#6d28d9", shirt: "#4c1d95", pants: "#1e1b4b" } },
   android: { name: "Android", blurb: "Antenna, chrome chest plate, glowing trim.", parts: ["cos_antenna", "cos_chest", "cos_pads", "cos_belt"], colors: { costume: "#9ca3af", costume2: "#22d3ee", cape: "#9ca3af", shirt: "#374151", pants: "#4b5563" } },

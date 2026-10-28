@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getOrSetVisitor } from "@/lib/visitor";
 import { z } from "zod";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
@@ -56,6 +57,6 @@ export async function POST(req: Request) {
   if (Number(dup?.n ?? 0) > 0) return NextResponse.json({ error: "You just said that" }, { status: 429 });
   const msg = { id: newId(), room, userId: u.id, authorName: booth?.name ?? u.displayName ?? "visitor", authorBoothId: booth?.id ?? null, body, createdAt: t };
   await db.insert(schema.messages).values(msg);
-  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t } });
+  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetVisitor() } });
   return NextResponse.json({ ok: true });
 }

@@ -15,6 +15,8 @@ export interface LivePlayer {
   z: number;
   h: number; // heading, radians
   s: number; // 0 idle, 1 walk, 2 run
+  e?: { n: string; t: number } | null; // last emote (name, when)
+  r?: { k: string; t: number } | null; // last reaction (emoji, when)
   t: number; // last update, ms
 }
 

@@ -18,8 +18,14 @@ import { ClaimPanel } from "./panels/ClaimPanel";
 import { AvatarPanel } from "./panels/AvatarPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { ConBotPanel } from "./panels/ConBotPanel";
+import { EmotesPanel } from "./panels/EmotesPanel";
+import { PeoplePanel } from "./panels/PeoplePanel";
+import { DmPanel } from "./panels/DmPanel";
+import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
 import { useTheater, setTheaterSound } from "@/lib/hall/theater";
+import { Minimap } from "./Minimap";
+import { Tips } from "./Tips";
 
 export function Hud() {
   const stats = useHall((s) => s.stats);
@@ -37,29 +43,57 @@ export function Hud() {
   const near = useHall((s) => s.near);
   const nearBot = useHall((s) => s.nearBot);
   const th = useTheater();
+  const soc = useSocial();
   const booths = useHall((s) => s.booths);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 5000); return () => clearTimeout(t); }, [toast, setToast]);
   const latest = events[0];
   const nearBooth = near ? booths.get(near) : null;
   const toggle = (p: typeof panel) => setPanel(panel === p ? "none" : p);
+  // phones get the panels as a bottom sheet outside the animated column (an animated ancestor would pin a fixed sheet to it)
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { const mq = window.matchMedia("(max-width: 767px)"); const on = () => setMobile(mq.matches); on(); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, []);
+  const panelBody = panel === "none" ? null : (
+    <>
+      {panel === "booth" && <BoothPanel />}
+      {panel === "rankings" && <RankingsPanel />}
+      {panel === "search" && <SearchPanel />}
+      {panel === "chat" && <ChatPanel />}
+      {panel === "stats" && <StatsPanel />}
+      {panel === "arcade" && <ArcadePanel />}
+      {panel === "billboards" && <BillboardsPanel />}
+      {panel === "me" && <MePanel />}
+      {panel === "claim" && <ClaimPanel />}
+      {panel === "avatar" && <AvatarPanel />}
+      {panel === "settings" && <SettingsPanel />}
+      {panel === "conbot" && <ConBotPanel />}
+      {panel === "emotes" && <EmotesPanel />}
+      {panel === "people" && <PeoplePanel />}
+      {panel === "dm" && <DmPanel />}
+    </>
+  );
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       <PerfOverlay />
-      <div className="absolute left-1/2 top-3 flex -translate-x-1/2 flex-col items-center gap-2 fade-up">
-        <button onClick={() => toggle("stats")} className="pointer-events-auto panel flex items-center gap-4 rounded-full px-4 py-2 text-sm hover:border-white/20">
+      {loaded && <Minimap />}
+      {loaded && <Tips />}
+      <div className="absolute left-2 top-2 flex flex-col items-start gap-2 fade-up md:left-1/2 md:top-3 md:-translate-x-1/2 md:items-center">
+        <button onClick={() => toggle("stats")} className="pointer-events-auto panel flex items-center gap-2 rounded-full px-3 py-1.5 text-xs hover:border-white/20 md:gap-4 md:px-4 md:py-2 md:text-sm">
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />{stats?.online ?? 1} on the floor</span>
           {(stats?.walking ?? 0) > 0 && <><span className="text-slate-400">|</span><span title="Real people walking the hall right now; they wear a green triangle">👣 {stats?.walking} walking</span></>}
-          <span className="text-slate-400">|</span>
-          <span>👁 {formatCount(stats?.totalViews ?? 0)} visits</span>
-          <span className="text-slate-400">|</span>
-          <span>{stats?.claimed ?? 0}/{stats?.totalBooths ?? 0} booths</span>
+          <span className="hidden text-slate-400 sm:inline">|</span>
+          <span className="hidden sm:inline">👁 {formatCount(stats?.totalViews ?? 0)} visits</span>
+          <span className="hidden text-slate-400 sm:inline">|</span>
+          <span className="hidden sm:inline">{stats?.claimed ?? 0}/{stats?.totalBooths ?? 0} booths</span>
         </button>
-        <FeaturedStrip />
+        <div className="hidden md:block"><FeaturedStrip /></div>
       </div>
 
+      {panelBody && mobile && (
+        <div className="pointer-events-auto panel fixed inset-x-2 bottom-2 z-30 max-h-[58vh] overflow-y-auto scroll rounded-2xl">{panelBody}</div>
+      )}
       <div className="absolute left-3 top-3 flex w-[360px] max-w-[calc(100vw-24px)] flex-col gap-2 fade-up">
-        <div className="pointer-events-auto panel flex items-center justify-between rounded-2xl px-4 py-3">
+        <div className="pointer-events-auto panel hidden items-center justify-between rounded-2xl px-4 py-3 md:flex">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">{SITE_NAME} · total sales</div>
             <div className="mono text-xl font-bold text-amber-300">{formatMoney(stats?.totalSalesCents ?? 0)}</div>
@@ -67,35 +101,28 @@ export function Hud() {
           <button onClick={() => setPanel("claim")} className="btn-primary">Get a booth from $5</button>
         </div>
         {latest && (
-          <button onClick={() => latest.boothId && useHall.getState().select(latest.boothId)} className="pointer-events-auto panel flex items-center gap-2 rounded-xl px-3 py-2 text-left text-xs">
+          <button onClick={() => latest.boothId && useHall.getState().select(latest.boothId)} className="pointer-events-auto panel hidden items-center gap-2 rounded-xl px-3 py-2 text-left text-xs md:flex">
             <span className="h-2 w-2 shrink-0 rounded-full bg-amber-300 animate-pulse" />
             <span className="truncate"><b>{latest.title}</b>{latest.detail ? ` · ${latest.detail}` : ""}</span>
             <span className="ml-auto shrink-0 text-slate-400 mono">{timeAgo(latest.createdAt)}</span>
           </button>
         )}
-        {panel !== "none" && (
-          <div className="pointer-events-auto panel max-h-[calc(100vh-210px)] overflow-y-auto scroll rounded-2xl fade-up">
-            {panel === "booth" && <BoothPanel />}
-            {panel === "rankings" && <RankingsPanel />}
-            {panel === "search" && <SearchPanel />}
-            {panel === "chat" && <ChatPanel />}
-            {panel === "stats" && <StatsPanel />}
-            {panel === "arcade" && <ArcadePanel />}
-            {panel === "billboards" && <BillboardsPanel />}
-            {panel === "me" && <MePanel />}
-            {panel === "claim" && <ClaimPanel />}
-            {panel === "avatar" && <AvatarPanel />}
-            {panel === "settings" && <SettingsPanel />}
-            {panel === "conbot" && <ConBotPanel />}
-          </div>
+        {panelBody && !mobile && (
+          <div className="pointer-events-auto panel max-h-[calc(100vh-210px)] overflow-y-auto scroll rounded-2xl fade-up">{panelBody}</div>
         )}
         {panel === "none" && loaded && mode === "map" && <LiveFeed />}
       </div>
 
-      <div className="absolute right-3 top-3 flex flex-col gap-1 panel rounded-2xl p-1 fade-up pointer-events-auto">
+      <div className="absolute right-2 top-2 flex gap-1 panel rounded-2xl p-1 pointer-events-auto md:hidden">
+        <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
+        <RailButton label="Hall chat" active={panel === "chat"} onClick={() => toggle("chat")} icon="💬" />
+        <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
+      </div>
+      <div className="absolute right-3 top-3 hidden flex-col gap-1 panel rounded-2xl p-1 fade-up pointer-events-auto md:flex">
         <RailButton label="Rankings" active={panel === "rankings"} onClick={() => toggle("rankings")} icon="🏆" />
         <RailButton label="Search" active={panel === "search"} onClick={() => toggle("search")} icon="🔍" />
         <RailButton label="Hall chat" active={panel === "chat"} onClick={() => toggle("chat")} icon="💬" />
+        <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
         <RailButton label="Arcade" active={panel === "arcade"} onClick={() => toggle("arcade")} icon="🕹️" />
         <RailButton label="Hanging banners" active={panel === "billboards"} onClick={() => toggle("billboards")} icon="🪧" />
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
@@ -105,11 +132,12 @@ export function Hud() {
       <div className="absolute bottom-3 right-3 flex flex-col gap-1 panel rounded-2xl p-1 pointer-events-auto">
         <RailButton label={mode === "walk" ? "Back to the map" : "Walk the floor"} active={mode === "walk"} onClick={() => { if (mode === "walk") setMode("map"); else { setMode("walk"); setPanel("none"); } }} icon={mode === "walk" ? "🗺️" : "🚶"} />
         <RailButton label="Your avatar" active={panel === "avatar"} onClick={() => toggle("avatar")} icon="🧑‍🎤" />
+        <RailButton label="Emotes" active={panel === "emotes"} onClick={() => toggle("emotes")} icon="🙌" />
         <RailButton label={night ? "House lights up" : "After hours"} onClick={toggleNight} icon={night ? "💡" : "🌙"} />
         <RailButton label="Settings" active={panel === "settings"} onClick={() => toggle("settings")} icon="⚙️" />
       </div>
 
-      <div className="absolute bottom-3 left-3 flex items-center gap-2 pointer-events-auto">
+      <div className="absolute bottom-3 left-3 hidden items-center gap-2 pointer-events-auto md:flex">
         <nav className="panel flex items-center gap-1 rounded-full px-2 py-1 text-xs">
           <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/directory">Exhibitors</Link>
           <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/rankings">Rankings</Link>
@@ -159,20 +187,20 @@ function Joystick() {
     const r = pad.current.getBoundingClientRect();
     const dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2), dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
     const len = Math.hypot(dx, dy) || 1;
-    const x = Math.abs(dx) > 1 || Math.abs(dy) > 1 ? dx / len : dx, y = Math.abs(dx) > 1 || Math.abs(dy) > 1 ? dy / len : dy;
-    input.joy.x = x; input.joy.y = y; setKnob({ x, y });
+    const x = len > 1 ? dx / len : dx, y = len > 1 ? dy / len : dy;
+    input.joy.x = x; input.joy.y = y; input.run = len > 0.92; // push to the rim to run
+    setKnob({ x, y });
   };
-  const end = () => { active.current = false; input.joy.x = 0; input.joy.y = 0; setKnob({ x: 0, y: 0 }); };
+  const end = () => { active.current = false; input.joy.x = 0; input.joy.y = 0; input.run = false; setKnob({ x: 0, y: 0 }); };
   return (
-    <div className="pointer-events-auto absolute bottom-20 right-24 md:hidden">
-      <div ref={pad} className="relative h-28 w-28 rounded-full border border-white/20 bg-white/10 backdrop-blur" onPointerDown={(e) => { active.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
-        <div className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/80" style={{ transform: `translate(calc(-50% + ${knob.x * 36}px), calc(-50% + ${knob.y * 36}px))` }} />
+    <div className="pointer-events-auto absolute bottom-24 left-5 md:hidden" style={{ touchAction: "none" }}>
+      <div ref={pad} className="relative h-32 w-32 rounded-full border border-white/20 bg-white/10 backdrop-blur" onPointerDown={(e) => { active.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+        <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/80" style={{ transform: `translate(calc(-50% + ${knob.x * 40}px), calc(-50% + ${knob.y * 40}px))` }} />
       </div>
-      <button className="mt-2 w-full panel rounded-full py-1 text-xs" onPointerDown={() => { input.run = true; }} onPointerUp={() => { input.run = false; }}>run</button>
+      <div className="mt-1 text-center text-[10px] text-slate-400">push to the edge to run · drag the view to look</div>
     </div>
   );
 }
-
 function FeaturedStrip() {
   const featured = useHall((s) => s.featured);
   const select = useHall((s) => s.select);

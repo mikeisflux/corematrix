@@ -138,6 +138,7 @@ export function buildAvatar(body: BodyType): THREE.Group {
   // cosplay materials: recoloured per preset at runtime
   const costume = mat("costume", "#b91c1c", { roughness: 0.45, metalness: 0.15 }), costume2 = mat("costume2", "#facc15", { roughness: 0.4, metalness: 0.2, emissive: "#000000" });
   const cape = mat("cape", "#b91c1c", { roughness: 0.9, side: THREE.DoubleSide });
+  const lens = mat("lens", "#f8fafc", { roughness: 0.3, metalness: 0, emissive: "#ffffff", emissiveIntensity: 0.35 }); // the white eyes of a cowl
 
   const node = (name: string, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.name = name; g.position.set(x, y, z); return g; };
   const mesh = (name: string, geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const me = new THREE.Mesh(geo, m); me.name = name; me.position.set(x, y, z); me.castShadow = true; return me; };
@@ -242,10 +243,15 @@ export function buildAvatar(body: BodyType): THREE.Group {
   torso.add(mesh("cos_cape", capeGeo, cape));
   // domino mask: a band round the eyes
   head.add(mesh("cos_mask", new THREE.SphereGeometry(HEAD_R + 0.025, 16, 6, Math.PI / 2 - 1.15, 2.3, 1.0, 0.36).scale(...HEAD_SCALE), costume2, 0, hc, 0));
-  // cowl: a cap over the whole crown with two ears
-  const cowlCap = new THREE.SphereGeometry(HEAD_R + 0.03, 20, 12, 0, Math.PI * 2, 0, 1.75).scale(...HEAD_SCALE).translate(0, hc, 0);
+  // cowl: crown, sides and back of the head, a band across the eyes, two ears; the nose, mouth and chin stay open,
+  // and white lenses sit over the eyes (the sphere's front is phi = π/2)
+  const cowlCrown = new THREE.SphereGeometry(HEAD_R + 0.03, 20, 8, 0, Math.PI * 2, 0, 0.98).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const cowlBack = new THREE.SphereGeometry(HEAD_R + 0.03, 20, 12, Math.PI / 2 + 1.0, Math.PI * 2 - 2.0, 0.9, 1.25).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const cowlBand = new THREE.SphereGeometry(HEAD_R + 0.03, 16, 6, Math.PI / 2 - 1.1, 2.2, 0.9, 0.5).scale(...HEAD_SCALE).translate(0, hc, 0);
   const ears2 = [-1, 1].map((s) => new THREE.ConeGeometry(0.16, 0.42, 6).translate(s * 0.4, hc + 0.78, -0.1));
-  head.add(mesh("cos_cowl", merge(cowlCap, ...ears2), costume));
+  head.add(mesh("cos_cowl", merge(cowlCrown, cowlBack, cowlBand, ...ears2), costume));
+  const lensGeo = [-1, 1].map((s) => sphere(0.1, 10, 6).scale(1.5, 0.85, 0.45).translate(s * 0.26, hc + 0.12, (HEAD_R + 0.03) * HEAD_SCALE[2] * 0.94));
+  head.add(mesh("cos_cowl_eyes", merge(...lensGeo), lens));
   // full helmet with a visor slot at eye height
   const shell = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 14, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0, Math.PI).scale(...HEAD_SCALE).translate(0, hc, 0);
   const crown = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 10, 0, Math.PI * 2, 0, 0.95).scale(...HEAD_SCALE).translate(0, hc, 0);
@@ -371,5 +377,104 @@ export function buildAvatarClips(): THREE.AnimationClip[] {
     qTrack("shin_l", D, 32, () => e(0.05)), qTrack("shin_r", D, 32, () => e(0.05)),
     qTrack("shoe_l", D, 32, () => e(0)), qTrack("shoe_r", D, 32, () => e(0)),
   ]);
-  return [idle, gait("walk", 1.0, 0.5, 0.05, 0.07, 0.4, 0.42, 1.0), gait("run", 0.6, 0.9, 0.2, 0.13, 1.25, 0.85, 1.5)];
+  return [idle, gait("walk", 1.0, 0.5, 0.05, 0.07, 0.4, 0.42, 1.0), gait("run", 0.6, 0.9, 0.2, 0.13, 1.25, 0.85, 1.5), ...buildEmoteClips()];
+}
+
+/** Emotes people can trigger: one-shot clips, all bones keyed so they read cleanly over whatever was playing. */
+export const EMOTES = [
+  { id: "wave", label: "Wave", icon: "👋" },
+  { id: "dance", label: "Dance", icon: "🕺" },
+  { id: "cheer", label: "Cheer", icon: "🙌" },
+  { id: "clap", label: "Clap", icon: "👏" },
+  { id: "bow", label: "Bow", icon: "🙇" },
+  { id: "point", label: "Point", icon: "👉" },
+  { id: "laugh", label: "Laugh", icon: "😂" },
+  { id: "facepalm", label: "Facepalm", icon: "🤦" },
+] as const;
+export type EmoteId = (typeof EMOTES)[number]["id"];
+export const isEmoteId = (s: unknown): s is EmoteId => typeof s === "string" && EMOTES.some((e) => e.id === s);
+
+function buildEmoteClips(): THREE.AnimationClip[] {
+  const N = 32;
+  // an easing that holds a pose in the middle of the clip: 0 → 1 → 0
+  const hold = (t: number, inT = 0.18, outT = 0.82) => (t < inT ? t / inT : t > outT ? (1 - t) / (1 - outT) : 1);
+  const smooth = (x: number) => x * x * (3 - 2 * x);
+  const legs = (dur: number, knee = 0.05) => [
+    qTrack("thigh_l", dur, N, () => e(-0.02, 0, -0.03)), qTrack("thigh_r", dur, N, () => e(-0.02, 0, 0.03)),
+    qTrack("shin_l", dur, N, () => e(knee)), qTrack("shin_r", dur, N, () => e(knee)),
+    qTrack("shoe_l", dur, N, () => e(0)), qTrack("shoe_r", dur, N, () => e(0)),
+  ];
+  const clip = (name: string, dur: number, tracks: THREE.KeyframeTrack[]) => new THREE.AnimationClip(name, dur, tracks);
+  const wave = (() => { const D = 2.2; return clip("wave", D, [
+    ...legs(D),
+    pTrack("hips", D, N, HIPS, () => [0, 0, 0]), qTrack("hips", D, N, () => e(0, 0, 0)),
+    qTrack("torso", D, N, (t) => e(0.02, -0.08 * smooth(hold(t)), -0.04 * smooth(hold(t)))),
+    qTrack("head", D, N, (t) => e(-0.05 * hold(t), -0.12 * hold(t), 0.1 * hold(t))),
+    qTrack("shoulder_l", D, N, () => e(0.06, 0, -0.16)), qTrack("forearm_l", D, N, () => e(-0.28, 0.1, 0)),
+    // right arm up beside the head, forearm swinging side to side
+    qTrack("shoulder_r", D, N, (t) => e(-2.6 * smooth(hold(t)), 0, 0.5 * smooth(hold(t)))),
+    qTrack("forearm_r", D, N, (t) => e(-0.5 * smooth(hold(t)), 0, -S(t * 3) * 0.55 * hold(t))),
+  ]); })();
+  const dance = (() => { const D = 2.6; const b = (t: number) => S(t * 4); return clip("dance", D, [
+    qTrack("thigh_l", D, N, (t) => e(-0.1 + pos(b(t)) * 0.25, 0, -0.08)), qTrack("thigh_r", D, N, (t) => e(-0.1 + pos(-b(t)) * 0.25, 0, 0.08)),
+    qTrack("shin_l", D, N, (t) => e(0.1 + pos(b(t)) * 0.35)), qTrack("shin_r", D, N, (t) => e(0.1 + pos(-b(t)) * 0.35)),
+    qTrack("shoe_l", D, N, () => e(0)), qTrack("shoe_r", D, N, () => e(0)),
+    pTrack("hips", D, N, HIPS, (t) => [S(t * 2) * 0.12, -Math.abs(b(t)) * 0.08, 0]),
+    qTrack("hips", D, N, (t) => e(0, S(t * 2) * 0.25, b(t) * 0.08)),
+    qTrack("torso", D, N, (t) => e(0.05, -S(t * 2) * 0.3, -b(t) * 0.1)),
+    qTrack("head", D, N, (t) => e(S(t * 4, 1) * 0.12, S(t * 2) * 0.3, 0)),
+    qTrack("shoulder_l", D, N, (t) => e(-1.2 - pos(b(t)) * 1.3, 0, -0.35)), qTrack("shoulder_r", D, N, (t) => e(-1.2 - pos(-b(t)) * 1.3, 0, 0.35)),
+    qTrack("forearm_l", D, N, (t) => e(-1.1 + pos(b(t)) * 0.4, 0.2, 0)), qTrack("forearm_r", D, N, (t) => e(-1.1 + pos(-b(t)) * 0.4, -0.2, 0)),
+  ]); })();
+  const cheer = (() => { const D = 1.8; const up = (t: number) => smooth(hold(t, 0.2, 0.75)); return clip("cheer", D, [
+    ...legs(D, 0.08),
+    pTrack("hips", D, N, HIPS, (t) => [0, pos(S(t * 2, -0.3)) * 0.22 * up(t), 0]),
+    qTrack("hips", D, N, () => e(0, 0, 0)),
+    qTrack("torso", D, N, (t) => e(-0.12 * up(t), 0, 0)),
+    qTrack("head", D, N, (t) => e(-0.3 * up(t), 0, 0)),
+    qTrack("shoulder_l", D, N, (t) => e(-2.9 * up(t), 0, -0.5 * up(t) - 0.16)), qTrack("shoulder_r", D, N, (t) => e(-2.9 * up(t), 0, 0.5 * up(t) + 0.16)),
+    qTrack("forearm_l", D, N, (t) => e(-0.3 - S(t * 4) * 0.2 * up(t), 0, 0)), qTrack("forearm_r", D, N, (t) => e(-0.3 + S(t * 4) * 0.2 * up(t), 0, 0)),
+  ]); })();
+  const clap = (() => { const D = 2.0; const h = (t: number) => smooth(hold(t, 0.15, 0.85)); const c = (t: number) => pos(S(t * 5)); return clip("clap", D, [
+    ...legs(D),
+    pTrack("hips", D, N, HIPS, () => [0, 0, 0]), qTrack("hips", D, N, () => e(0, 0, 0)),
+    qTrack("torso", D, N, (t) => e(0.08 * h(t), 0, 0)),
+    qTrack("head", D, N, (t) => e(0.05 * h(t) + S(t * 5) * 0.02 * h(t), 0, 0)),
+    // forearms up in front, hands clapping together: the swing is around the vertical axis
+    qTrack("shoulder_l", D, N, (t) => e(-0.9 * h(t), 0, -0.16 - 0.25 * h(t))), qTrack("shoulder_r", D, N, (t) => e(-0.9 * h(t), 0, 0.16 + 0.25 * h(t))),
+    qTrack("forearm_l", D, N, (t) => e(-1.5 * h(t), 0.55 * h(t) - c(t) * 0.5 * h(t), 0)), qTrack("forearm_r", D, N, (t) => e(-1.5 * h(t), -0.55 * h(t) + c(t) * 0.5 * h(t), 0)),
+  ]); })();
+  const bow = (() => { const D = 2.4; const b = (t: number) => smooth(hold(t, 0.3, 0.7)); return clip("bow", D, [
+    ...legs(D),
+    pTrack("hips", D, N, HIPS, (t) => [0, -0.05 * b(t), 0]), qTrack("hips", D, N, () => e(0, 0, 0)),
+    qTrack("torso", D, N, (t) => e(0.85 * b(t), 0, 0)),
+    qTrack("head", D, N, (t) => e(0.35 * b(t), 0, 0)),
+    qTrack("shoulder_l", D, N, (t) => e(0.3 * b(t), 0, -0.16)), qTrack("shoulder_r", D, N, (t) => e(0.3 * b(t), 0, 0.16)),
+    qTrack("forearm_l", D, N, (t) => e(-0.28 - 0.2 * b(t), 0.1, 0)), qTrack("forearm_r", D, N, (t) => e(-0.28 - 0.2 * b(t), -0.1, 0)),
+  ]); })();
+  const point = (() => { const D = 1.9; const h = (t: number) => smooth(hold(t, 0.2, 0.8)); return clip("point", D, [
+    ...legs(D),
+    pTrack("hips", D, N, HIPS, () => [0, 0, 0]), qTrack("hips", D, N, (t) => e(0, -0.1 * h(t), 0)),
+    qTrack("torso", D, N, (t) => e(0.03, -0.2 * h(t), 0)),
+    qTrack("head", D, N, (t) => e(-0.05 * h(t), -0.25 * h(t), 0)),
+    qTrack("shoulder_l", D, N, () => e(0.06, 0, -0.16)), qTrack("forearm_l", D, N, () => e(-0.28, 0.1, 0)),
+    qTrack("shoulder_r", D, N, (t) => e(-1.55 * h(t), 0.3 * h(t), 0.16)), qTrack("forearm_r", D, N, (t) => e(-0.05 * h(t) - 0.28 * (1 - h(t)), 0, 0)),
+  ]); })();
+  const laugh = (() => { const D = 2.0; const h = (t: number) => smooth(hold(t, 0.15, 0.85)); const j = (t: number) => S(t * 6); return clip("laugh", D, [
+    ...legs(D),
+    pTrack("hips", D, N, HIPS, (t) => [0, j(t) * 0.02 * h(t), 0]), qTrack("hips", D, N, () => e(0, 0, 0)),
+    qTrack("torso", D, N, (t) => e(-0.22 * h(t) + j(t) * 0.04 * h(t), 0, 0)),
+    qTrack("head", D, N, (t) => e(-0.4 * h(t) + j(t) * 0.05 * h(t), 0, 0.06 * h(t))),
+    qTrack("shoulder_l", D, N, (t) => e(0.3 * h(t) + j(t) * 0.08 * h(t), 0, -0.3 * h(t) - 0.16)), qTrack("shoulder_r", D, N, (t) => e(0.3 * h(t) + j(t) * 0.08 * h(t), 0, 0.3 * h(t) + 0.16)),
+    qTrack("forearm_l", D, N, (t) => e(-1.3 * h(t) - 0.28 * (1 - h(t)), 0.1, 0)), qTrack("forearm_r", D, N, (t) => e(-1.3 * h(t) - 0.28 * (1 - h(t)), -0.1, 0)),
+  ]); })();
+  const facepalm = (() => { const D = 2.2; const h = (t: number) => smooth(hold(t, 0.2, 0.75)); return clip("facepalm", D, [
+    ...legs(D),
+    pTrack("hips", D, N, HIPS, () => [0, 0, 0]), qTrack("hips", D, N, () => e(0, 0, 0)),
+    qTrack("torso", D, N, (t) => e(0.12 * h(t), 0, 0)),
+    qTrack("head", D, N, (t) => e(0.45 * h(t), 0, 0.08 * h(t))),
+    qTrack("shoulder_l", D, N, () => e(0.06, 0, -0.16)), qTrack("forearm_l", D, N, () => e(-0.28, 0.1, 0)),
+    qTrack("shoulder_r", D, N, (t) => e(-1.0 * h(t), 0.35 * h(t), 0.16)), qTrack("forearm_r", D, N, (t) => e(-2.5 * h(t) - 0.28 * (1 - h(t)), 0.35 * h(t), 0)),
+  ]); })();
+  return [wave, dance, cheer, clap, bow, point, laugh, facepalm];
 }
