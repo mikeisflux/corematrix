@@ -85,6 +85,13 @@
       "when": 1793234000000,
       "tag": "0011_titles_dms",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793235000000,
+      "tag": "0012_sentinel",
+      "breakpoints": true
     }
   ]
 }

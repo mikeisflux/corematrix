@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useJson, Badge, Money, DateTime, PageHead, Empty } from "./shared";
 interface Stats {
   revenue: { today: number; week: number; month: number; lifetime: number; txToday: number; txLifetime: number };
-  pending: number; disputes: number; booths: number; boothValue: number; users: number; unread: number; failedEmails: number; webhookFailures: number;
+  pending: number; disputes: number; booths: number; boothValue: number; users: number; unread: number; failedEmails: number; webhookFailures: number; errors24h?: number;
   mrr: number; plans: Record<string, number>; payouts?: { owedCents: number; owedCount: number; paidCents: number }; divinity: { ok: boolean; detail: string }; testMode: boolean; visits7d: number; clicks7d: number; signups7d: number;
   checks: { label: string; ok: boolean; hint: string }[];
   recentTx: { id: string; kind: string; boothId: number; status: string; amountCents: number; createdAt: number; provider: string }[];
@@ -33,6 +33,7 @@ export default function Dashboard() {
           <Tile c={data.unread ? "var(--primary)" : undefined} label="Unread inbox" value={data.unread} href="/admin/emails" />
           <Tile c={data.failedEmails ? "var(--heat-6)" : undefined} label="Failed emails" value={data.failedEmails} href="/admin/emails/logs" />
           <Tile c={data.webhookFailures ? "var(--heat-6)" : undefined} label="Webhook failures" value={data.webhookFailures} href="/admin/webhooks?status=failed" />
+          <Tile c={data.errors24h ? "var(--heat-7)" : undefined} label="Errors (24 h)" value={data.errors24h ?? 0} sub="browser + server · Sentinel" href="/admin/errors" />
           <Tile c={HEAT[1]} label="Visits · 7d" value={data.visits7d.toLocaleString()} sub={`${data.clicks7d.toLocaleString()} outbound clicks delivered`} />
           <Tile c={data.divinity.ok ? "var(--heat-1)" : "var(--heat-6)"} label="DivinityCoin" value={data.divinity.ok ? "OK" : "DOWN"} sub={data.divinity.detail.slice(0, 80)} />
         </div>

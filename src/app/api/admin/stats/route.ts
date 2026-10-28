@@ -15,7 +15,7 @@ export async function GET() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   const rev = async (since?: number) => { const [r] = await db.select({ sum: sql<number>`coalesce(sum(amount_cents),0)`, n: sql<number>`count(*)` }).from(t).where(and(eq(t.status, "paid"), sql`${t.amountCents} > 0`, since ? gte(t.paidAt, since) : undefined)); return { sum: Number(r.sum), n: Number(r.n) }; };
   const now = Date.now();
-  const [today, week, month, lifetime, [pending], [booths], [users], [unread], [failedEmails], [whFail], recentTx, recentInbox, s, dc, mrr, series, [disputes]] = await Promise.all([
+  const [today, week, month, lifetime, [pending], [booths], [users], [unread], [failedEmails], [whFail], recentTx, recentInbox, s, dc, mrr, series, [disputes], [errs]] = await Promise.all([
     rev(dayStart.getTime()), rev(now - 7 * 86400_000), rev(now - 30 * 86400_000), rev(),
     db.select({ n: sql<number>`count(*)` }).from(t).where(eq(t.status, "pending")),
     db.select({ n: sql<number>`count(*)`, v: sql<number>`coalesce(sum(value_cents),0)` }).from(schema.booths).where(sql`owner_id IS NOT NULL`),
@@ -28,12 +28,13 @@ export async function GET() {
     getSettings(["SENDGRID_API_KEY", "DIVINITYCOIN_API_KEY", "DIVINITYCOIN_WEBHOOK_SECRET", "SITE_URL", "MAIL_FROM", "INBOUND_EMAIL_KEY", "SENDGRID_EVENT_KEY", "DIVINITYCOIN_TEST_MODE", "CRON_SECRET"]),
     divinitycoin.healthCheck(), currentMrrCents(), siteSeries(14),
     db.select({ n: sql<number>`count(*)` }).from(t).where(eq(t.status, "disputed")),
+    db.select({ n: sql<number>`coalesce(sum(count),0)` }).from(schema.sentinelErrors).where(sql`resolved_at IS NULL AND last_at > ${Date.now() - 86_400_000}`),
   ]);
   const tierCounts = await db.select({ tier: schema.booths.tier, n: sql<number>`count(*)` }).from(schema.booths).where(and(sql`tier != 'free'`, eq(schema.booths.subscriptionStatus, "active"))).groupBy(schema.booths.tier);
   const testMode = flag(s.DIVINITYCOIN_TEST_MODE);
   return NextResponse.json({
     revenue: { today: today.sum, week: week.sum, month: month.sum, lifetime: lifetime.sum, txToday: today.n, txLifetime: lifetime.n },
-    pending: Number(pending.n), disputes: Number(disputes.n), booths: Number(booths.n), boothValue: Number(booths.v), users: Number(users.n), unread: Number(unread.n), failedEmails: Number(failedEmails.n), webhookFailures: Number(whFail.n),
+    pending: Number(pending.n), disputes: Number(disputes.n), booths: Number(booths.n), boothValue: Number(booths.v), users: Number(users.n), unread: Number(unread.n), failedEmails: Number(failedEmails.n), webhookFailures: Number(whFail.n), errors24h: Number(errs.n),
     mrr, plans: Object.fromEntries(tierCounts.map((r) => [r.tier, Number(r.n)])),
     payouts: await payoutTotals(),
     divinity: dc, testMode,

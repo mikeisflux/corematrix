@@ -21,6 +21,7 @@ const NAV: { href: string; label: string; area?: AdminArea; sub?: { href: string
   ] },
   { href: "/admin/webhooks", label: "Webhooks", area: "webhooks" },
   { href: "/admin/performance", label: "Performance", area: "performance" },
+  { href: "/admin/errors", label: "Sentinel", area: "errors" },
   { href: "/admin/audit", label: "Audit log", area: "audit" },
   { href: "/admin/settings", label: "Settings", area: "settings" },
 ];

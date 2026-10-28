@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrSetVisitor } from "@/lib/visitor";
+import { recordError } from "@/lib/sentinel";
+import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +20,7 @@ export async function POST(req: Request) {
   const b = Body.safeParse(await req.json().catch(() => null));
   if (!b.success) return NextResponse.json({ ok: false }, { status: 400 });
   console.error(`[client-error] ${b.data.where ?? "window"} visitor=${id} url=${b.data.url ?? "?"} ua=${b.data.ua ?? "?"}\n  ${b.data.message}\n  ${(b.data.stack ?? "").split("\n").slice(0, 12).join("\n  ")}`);
+  const u = await currentUser().catch(() => null);
+  await recordError({ kind: "client", where: b.data.where ?? "window", message: b.data.message, stack: b.data.stack ?? null, url: b.data.url ?? null, ua: b.data.ua ?? null, visitorId: id, userId: u?.id ?? null }).catch(() => {});
   return NextResponse.json({ ok: true });
 }

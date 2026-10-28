@@ -532,3 +532,24 @@ export const dms = sqliteTable(
   },
   (t) => [index("dms_from_idx").on(t.fromId), index("dms_to_idx").on(t.toId)],
 );
+
+/** Sentinel: errors from browsers (the hall's error boundary and window errors) and from server routes, grouped by message. */
+export const sentinelErrors = sqliteTable(
+  "sentinel_errors",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(), // client | server
+    where: text("where").notNull(), // render | window.onerror | unhandledrejection | route path
+    message: text("message").notNull(),
+    stack: text("stack"),
+    url: text("url"),
+    ua: text("ua"),
+    visitorId: text("visitor_id"),
+    userId: text("user_id"),
+    count: integer("count").notNull().default(1),
+    firstAt: integer("first_at").notNull(),
+    lastAt: integer("last_at").notNull(),
+    resolvedAt: integer("resolved_at"),
+  },
+  (t) => [index("sentinel_last_idx").on(t.lastAt), index("sentinel_resolved_idx").on(t.resolvedAt)],
+);

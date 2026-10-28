@@ -15,6 +15,7 @@ export const ADMIN_AREAS = [
   { id: "webhooks", label: "Webhooks", blurb: "Payment events and reprocessing" },
   { id: "performance", label: "Performance", blurb: "Frame-rate captures" },
   { id: "audit", label: "Audit log", blurb: "Who changed what" },
+  { id: "errors", label: "Sentinel", blurb: "Browser and server errors, grouped, with stacks" },
   { id: "settings", label: "Settings", blurb: "Site configuration and integrations" },
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number]["id"];
