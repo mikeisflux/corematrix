@@ -9,6 +9,7 @@ import { db, ensureMigrated, schema } from "@/lib/db";
 import { newId, now } from "@/lib/util";
 import { publishTo } from "@/lib/realtime";
 import { visitorsOf } from "@/lib/presence";
+import { notify, notifyMany } from "@/lib/notify";
 
 export interface Person { id: string; name: string; handle: string | null }
 const person = (u: { id: string; displayName: string | null; handle: string | null; email: string }): Person => ({ id: u.id, name: u.displayName || u.email.split("@")[0], handle: u.handle });
@@ -42,9 +43,6 @@ async function pair(a: string, b: string) {
   return r ?? null;
 }
 
-async function notify(userId: string, type: string, title: string, body: string) {
-  await db.insert(schema.notifications).values({ id: newId(), userId, type, title, body, boothId: null, createdAt: now() });
-}
 
 /** Send a request; if they already asked you, that accepts it. Returns the resulting status. */
 export async function requestFriend(fromId: string, toId: string): Promise<"pending" | "accepted"> {
@@ -133,7 +131,10 @@ export async function renameTeam(ownerId: string, teamId: string, name: string) 
 }
 
 export async function deleteTeam(ownerId: string, teamId: string) {
-  await ensureMigrated(); await ownTeam(ownerId, teamId);
+  await ensureMigrated(); const t = await ownTeam(ownerId, teamId);
+  const members = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
+  const me = (await people([ownerId])).get(ownerId)!;
+  await notifyMany(members.map((m) => m.userId), "team", `${me.name} closed the team ${t.name}`, "You can no longer sit at the booths it staffed.");
   await db.update(schema.booths).set({ teamId: null }).where(eq(schema.booths.teamId, teamId));
   await db.delete(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
   await db.delete(schema.teams).where(eq(schema.teams.id, teamId));
@@ -145,8 +146,17 @@ export async function setTeamBooths(ownerId: string, teamId: string, boothIds: n
   const mine = await db.select({ id: schema.booths.id }).from(schema.booths).where(eq(schema.booths.ownerId, ownerId));
   const ok = new Set(mine.map((b) => b.id));
   const want = boothIds.filter((id) => ok.has(id));
+  const before = new Set((await db.select({ id: schema.booths.id }).from(schema.booths).where(eq(schema.booths.teamId, teamId))).map((b) => b.id));
   await db.update(schema.booths).set({ teamId: null }).where(eq(schema.booths.teamId, teamId));
   if (want.length) await db.update(schema.booths).set({ teamId }).where(and(eq(schema.booths.ownerId, ownerId), inArray(schema.booths.id, want)));
+  // tell the team about booths they just gained
+  const gained = want.filter((id) => !before.has(id));
+  if (gained.length) {
+    const [t] = await db.select({ name: schema.teams.name }).from(schema.teams).where(eq(schema.teams.id, teamId));
+    const bs = await db.select({ id: schema.booths.id, name: schema.booths.name, label: schema.booths.label }).from(schema.booths).where(inArray(schema.booths.id, gained));
+    const members = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
+    for (const b of bs) await notifyMany(members.map((m) => m.userId), "team", `${t?.name ?? "Your team"} now staffs ${b.name ?? `booth ${b.label}`}`, "Walk up to the chair behind its table and press C to sit.", b.id);
+  }
 }
 
 /** Add a friend (by user id) or anyone by email. Friends only, by id: strangers are added by email so nobody gets put on a team they never heard of. */
@@ -178,8 +188,10 @@ export async function addMember(ownerId: string, teamId: string, who: { userId?:
 }
 
 export async function removeMember(ownerId: string, teamId: string, memberId: string) {
-  await ensureMigrated(); await ownTeam(ownerId, teamId);
+  await ensureMigrated(); const t = await ownTeam(ownerId, teamId);
+  const [m] = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(and(eq(schema.teamMembers.id, memberId), eq(schema.teamMembers.teamId, teamId)));
   await db.delete(schema.teamMembers).where(and(eq(schema.teamMembers.id, memberId), eq(schema.teamMembers.teamId, teamId)));
+  if (m?.userId) { const me = (await people([ownerId])).get(ownerId)!; await notify(m.userId, "team", `${me.name} removed you from ${t.name}`, "You can no longer sit at the booths that team staffs."); }
 }
 
 /** Booths this person staffs through a team (matched by account or by the email the invite was sent to), with the team's name. */

@@ -30,6 +30,7 @@ export async function GET() {
       email: u.email,
       displayName: u.displayName,
       handle: u.handle,
+      title: u.title,
       coins: checkin.coins,
       streak: checkin.streak,
       awardedToday: checkin.awarded,
@@ -47,7 +48,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   const u = await currentUser();
   if (!u) return NextResponse.json({ error: "Sign in" }, { status: 401 });
-  const body = (await req.json().catch(() => ({}))) as { notifyEmail?: boolean; displayName?: string; handle?: string; avatar?: Record<string, unknown> };
+  const body = (await req.json().catch(() => ({}))) as { notifyEmail?: boolean; displayName?: string; handle?: string; title?: string; avatar?: Record<string, unknown> };
   const set: Partial<typeof schema.users.$inferInsert> = {};
   if (body.avatar && typeof body.avatar === "object") {
     const a = body.avatar as Record<string, unknown>;
@@ -56,6 +57,7 @@ export async function PATCH(req: Request) {
   }
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;
+  if (typeof body.title === "string") set.title = body.title.trim().slice(0, 40) || null;
   if (typeof body.handle === "string") set.handle = body.handle.replace(/^@/, "").trim().slice(0, 30) || null;
   if (Object.keys(set).length) await db.update(schema.users).set(set).where(eq(schema.users.id, u.id));
   return NextResponse.json({ ok: true });

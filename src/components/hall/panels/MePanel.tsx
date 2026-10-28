@@ -6,8 +6,10 @@ import { formatMoney } from "@/lib/config";
 import { timeAgo } from "@/lib/util";
 import { PanelHeader, SignIn, Stat } from "./common";
 import { ChangePassword } from "@/components/ui/AuthForms";
+import { NOTICE_ICON } from "@/lib/hall/notices";
+import { useSocial } from "@/lib/hall/social";
 
-interface N { id: string; title: string; body: string | null; boothId: number | null; readAt: number | null; createdAt: number }
+interface N { type: string; id: string; title: string; body: string | null; boothId: number | null; readAt: number | null; createdAt: number }
 
 export function MePanel() {
   const me = useHall((s) => s.me);
@@ -15,11 +17,14 @@ export function MePanel() {
   const select = useHall((s) => s.select);
   const setFlyTo = useHall((s) => s.setFlyTo);
   const [notes, setNotes] = useState<N[]>([]);
+  const soc = useSocial();
   useEffect(() => {
     if (!me) return;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void soc.noticeVersion;
     api<{ notifications: N[] }>("/api/notifications").then((d) => setNotes(d.notifications));
     void api("/api/notifications", { method: "POST" });
-  }, [me]);
+  }, [me, soc.noticeVersion]);
   if (!me) {
     return (
       <>
@@ -60,8 +65,8 @@ export function MePanel() {
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Notifications</div>
             <ul className="mt-1 space-y-1">
-              {notes.slice(0, 8).map((n) => (
-                <li key={n.id} className={`rounded-lg px-2 py-1.5 text-xs ${n.readAt ? "bg-white/[0.03]" : "bg-amber-300/10"}`}><div className="font-semibold">{n.title}</div>{n.body && <div className="text-slate-300">{n.body}</div>}<div className="text-[10px] text-slate-500">{timeAgo(n.createdAt)}</div></li>
+              {notes.slice(0, 30).map((n) => (
+                <li key={n.id} className={`rounded-lg px-2 py-1.5 text-xs ${n.readAt ? "bg-white/[0.03]" : "bg-amber-300/10"}`}><div className="font-semibold"><span className="mr-1">{NOTICE_ICON[n.type] ?? "🔔"}</span>{n.title}</div>{n.body && <div className="text-slate-300">{n.body}</div>}<div className="text-[10px] text-slate-500">{timeAgo(n.createdAt)}</div></li>
               ))}
             </ul>
           </div>

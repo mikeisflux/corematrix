@@ -12,6 +12,10 @@ const shot = async (url, name, wait = 11000, keys = []) => {
   console.log("saved", name);
 };
 await shot("/app?clean=1&cam=-130,48,80,-50,4,-10", "hero");
+// the social share card (Facebook, X, Discord): 1200×630, the premier island with the arcade behind it
+await page.setViewportSize({ width: 1200, height: 630 });
+await shot("/app?clean=1&cam=-62,30,-14,-5,9,-72", "og");
+await page.setViewportSize({ width: 1600, height: 1000 });
 await shot("/app?clean=1&cam=0,420,300,0,0,-20", "overview");
 await shot("/app?clean=1&cam=40,22,60,0,5,0&night=1", "arcade-night", 12000);
 await shot("/app?clean=1&cam=380,40,40,330,4,-40", "artist-alley");

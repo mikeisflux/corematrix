@@ -13,7 +13,7 @@ import { getPrefs } from "@/lib/hall/prefs";
 import { perf } from "@/lib/hall/perf";
 import { conbot } from "@/lib/hall/conbot";
 import { nearestSeat, seating, type Seat } from "@/lib/hall/seats";
-import { social, guestName, bumpSocial, useSocial } from "@/lib/hall/social";
+import { social, bumpSocial, useSocial } from "@/lib/hall/social";
 import { EMOTES } from "@/lib/hall/modelkit/avatar";
 import { Suspense } from "react";
 
@@ -230,7 +230,7 @@ export function Player() {
   const report = (leave = false) => {
     const pend = social.pending;
     const fresh = (t: number) => Date.now() - t < 6000;
-    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: me?.displayName || guestName() || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null };
+    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: me?.displayName || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null };
     pend.dirty = false;
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
       .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
@@ -499,6 +499,7 @@ function Other({ id }: { id: string }) {
   const motion = useRef<Motion>({ speed: 0 }).current;
   const [cfg, setCfg] = useState<AvatarConfig>(() => live.players.get(id)?.a ?? DEFAULT_AVATAR);
   const [name, setName] = useState(() => live.players.get(id)?.n ?? "Visitor");
+  const [title, setTitle] = useState<string | null>(() => live.players.get(id)?.j ?? null);
   const cur = useRef<{ x: number; z: number; h: number } | null>(null);
   const [near, setNear] = useState(false);
   const nearT = useRef(0);
@@ -516,6 +517,7 @@ function Other({ id }: { id: string }) {
     if (p.r && Date.now() - p.r.t < 4000) { const cur = social.reactions.get(id); if (!cur || cur.until - 3000 < p.r.t) { social.reactions.set(id, { k: p.r.k, until: p.r.t + 3000 }); bumpSocial(); } }
     if (p.a && p.a !== cfg && JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a);
     if (p.n !== name) setName(p.n);
+    if ((p.j ?? null) !== title) setTitle(p.j ?? null);
     if (clock.elapsedTime - nearT.current > 0.5) { nearT.current = clock.elapsedTime; const d = Math.hypot(camera.position.x - c.x, camera.position.z - c.z); g.visible = d < 260; const n = d < 80; if (n !== near) setNear(n); }
   });
   return (
@@ -525,7 +527,7 @@ function Other({ id }: { id: string }) {
       <OverheadNotes id={id} />
       {near && (
         <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" />{name}<span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">live</span></div>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap backdrop-blur-sm"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className="text-[9px] font-bold uppercase tracking-wider text-emerald-300">live</span></div>
         </Html>
       )}
     </group>

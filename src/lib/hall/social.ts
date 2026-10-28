@@ -11,6 +11,8 @@ import type { DmMessage } from "@/lib/dm";
 export interface Bubble { text: string; until: number }
 export const social = {
   friendsVersion: 0, // bumps when a friend request arrives or is answered, so open panels refetch
+  friendIds: new Set<string>(), // user ids of my friends (signed in only)
+  noticeVersion: 0, // bumps when a notification arrives live
 
   bubbles: new Map<string, Bubble>(),
   reactions: new Map<string, { k: string; until: number }>(),

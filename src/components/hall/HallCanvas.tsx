@@ -3,12 +3,29 @@ import { Suspense, useEffect, useState } from "react";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { social, showBubble, bumpSocial } from "@/lib/hall/social";
 import { usePrefs } from "@/lib/hall/prefs";
+import { openDm } from "./Avatar";
+import { NOTICE_ICON } from "@/lib/hall/notices";
 import { perf } from "@/lib/hall/perf";
 import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Scene } from "./Scene";
 import { useHall, api, type HallBooth, type HallEvent, type HallStats, type Me, type HallBillboard, type Featured } from "@/lib/hall/store";
 import type { LiveMessage } from "@/lib/realtime";
+
+/** Toast once when a friend shows up on the floor (and again if they come back after ten minutes away). */
+const friendSeen = new Map<string, number>();
+function friendsOnFloor(players: LivePlayer[]) {
+  const me = useHall.getState().me; if (!me || social.friendIds.size === 0) return;
+  const here = new Set<string>();
+  for (const p of players) {
+    if (!p.uid || p.uid === me.id || !social.friendIds.has(p.uid)) continue;
+    here.add(p.uid);
+    const last = friendSeen.get(p.uid) ?? 0;
+    if (Date.now() - last > 10 * 60_000) useHall.getState().setToast(`🤝 ${p.n} is on the floor`, () => useHall.getState().setWalkPoint({ x: p.x + 3, z: p.z + 1, face: { x: p.x, z: p.z } }));
+    friendSeen.set(p.uid, Date.now());
+  }
+  for (const [uid, t] of friendSeen) if (!here.has(uid) && Date.now() - t > 30_000) friendSeen.set(uid, t); // away: the timestamp ages, so a return after ten minutes toasts again
+}
 
 export function HallCanvas() {
   const setBooths = useHall((s) => s.setBooths);
@@ -38,10 +55,14 @@ export function HallCanvas() {
       if (!alive) return;
       setMe(d.user, d.booths);
       if (d.user?.avatar) useHall.getState().setAvatar(d.user.avatar);
+      // who my friends are, so the floor can say when one walks in
+      if (d.user) api<{ friends: Array<{ id: string }> }>("/api/friends").then((f) => { social.friendIds = new Set(f.friends.map((x) => x.id)); }).catch(() => {});
       if (d.user?.awardedToday) setToast(`+${d.user.awardedToday} coins for showing up today · ${d.user.streak}-day streak`);
     });
     // The stream is registered under the visitor cookie it saw. If a parallel request handed out a different cookie
     // first, private messages would miss this tab, so reconnect once the real id is known from the presence reply.
+    // for debugging in the console and in tests: the live roster and social state
+    (window as unknown as { __fcc?: unknown }).__fcc = { live, social, hall: useHall };
     let es = new EventSource("/api/live");
     let sseId = "";
     const onMessage = (ev: MessageEvent) => {
@@ -50,7 +71,8 @@ export function HallCanvas() {
       if (m.type === "event") pushEvent(m.event);
       else if (m.type === "booth") upsertBooth({ ...m.booth });
       else if (m.type === "presence") setStats({ online: Math.max(1, m.online) });
-      else if (m.type === "players") applyRoster(m.players as LivePlayer[]);
+      else if (m.type === "players") { applyRoster(m.players as LivePlayer[]); friendsOnFloor(m.players as LivePlayer[]); }
+      else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me) useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
       else if (m.type === "chat") { if (m.message.playerId) showBubble(m.message.playerId, m.message.body); }
       else if (m.type === "dm") {
         const msg = m.message; const d = social.dm;
@@ -62,11 +84,11 @@ export function HallCanvas() {
         else d.threads.unshift({ with: other, name: mine ? (d.active?.name ?? "Visitor") : msg.fromName, last: msg, unread: mine || (d.active && d.active.id === other) ? 0 : 1 });
         d.threads.sort((a, b) => b.last.createdAt - a.last.createdAt);
         d.unread = d.threads.reduce((a, t) => a + t.unread, 0);
-        if (!mine) { showBubble(msg.from, msg.body, 6000); if (!(d.active && d.active.id === other && useHall.getState().panel === "dm")) setToast(`💬 ${msg.fromName}: ${msg.body.slice(0, 80)}`); }
+        if (!mine) { showBubble(msg.from, msg.body, 6000); if (!(d.active && d.active.id === other && useHall.getState().panel === "dm")) setToast(`💬 ${msg.fromName}: ${msg.body.slice(0, 80)}`, () => openDm(msg.from, msg.fromName)); }
         bumpSocial();
       }
-      else if (m.type === "friend") { setToast(m.kind === "request" ? `🤝 ${m.from.name} sent you a friend request · open 👥 People` : `🤝 ${m.from.name} accepted your friend request`); social.friendsVersion++; bumpSocial(); }
-      else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)); }
+      else if (m.type === "friend") { setToast(m.kind === "request" ? `🤝 ${m.from.name} sent you a friend request` : `🤝 ${m.from.name} accepted your friend request`, () => useHall.getState().setPanel("people")); social.friendsVersion++; bumpSocial(); if (m.kind === "accepted") social.friendIds.add(m.from.id); }
+      else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`, () => useHall.getState().setPanel("me")); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)); }
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
     };
     es.onmessage = onMessage;

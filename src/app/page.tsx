@@ -14,7 +14,8 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: `${SITE_NAME} — the comic convention that never closes`,
   description: "A 3D exhibit hall laid out like a real convention floor, open 24/7. Publishers, artists and shops own booths from $5. Fans pick an avatar and walk the floor.",
-  openGraph: { images: ["/marketing/hero.jpg"] },
+  openGraph: { images: [{ url: "/marketing/og.jpg", width: 1200, height: 630, alt: "The ForeverComicCon show floor: the premier island with the arcade behind it" }] },
+  twitter: { card: "summary_large_image", images: ["/marketing/og.jpg"] },
 };
 
 export default async function Landing() {

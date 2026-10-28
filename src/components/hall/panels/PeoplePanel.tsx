@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, useHall } from "@/lib/hall/store";
 import { live, type LivePlayer } from "@/lib/hall/live";
-import { social, useSocial, guestName, setGuestName, fireReaction, bumpSocial } from "@/lib/hall/social";
+import { social, useSocial, fireReaction, bumpSocial } from "@/lib/hall/social";
 import { openDm, player } from "../Avatar";
 import { timeAgo } from "@/lib/util";
 import type { DmMessage } from "@/lib/dm";
@@ -19,7 +19,6 @@ export function PeoplePanel() {
   const setWalkPoint = useHall((s) => s.setWalkPoint);
   const setPanel = useHall((s) => s.setPanel);
   const [people, setPeople] = useState<LivePlayer[]>([]);
-  const [name, setName] = useState(guestName());
   // friends: who I'm friends with, who asked me, who I asked; refetched when a request arrives or is answered
   const [fr, setFr] = useState<{ friends: Person[]; incoming: Array<Person & { requestId: string }>; outgoing: Array<Person & { requestId: string }> } | null>(null);
   const setToast = useHall((s) => s.setToast);
@@ -58,13 +57,7 @@ export function PeoplePanel() {
       <PanelHeader title="People" sub={`${people.length} other${people.length === 1 ? "" : "s"} walking the floor`} />
       <div className="space-y-3 p-3">
         {!me && (
-          <div>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your name on the floor</div>
-            <div className="flex gap-1.5">
-              <input value={name} onChange={(e) => setName(e.target.value.slice(0, 24))} placeholder="Visitor" className="input flex-1 text-sm" />
-              <button onClick={() => setGuestName(name)} className="btn-primary text-xs">Save</button>
-            </div>
-          </div>
+          <button onClick={() => setPanel("me")} className="w-full rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-left text-xs"><b className="text-amber-200">You're walking as "Visitor".</b> <span className="text-slate-300">Create a free account to set your name and title, add friends and keep your chats.</span></button>
         )}
         {mode === "walk" && <button onClick={() => void copySpot()} className="btn-ghost w-full text-xs">📍 Copy a link to where I'm standing</button>}
         <div>

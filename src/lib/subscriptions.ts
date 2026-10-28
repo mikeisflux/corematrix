@@ -13,6 +13,7 @@ import { divinitycoin, type DivinityWebhookEvent } from "@/lib/divinitycoin";
 import { addEvent, getBooth, settle, type Tx } from "@/lib/economy";
 import { sendTemplate } from "@/lib/sendgrid";
 import { getSettings } from "@/lib/settings";
+import { notify } from "@/lib/notify";
 
 const PERIOD = 30 * 86_400_000;
 export const SUB_REF_PREFIX = "sub:";
@@ -126,6 +127,7 @@ async function recordFailedPeriod(boothId: number, reason: string) {
   const tierName = TIERS[o.booth.tier as Tier]?.name ?? "plan";
   await db.update(schema.booths).set({ subscriptionStatus: "past_due", updatedAt: now() }).where(eq(schema.booths.id, boothId));
   await db.insert(schema.transactions).values({ id: newId(), boothId, kind: "tier", buyerId: o.user.id, amountCents: TIERS[o.booth.tier as Tier]?.priceCents ?? 0, status: "failed", provider: "divinitycoin", notes: reason.slice(0, 300), meta: JSON.stringify({ tier: o.booth.tier, renewal: true }), createdAt: now() });
+  await notify(o.user.id, "renewal", `We couldn't renew the ${tierName} on ${o.booth.name}`, `The card on file was declined (${reason}). Perks continue for 7 days while we retry; update your card from the dashboard.`, boothId);
   await sendTemplate("plan_payment_failed", o.user.email, {
     subject: `We couldn’t renew the ${tierName} on ${o.booth.name}`,
     fallbackText: `The card on file was declined (${reason}). Perks continue for 7 days while we retry; update your card from the dashboard.`,
@@ -143,6 +145,7 @@ export async function renewPlan(boothId: number, amountCents: number, provider: 
   await db.update(schema.booths).set({ tierUntil: base + PERIOD, subscriptionStatus: "active", updatedAt: now() }).where(eq(schema.booths.id, boothId));
   await db.insert(schema.transactions).values({ id: newId(), boothId, kind: "tier", buyerId: o.user.id, amountCents, platformCents: amountCents, valueBefore: o.booth.valueCents, valueAfter: o.booth.valueCents, status: "paid", provider, providerRef: ref ?? null, meta: JSON.stringify({ tier: o.booth.tier, renewal: true }), createdAt: now(), paidAt: now() });
   await bumpSiteDaily({ revenueCents: amountCents });
+  await notify(o.user.id, "renewal", `${tierName} renewed on ${o.booth.name}`, `${formatMoney(amountCents)} · runs through ${new Date(base + PERIOD).toLocaleDateString("en-US", { dateStyle: "medium" })}.`, boothId);
   await sendTemplate("plan_renewed", o.user.email, {
     subject: `${tierName} renewed on ${o.booth.name}`,
     fallbackText: `Your ${tierName} plan renewed for ${formatMoney(amountCents)}. It runs through ${new Date(base + PERIOD).toLocaleDateString()}.`,
@@ -202,6 +205,7 @@ async function dropPlan(boothId: number, why: string) {
   const o = await ownerOf(boothId);
   await db.update(schema.booths).set({ tier: "free", tierUntil: null, subscriptionId: null, subscriptionStatus: null, updatedAt: now() }).where(eq(schema.booths.id, boothId));
   await addEvent("tier", boothId, `${o?.booth.name ?? "A booth"} is back on the free plan`, null, null);
+  if (o) await notify(o.user.id, "plan", `The plan on ${o.booth.name} ended`, why === "ended" ? "It ran its course. Upgrade again any time from the dashboard." : `We couldn't collect payment for a week (${why}). Upgrade again from the dashboard once your card is sorted.`, boothId);
   if (o && why !== "ended") {
     await sendTemplate("plan_cancelled", o.user.email, { subject: `The plan on ${o.booth.name} ended`, fallbackText: `We couldn’t collect payment for a week, so the plan ended (${why}). Upgrade again any time from the dashboard.`, name: o.user.displayName ?? o.user.email, boothName: o.booth.name, boothId }, { userId: o.user.id, boothId, channel: "system" }).catch(() => {});
   }

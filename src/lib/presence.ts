@@ -18,6 +18,7 @@ export interface LivePlayer {
   e?: { n: string; t: number } | null; // last emote (name, when)
   r?: { k: string; t: number } | null; // last reaction (emoji, when)
   uid?: string | null; // signed-in account, so people can befriend each other on the floor
+  j?: string | null; // job title shown under the name
   t: number; // last update, ms
 }
 

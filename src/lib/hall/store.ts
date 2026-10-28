@@ -85,6 +85,7 @@ export interface Me {
   referralCode: string;
   isAdmin: boolean;
   unread: number;
+  title?: string | null; // optional job title under the name
   avatar?: AvatarConfig | null;
 }
 
@@ -104,6 +105,7 @@ interface HallState {
   ride: boolean;
   flyTo: number | null;
   toast: string | null;
+  toastAction: (() => void) | null; // what tapping the toast does (open the chat, the people panel…)
   mode: "map" | "walk";
   avatar: AvatarConfig;
   walkTarget: number | null;
@@ -125,7 +127,7 @@ interface HallState {
   toggleNight: () => void;
   setRide: (r: boolean) => void;
   setFlyTo: (id: number | null) => void;
-  setToast: (t: string | null) => void;
+  setToast: (t: string | null, action?: (() => void) | null) => void;
   setPreview: (d: HallState["previewDraft"]) => void;
   setBillboards: (b: HallBillboard[]) => void;
   setFeatured: (f: Featured[]) => void;
@@ -176,6 +178,7 @@ export const useHall = create<HallState>((set) => ({
   ride: false,
   flyTo: null,
   toast: null,
+  toastAction: null,
   mode: "map",
   avatar: DEFAULT_AVATAR,
   walkTarget: null,
@@ -203,7 +206,7 @@ export const useHall = create<HallState>((set) => ({
   toggleNight: () => set((s) => ({ night: !s.night })),
   setRide: (ride) => set({ ride }),
   setFlyTo: (flyTo) => set({ flyTo }),
-  setToast: (toast) => set({ toast }),
+  setToast: (toast, action = null) => set({ toast, toastAction: toast ? action : null }),
   setPreview: (previewDraft) => set({ previewDraft }),
   setBillboards: (billboards) => set({ billboards }),
   setFeatured: (featured) => set({ featured }),

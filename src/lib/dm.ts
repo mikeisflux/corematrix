@@ -1,44 +1,49 @@
 /**
- * Private messages between two people on the floor. Kept in memory on the one
- * server process (like the live roster): the last 100 per pair for a day.
- * Delivery goes only to the two visitor ids involved.
+ * Private messages between two people on the floor, keyed by visitor id and
+ * stored in the database so a deploy or restart never loses a conversation.
+ * Delivery goes live only to the two visitor ids involved; the last 100 per
+ * pair are kept for 30 days.
  */
+import { and, desc, eq, or, sql } from "drizzle-orm";
+import { db, ensureMigrated, schema } from "@/lib/db";
 import { publishTo } from "@/lib/realtime";
 import { newId, now } from "@/lib/util";
 
 export interface DmMessage { id: string; from: string; fromName: string; to: string; body: string; createdAt: number }
-interface Thread { msgs: DmMessage[]; lastRead: Record<string, number> }
-const g = globalThis as unknown as { __fccDm?: Map<string, Thread> };
-const threads = (g.__fccDm ??= new Map<string, Thread>());
-const KEEP = 100, TTL = 86_400_000;
-const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+const KEEP = 100, TTL = 30 * 86_400_000;
+const row = (r: typeof schema.dms.$inferSelect): DmMessage => ({ id: r.id, from: r.fromId, fromName: r.fromName, to: r.toId, body: r.body, createdAt: r.createdAt });
+const between = (a: string, b: string) => or(and(eq(schema.dms.fromId, a), eq(schema.dms.toId, b)), and(eq(schema.dms.fromId, b), eq(schema.dms.toId, a)));
 
-function sweep() { const cut = now() - TTL; for (const [k, t] of threads) { t.msgs = t.msgs.filter((m) => m.createdAt > cut); if (!t.msgs.length) threads.delete(k); } }
-
-export function sendDm(from: string, fromName: string, to: string, body: string): DmMessage {
+export async function sendDm(from: string, fromName: string, to: string, body: string): Promise<DmMessage> {
+  await ensureMigrated();
   const msg: DmMessage = { id: newId(), from, fromName: fromName.slice(0, 40) || "Visitor", to, body: body.slice(0, 300), createdAt: now() };
-  const k = key(from, to);
-  const t = threads.get(k) ?? { msgs: [], lastRead: {} };
-  t.msgs.push(msg); if (t.msgs.length > KEEP) t.msgs.splice(0, t.msgs.length - KEEP);
-  t.lastRead[from] = msg.createdAt;
-  threads.set(k, t);
+  await db.insert(schema.dms).values({ id: msg.id, fromId: from, fromName: msg.fromName, toId: to, body: msg.body, createdAt: msg.createdAt });
   publishTo([from, to], { type: "dm", message: msg });
-  if (threads.size % 50 === 0) sweep();
+  // keep the pair's thread at KEEP messages and drop anything older than TTL across the table, cheaply
+  if (Math.random() < 0.05) await db.delete(schema.dms).where(sql`${schema.dms.createdAt} < ${now() - TTL}`);
+  const extra = await db.select({ id: schema.dms.id }).from(schema.dms).where(between(from, to)).orderBy(desc(schema.dms.createdAt)).offset(KEEP);
+  if (extra.length) await db.delete(schema.dms).where(sql`${schema.dms.id} IN (${sql.join(extra.map((e) => sql`${e.id}`), sql`, `)})`);
   return msg;
 }
-export function dmThread(me: string, other: string): DmMessage[] { return threads.get(key(me, other))?.msgs ?? []; }
-export function markRead(me: string, other: string) { const t = threads.get(key(me, other)); if (t) t.lastRead[me] = now(); }
+export async function dmThread(me: string, other: string): Promise<DmMessage[]> {
+  await ensureMigrated();
+  const rows = await db.select().from(schema.dms).where(between(me, other)).orderBy(desc(schema.dms.createdAt)).limit(KEEP);
+  return rows.reverse().map(row);
+}
+export async function markRead(me: string, other: string) {
+  await ensureMigrated();
+  await db.update(schema.dms).set({ readAt: now() }).where(and(eq(schema.dms.toId, me), eq(schema.dms.fromId, other), sql`${schema.dms.readAt} IS NULL`));
+}
 /** Everyone I have talked to, newest first, with how many of their messages I have not seen. */
-export function dmThreads(me: string): { with: string; name: string; last: DmMessage; unread: number }[] {
-  const out: { with: string; name: string; last: DmMessage; unread: number }[] = [];
-  for (const [k, t] of threads) {
-    const [a, b] = k.split("|"); if (a !== me && b !== me) continue;
-    const other = a === me ? b : a;
-    const last = t.msgs[t.msgs.length - 1]; if (!last) continue;
-    const read = t.lastRead[me] ?? 0;
-    const unread = t.msgs.filter((m) => m.from === other && m.createdAt > read).length;
-    const theirName = [...t.msgs].reverse().find((m) => m.from === other)?.fromName ?? "Visitor";
-    out.push({ with: other, name: theirName, last, unread });
+export async function dmThreads(me: string): Promise<{ with: string; name: string; last: DmMessage; unread: number }[]> {
+  await ensureMigrated();
+  const rows = await db.select().from(schema.dms).where(or(eq(schema.dms.fromId, me), eq(schema.dms.toId, me))).orderBy(desc(schema.dms.createdAt)).limit(2000);
+  const out = new Map<string, { with: string; name: string; last: DmMessage; unread: number }>();
+  for (const r of rows) {
+    const other = r.fromId === me ? r.toId : r.fromId;
+    let t = out.get(other);
+    if (!t) { t = { with: other, name: "Visitor", last: row(r), unread: 0 }; out.set(other, t); }
+    if (r.fromId === other) { if (t.name === "Visitor") t.name = r.fromName; if (!r.readAt) t.unread++; }
   }
-  return out.sort((x, y) => y.last.createdAt - x.last.createdAt);
+  return Array.from(out.values()).sort((x, y) => y.last.createdAt - x.last.createdAt);
 }

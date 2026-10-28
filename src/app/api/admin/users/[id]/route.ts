@@ -5,6 +5,8 @@ import { audit, requestPasswordReset, setPassword } from "@/lib/auth";
 import { addCoins } from "@/lib/arcade";
 import { guard, bad, notFound, readJson, int, optStr } from "../../_lib";
 import { isAdminArea } from "@/lib/permissions";
+import { notify } from "@/lib/notify";
+import { formatMoney } from "@/lib/config";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
@@ -51,7 +53,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const creditDelta = int(b.creditDeltaCents, 0), coinsDelta = int(b.coinsDelta, 0);
   if (creditDelta) { if (u.creditCents + creditDelta < 0) return bad("Credit cannot go negative."); data.creditCents = u.creditCents + creditDelta; }
   if (Object.keys(data).length) await db.update(schema.users).set(data).where(eq(schema.users.id, id));
-  if (coinsDelta) await addCoins(id, coinsDelta, "admin", reason);
+  if (coinsDelta) { await addCoins(id, coinsDelta, "admin", reason); await notify(id, "coins", `${coinsDelta > 0 ? "+" : ""}${coinsDelta} coins from the organisers`, reason); }
+  if (creditDelta) await notify(id, "credit", `${creditDelta > 0 ? "+" : "-"}${formatMoney(Math.abs(creditDelta))} booth credit from the organisers`, reason);
   await audit(g.id, "user.update", "user", id, { email: u.email, displayName: u.displayName, handle: u.handle, isAdmin: u.isAdmin, permissions: u.permissions, creditCents: u.creditCents, coins: u.coins }, { ...data, coinsDelta: coinsDelta || undefined, reason }, g.email);
   const [row] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   return NextResponse.json({ user: row });

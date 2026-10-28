@@ -12,6 +12,7 @@ import { dayKey, newId, now, weekBounds, weekId } from "@/lib/util";
 import { addCoins } from "@/lib/arcade";
 import { addEvent } from "@/lib/economy";
 import { sendSeasonResult } from "@/lib/emails";
+import { notify } from "@/lib/notify";
 
 export const SEASON_PRIZES = [300, 150, 75] as const;
 export const FEATURED_DAYS = 7;
@@ -97,15 +98,7 @@ export async function closeSeason(weekStartTs: number): Promise<SeasonResults> {
     await db.update(schema.booths).set({ featuredUntil }).where(eq(schema.booths.id, w.boothId));
     if (w.ownerId) {
       await addCoins(w.ownerId, SEASON_PRIZES[i], "prize", `season:${id}:${i + 1}`);
-      await db.insert(schema.notifications).values({
-        id: newId(),
-        userId: w.ownerId,
-        type: "season",
-        title: `${w.name} finished #${i + 1} this week`,
-        body: `${w.views.toLocaleString()} views and ${w.clicks.toLocaleString()} clicks in season ${id}. You won ${SEASON_PRIZES[i]} coins and a week on the home page.`,
-        boothId: w.boothId,
-        createdAt: now(),
-      });
+      await notify(w.ownerId, "season", `${w.name} finished #${i + 1} this week`, `${w.views.toLocaleString()} views and ${w.clicks.toLocaleString()} clicks in season ${id}. You won ${SEASON_PRIZES[i]} coins and a week on the home page.`, w.boothId);
       await sendSeasonResult(w.ownerId, w.boothId, w.name, i + 1, w.views, w.clicks, id, SEASON_PRIZES[i]);
     }
   }

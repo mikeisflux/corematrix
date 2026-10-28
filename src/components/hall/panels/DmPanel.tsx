@@ -35,7 +35,14 @@ export function DmPanel() {
   const mode = useHall.getState().mode;
   const sendSpot = () => post(`Meet me here: ${location.origin}/app?at=${player.x.toFixed(0)},${player.z.toFixed(0)}`);
   // links in messages (meet-me spots) are clickable
-  const rich = (t: string) => t.split(/(https?:\/\/\S+)/g).map((part, i) => /^https?:\/\//.test(part) ? <a key={i} href={part} className="underline" onClick={(ev) => { ev.preventDefault(); const at = new URL(part).searchParams.get("at")?.split(",").map(Number); if (at && at.length === 2) { setMode("walk"); setWalkPoint({ x: at[0], z: at[1] }); setPanel("none"); } else window.open(part, "_blank"); }}>{part.includes("?at=") ? "📍 meet-up spot" : part}</a> : part);
+  // a meet-me link (any host, as long as it carries ?at=x,z) teleports in place; anything else opens in a new tab, never this one
+  const follow = (part: string) => {
+    let at: number[] | undefined;
+    try { at = new URL(part).searchParams.get("at")?.split(",").map(Number); } catch { at = undefined; }
+    if (at && at.length === 2 && at.every((n) => Number.isFinite(n))) { setMode("walk"); setWalkPoint({ x: at[0], z: at[1] }); setPanel("none"); return; }
+    try { window.open(part, "_blank", "noopener"); } catch { /* popup blocked: nothing else to do */ }
+  };
+  const rich = (t: string) => t.split(/(https?:\/\/\S+)/g).map((part, i) => /^https?:\/\//.test(part) ? <a key={i} href={part} className="underline" onClick={(ev) => { ev.preventDefault(); follow(part); }}>{part.includes("?at=") ? "📍 meet-up spot" : part}</a> : part);
   return (
     <>
       <PanelHeader title={active.name} sub={onFloor ? "On the floor now · private chat" : "Not on the floor right now · they get it when they're back"} onBack={() => setPanel("people")} />

@@ -1,4 +1,5 @@
 import { parsePermissions } from "@/lib/permissions";
+import { notify } from "@/lib/notify";
 import { cookies, headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
@@ -91,6 +92,7 @@ export async function register(emailRaw: string, password: string, displayName?:
   const user = await findOrCreateUser(email, ref);
   await db.update(schema.users).set({ passwordHash: hashPassword(password), displayName: displayName?.trim().slice(0, 40) || user.displayName }).where(eq(schema.users.id, user.id));
   await createSession(user.id);
+  await notify(user.id, "welcome", "Welcome to the show floor", "Set your name and a title under Your avatar, meet people under 👥 People, and claim a booth from $5.");
   return user;
 }
 
@@ -158,14 +160,7 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
       .update(schema.users)
       .set({ creditCents: (await creditOf(referredBy)) + REFERRAL_CREDIT_CENTS })
       .where(eq(schema.users.id, referredBy));
-    await db.insert(schema.notifications).values({
-      id: newId(),
-      userId: referredBy,
-      type: "referral",
-      title: "Someone joined with your link",
-      body: `You both earned $${(REFERRAL_CREDIT_CENTS / 100).toFixed(2)} in booth credit.`,
-      createdAt: now(),
-    });
+    await notify(referredBy, "referral", "Someone joined with your link", `You both earned $${(REFERRAL_CREDIT_CENTS / 100).toFixed(2)} in booth credit.`);
   }
   return (await db.select().from(schema.users).where(eq(schema.users.id, user.id)))[0];
 }

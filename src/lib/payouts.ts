@@ -10,6 +10,7 @@ import { newId, now } from "@/lib/util";
 import { sendTemplate } from "@/lib/sendgrid";
 import { formatMoney, PAYOUT_MAX_CENTS, PAYOUT_MIN_CENTS } from "@/lib/config";
 import { audit } from "@/lib/auth";
+import { notify } from "@/lib/notify";
 
 export type Payout = typeof schema.payouts.$inferSelect;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,6 +34,7 @@ export async function requestPayout(userId: string, input: { amountCents: number
   if (!u) throw new Error("Not enough credit for that amount");
   const row: typeof schema.payouts.$inferInsert = { id: newId(), userId, amountCents: amount, method: "paypal", paypalEmail, legalName, address, status: "pending", createdAt: now() };
   await db.insert(schema.payouts).values(row);
+  await notify(userId, "payout", `Payout of ${formatMoney(amount)} requested`, `We send PayPal payouts within a few days to ${paypalEmail}.`);
   void sendTemplate("payout_requested", u.email, { name: u.displayName ?? "", amount: formatMoney(amount), paypalEmail, payoutId: row.id }).catch(() => {});
   return row as Payout;
 }
@@ -73,6 +75,7 @@ export async function markPayoutPaid(id: string, admin: { id: string; email: str
     .where(and(eq(schema.payouts.id, id), eq(schema.payouts.status, "pending"))).returning();
   if (!p) throw new Error("Payout is not pending");
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, p.userId)).limit(1);
+  await notify(p.userId, "payout", `${formatMoney(p.amountCents)} sent to your PayPal`, `Reference ${ref}. Check ${p.paypalEmail}.`);
   if (u) void sendTemplate("payout_paid", u.email, { name: u.displayName ?? "", amount: formatMoney(p.amountCents), paypalEmail: p.paypalEmail, reference: ref, payoutId: p.id }).catch(() => {});
   await audit(admin.id, "payout.paid", "payout", p.id, { status: "pending" }, { status: "paid", reference: ref, amountCents: p.amountCents }, admin.email);
   return p;
@@ -85,6 +88,7 @@ export async function rejectPayout(id: string, admin: { id: string; email: strin
     .where(and(eq(schema.payouts.id, id), eq(schema.payouts.status, "pending"))).returning();
   if (!p) throw new Error("Payout is not pending");
   const [u] = await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${p.amountCents}` }).where(eq(schema.users.id, p.userId)).returning();
+  await notify(p.userId, "payout", `Payout of ${formatMoney(p.amountCents)} could not be sent`, `${why}. The amount is back in your credit.`);
   if (u) void sendTemplate("payout_rejected", u.email, { name: u.displayName ?? "", amount: formatMoney(p.amountCents), reason: why, payoutId: p.id }).catch(() => {});
   await audit(admin.id, "payout.rejected", "payout", p.id, { status: "pending" }, { status: "rejected", reason: why, creditRestoredCents: p.amountCents }, admin.email);
   return p;

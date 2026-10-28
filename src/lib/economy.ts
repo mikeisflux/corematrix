@@ -14,6 +14,7 @@ import { boothSpace, hallLayout, totalBooths, describeSpace } from "@/lib/hall/l
 import { activatePlan } from "@/lib/subscriptions";
 import { sendReceipt, sendSold, sendWelcome } from "@/lib/emails";
 import { sendTemplate } from "@/lib/sendgrid";
+import { notify } from "@/lib/notify";
 
 export type Booth = typeof schema.booths.$inferSelect;
 
@@ -407,6 +408,7 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       await db.update(schema.users).set({ coins: sql`${schema.users.coins} + 50` }).where(eq(schema.users.id, tx.buyerId));
       await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: 50, reason: "claim", ref: `booth:${tx.boothId}`, createdAt: t });
       await sendWelcome(tx.buyerId, tx.boothId, d.name);
+      await notify(tx.buyerId, "claim", `${d.name} is on the show floor`, `Booth ${describeSpace(boothSpace(tx.boothId)!)} is yours. +50 coins. Upload your banner and comics from the dashboard.`, tx.boothId);
     }
   } else if (tx.kind === "takeover" && meta.draft) {
     const d = sanitizeDraft(meta.draft);
@@ -433,18 +435,11 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
         .update(schema.users)
         .set({ creditCents: sql`${schema.users.creditCents} + ${tx.sellerPayoutCents}` })
         .where(eq(schema.users.id, tx.sellerId));
-      await db.insert(schema.notifications).values({
-        id: newId(),
-        userId: tx.sellerId,
-        type: "sold",
-        title: `${prev?.name ?? "Your booth"} was bought out`,
-        body: `Booth ${prev?.label ?? tx.boothId} sold for ${formatMoney(tx.valueAfter)}. ${formatMoney(tx.sellerPayoutCents)} was added to your balance (${formatMoney(tx.sellerPayoutCents - tx.valueBefore)} profit). Claim a new booth or take one over.`,
-        boothId: tx.boothId,
-        createdAt: t,
-      });
+      await notify(tx.sellerId, "sold", `${prev?.name ?? "Your booth"} was bought out`, `Booth ${prev?.label ?? tx.boothId} sold for ${formatMoney(tx.valueAfter)}. ${formatMoney(tx.sellerPayoutCents)} was added to your balance (${formatMoney(tx.sellerPayoutCents - tx.valueBefore)} profit).`, tx.boothId);
       await sendSold(tx.sellerId, tx.boothId, prev?.name ?? "Your booth", tx.valueAfter, tx.sellerPayoutCents, tx.valueBefore);
     }
     await addEvent("takeover", tx.boothId, `${d.name} took over booth ${prev?.label ?? tx.boothId}`, `Bought ${meta.previousName ?? "the space"} for ${formatMoney(tx.valueAfter)}`, tx.valueAfter);
+    await notify(tx.buyerId, "takeover", `Booth ${prev?.label ?? tx.boothId} is yours`, `You took over ${meta.previousName ?? "the space"} for ${formatMoney(tx.valueAfter)}. Set up your banner and comics from the dashboard.`, tx.boothId);
     await bumpSiteDaily({ takeovers: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "boost") {
     const [p] = await db
@@ -453,6 +448,7 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       .where(eq(schema.booths.id, tx.boothId))
       .returning();
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} upgraded its signage`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
+    await notify(tx.buyerId, "boost", `${p?.name ?? "Your booth"} upgraded its signage`, `+${formatMoney(tx.amountCents)} in value · now worth ${formatMoney(p?.valueCents ?? 0)}.`, tx.boothId);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "banner") {
     const height = Number((meta as { height?: number }).height) || BANNER.defaultHeight;
@@ -462,6 +458,7 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       .where(eq(schema.booths.id, tx.boothId))
       .returning();
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} raised its banner to ${height} ft`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
+    await notify(tx.buyerId, "boost", `Your banner is now ${height} ft tall`, `${p?.name ?? "Your booth"}: +${formatMoney(tx.amountCents)} in value · now worth ${formatMoney(p?.valueCents ?? 0)}.`, tx.boothId);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "book") {
     const qty = Math.max(1, Number((meta as { qty?: number }).qty) || 1);
@@ -473,12 +470,14 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       .where(eq(schema.booths.id, tx.boothId))
       .returning();
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} put ${qty} ${qty === 1 ? "book" : "books"} on display`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
+    await notify(tx.buyerId, "boost", `${qty} more comic ${qty === 1 ? "stand" : "stands"} on your table`, `${p?.name ?? "Your booth"} now shows ${p?.bookSlots ?? qty} covers. Upload them from the dashboard.`, tx.boothId);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
     const pm = (meta as { paymentMethodId?: string }).paymentMethodId ?? null;
     const p = await activatePlan(tx.boothId, meta.tier, provider === "comp" ? null : pm);
     await addEvent("tier", tx.boothId, `${p?.name ?? "A booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall, takeover shield on" : "Unlocked full analytics", tx.amountCents);
     await bumpSiteDaily({ revenueCents: tx.amountCents });
+    await notify(tx.buyerId, "plan", `${p?.name ?? "Your booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall with the takeover shield on. Renews every 30 days." : "Full analytics unlocked. Renews every 30 days.", tx.boothId);
     if (tx.buyerId) {
       const [u] = await db.select({ email: schema.users.email, notify: schema.users.notifyEmail, name: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, tx.buyerId));
       if (u?.notify) {

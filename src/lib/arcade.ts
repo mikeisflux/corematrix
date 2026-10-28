@@ -8,6 +8,7 @@ import { db, ensureMigrated, schema } from "@/lib/db";
 import { dayKey, newId, now } from "@/lib/util";
 import { addEvent, liveBooth } from "@/lib/economy";
 import { publish } from "@/lib/realtime";
+import { notify } from "@/lib/notify";
 
 export const GAMES = {
   snake: { name: "Serpent Ave.", blurb: "Classic snake. Eat, grow, don't crash.", cost: 2, prizeAt: 400, prize: 25 },
@@ -101,8 +102,11 @@ export async function finishPlay(userId: string, playId: string, score: number, 
   if (s >= g.prizeAt) {
     prize = g.prize;
     await addCoins(userId, prize, "prize", `${p.gameId}:${s}`);
+    await notify(userId, "prize", `You won ${prize} coins on ${g.name}`, `${s.toLocaleString()} points. Coins convert into booth value from the dashboard.`);
   }
-  // Beat the daily #1? Announce it.
+  // Beat the daily #1? Announce it, and tell whoever just lost the top spot.
+  const [prevTop] = await db.select({ userId: schema.gameScores.userId, score: schema.gameScores.score, name: schema.gameScores.playerName }).from(schema.gameScores)
+    .where(and(eq(schema.gameScores.gameId, p.gameId), eq(schema.gameScores.day, dayKey()), sql`${schema.gameScores.userId} != ${userId}`)).orderBy(desc(schema.gameScores.score)).limit(1);
   const [top] = await db
     .select({ score: schema.gameScores.score })
     .from(schema.gameScores)
@@ -111,6 +115,7 @@ export async function finishPlay(userId: string, playId: string, score: number, 
     .limit(1);
   if (top && top.score === s) {
     await addEvent("arcade", boothId, `${playerName} tops ${g.name} today`, `${s.toLocaleString()} points`, null);
+    if (prevTop && prevTop.score < s) await notify(prevTop.userId, "arcade", `${playerName} beat your ${g.name} score`, `${s.toLocaleString()} points against your ${prevTop.score.toLocaleString()}. Back to the arcade?`);
   }
   const [u] = await db.select({ coins: schema.users.coins }).from(schema.users).where(eq(schema.users.id, userId));
   return { score: s, prize, coins: u?.coins ?? 0 };

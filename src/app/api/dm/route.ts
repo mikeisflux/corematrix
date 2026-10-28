@@ -14,8 +14,8 @@ const rate = (g.__fccDmRate ??= new Map<string, number[]>());
 export async function GET(req: Request) {
   const me = await getOrSetVisitor();
   const other = new URL(req.url).searchParams.get("with");
-  if (other) { markRead(me, other); return NextResponse.json({ me, messages: dmThread(me, other) }); }
-  return NextResponse.json({ me, threads: dmThreads(me) });
+  if (other) { await markRead(me, other); return NextResponse.json({ me, messages: await dmThread(me, other) }); }
+  return NextResponse.json({ me, threads: await dmThreads(me) });
 }
 /** Send a private message to another visitor id. 20 per minute. */
 export async function POST(req: Request) {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const u = await currentUser();
   const onFloor = roster().find((p) => p.id === me);
   const name = u?.displayName || onFloor?.n || parsed.data.name || "Visitor";
-  const msg = sendDm(me, name, parsed.data.to, parsed.data.body);
+  const msg = await sendDm(me, name, parsed.data.to, parsed.data.body);
   const out = NextResponse.json({ ok: true, message: msg });
   for (const c of res.cookies.getAll()) out.cookies.set(c);
   return out;

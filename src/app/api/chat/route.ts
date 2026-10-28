@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/auth";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newId, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
+import { notify } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -58,5 +59,11 @@ export async function POST(req: Request) {
   const msg = { id: newId(), room, userId: u.id, authorName: booth?.name ?? u.displayName ?? "visitor", authorBoothId: booth?.id ?? null, body, createdAt: t };
   await db.insert(schema.messages).values(msg);
   publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetVisitor() } });
+  // @handle mentions tell the person, even if they are not in the hall right now
+  const handles = Array.from(new Set((body.match(/@([a-z0-9_]{2,30})/gi) ?? []).map((h) => h.slice(1).toLowerCase()))).slice(0, 5);
+  for (const h of handles) {
+    const [who] = await db.select({ id: schema.users.id }).from(schema.users).where(sql`lower(${schema.users.handle}) = ${h}`);
+    if (who && who.id !== u.id) await notify(who.id, "mention", `${msg.authorName} mentioned you in hall chat`, body.slice(0, 200));
+  }
   return NextResponse.json({ ok: true });
 }

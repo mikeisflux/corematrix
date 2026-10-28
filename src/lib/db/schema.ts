@@ -7,6 +7,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   displayName: text("display_name"),
   handle: text("handle"), // X / social handle, optional
+  title: text("title"), // optional job title shown under the name on the floor ("Artist · Divinity Comics")
   referralCode: text("referral_code").notNull().unique(),
   referredBy: text("referred_by"),
   creditCents: integer("credit_cents").notNull().default(0), // referral + payout credit
@@ -515,4 +516,19 @@ export const teamMembers = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("team_members_team_idx").on(t.teamId), index("team_members_user_idx").on(t.userId), index("team_members_email_idx").on(t.email)],
+);
+
+/** Private messages between two visitors (by visitor id), kept so a deploy or restart does not lose them. */
+export const dms = sqliteTable(
+  "dms",
+  {
+    id: text("id").primaryKey(),
+    fromId: text("from_id").notNull(),
+    fromName: text("from_name").notNull(),
+    toId: text("to_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: integer("created_at").notNull(),
+    readAt: integer("read_at"),
+  },
+  (t) => [index("dms_from_idx").on(t.fromId), index("dms_to_idx").on(t.toId)],
 );
