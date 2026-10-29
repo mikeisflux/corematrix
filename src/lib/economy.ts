@@ -3,7 +3,7 @@
  * transaction row first (pending), then `settle()` applies it once payment
  * is confirmed (comp/credit: immediately; DivinityCoin: from the webhook).
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, BOOK_PRICE_CENTS, bookCapacity } from "@/lib/config";
 import { clampStr, isHexColor, newId, normalizeUrl, now } from "@/lib/util";
@@ -376,6 +376,14 @@ export async function startBillboard(buyerId: string, d: BillboardDraft) {
 export type PayProvider = "divinitycoin" | "comp" | "sandbox";
 
 export async function settle(txId: string, provider: PayProvider, providerRef?: string): Promise<Tx | null> {
+  try { return await settleInner(txId, provider, providerRef); }
+  catch (e) {
+    if (!(e instanceof SettleConflict)) throw e;
+    const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
+    return tx ? flagForRefund(tx, e.message) : null;
+  }
+}
+async function settleInner(txId: string, provider: PayProvider, providerRef?: string): Promise<Tx | null> {
   await ensureMigrated();
   const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
   if (!tx) return null;
@@ -402,12 +410,11 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
     .returning();
   if (!updated.length) return tx;
 
-  if (meta.creditUsed && tx.buyerId) {
-    await db
-      .update(schema.users)
-      .set({ creditCents: sql`max(0, ${schema.users.creditCents} - ${meta.creditUsed})` })
-      .where(eq(schema.users.id, tx.buyerId));
-  }
+  // Whatever was true when checkout started may not be true now (another buyer got there first, the code was used, the
+  // credit was spent). Check, and consume codes and credit atomically, before anything is granted. On a conflict the
+  // payment stays recorded as paid, nothing is applied, and it is flagged for a refund.
+  const conflict = await claimInputs(tx, meta);
+  if (conflict) return flagForRefund(updated[0], conflict);
 
   if (tx.kind === "claim" && meta.draft) {
     const d = sanitizeDraft(meta.draft);
@@ -427,11 +434,13 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       .onConflictDoUpdate({
         target: schema.booths.id,
         set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false },
-      });
+        setWhere: isNull(schema.booths.ownerId), // never over someone who claimed it in the meantime
+      })
+      .returning({ id: schema.booths.id })
+      .then(async (rows) => { if (!rows.length) { await releaseInputs(tx, meta); throw new SettleConflict("Someone else claimed this booth first."); } });
     await addEvent("claim", tx.boothId, `${d.name} is on the show floor`, `${describeSpace(boothSpace(tx.boothId)!)} · ${CATEGORIES[d.category ?? "comics"].name}`, tx.valueAfter);
     await bumpSiteDaily({ claims: 1, revenueCents: tx.amountCents });
     if (meta.codeId && tx.buyerId) {
-      await db.update(schema.boothCodes).set({ uses: sql`${schema.boothCodes.uses} + 1` }).where(eq(schema.boothCodes.id, meta.codeId));
       await db.insert(schema.codeRedemptions).values({ id: newId(), codeId: meta.codeId, userId: tx.buyerId, boothId: tx.boothId, txId: tx.id, createdAt: t });
     }
     if (tx.buyerId) {
@@ -459,7 +468,9 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
         notForSaleUntil: null,
         salesCount: sql`${schema.booths.salesCount} + 1`,
       })
-      .where(eq(schema.booths.id, tx.boothId));
+      .where(and(eq(schema.booths.id, tx.boothId), tx.sellerId ? eq(schema.booths.ownerId, tx.sellerId) : sql`1`, eq(schema.booths.valueCents, tx.valueBefore)))
+      .returning({ id: schema.booths.id })
+      .then(async (rows) => { if (!rows.length) { await releaseInputs(tx, meta); throw new SettleConflict("The booth changed hands or value before this payment landed."); } });
     if (tx.sellerId) {
       await db
         .update(schema.users)
@@ -638,4 +649,51 @@ export async function checkBoothCode(raw: string, boothId: number) {
   if (!space) throw new Error("No such booth");
   if (c.size !== "any" && c.size !== space.size) throw new Error(`That code is for a ${BOOTH_SIZES[c.size as keyof typeof BOOTH_SIZES]?.name ?? c.size}, not this ${BOOTH_SIZES[space.size].name.toLowerCase()}`);
   return c;
+}
+
+/* ---------- settle safety ---------- */
+
+export class SettleConflict extends Error {}
+
+/** Consume what this payment relies on (a booth code use, account credit) atomically, after checking the booth is still
+ *  available on the terms quoted. Returns a reason when it can't, having released anything it took. */
+async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string }): Promise<string | null> {
+  if (tx.kind === "claim") {
+    const b = await getBooth(tx.boothId);
+    if (b?.ownerId && b.ownerId !== tx.buyerId) return "Someone else claimed this booth first.";
+  }
+  if (tx.kind === "takeover") {
+    const b = await getBooth(tx.boothId);
+    if (!b || b.ownerId !== tx.sellerId || b.valueCents !== tx.valueBefore) return "The booth changed hands or value before this payment landed.";
+  }
+  let codeTaken = false;
+  if (meta.codeId) {
+    const r = await db.update(schema.boothCodes).set({ uses: sql`${schema.boothCodes.uses} + 1` })
+      .where(and(eq(schema.boothCodes.id, meta.codeId), sql`${schema.boothCodes.uses} < ${schema.boothCodes.maxUses}`, isNull(schema.boothCodes.revokedAt))).returning({ id: schema.boothCodes.id });
+    if (!r.length) return "The booth code was already used up.";
+    codeTaken = true;
+  }
+  if (meta.creditUsed && tx.buyerId) {
+    const r = await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} - ${meta.creditUsed}` })
+      .where(and(eq(schema.users.id, tx.buyerId), sql`${schema.users.creditCents} >= ${meta.creditUsed}`)).returning({ id: schema.users.id });
+    if (!r.length) {
+      if (codeTaken) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId!));
+      return "The account credit this checkout used was spent elsewhere first.";
+    }
+  }
+  return null;
+}
+/** Give back what claimInputs took, when applying fails at the last step. */
+async function releaseInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string }) {
+  if (meta.codeId) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId));
+  if (meta.creditUsed && tx.buyerId) await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${meta.creditUsed}` }).where(eq(schema.users.id, tx.buyerId));
+}
+/** The payment is real but nothing was granted: note it on the transaction, tell the buyer, and raise it in Sentinel. */
+async function flagForRefund(tx: Tx, reason: string): Promise<Tx> {
+  const note = `NOT APPLIED, refund due: ${reason}`;
+  await db.update(schema.transactions).set({ notes: tx.notes ? `${tx.notes}\n${note}` : note }).where(eq(schema.transactions.id, tx.id));
+  if (tx.buyerId) await notify(tx.buyerId, "booth", "Your payment couldn't be applied", `${reason} You'll be refunded ${formatMoney(tx.amountCents)}; nothing else to do.`, tx.boothId).catch(() => {});
+  const { recordError } = await import("@/lib/sentinel");
+  await recordError({ kind: "server", where: "settle", message: `Transaction ${tx.id} (${tx.kind}, booth ${tx.boothId}) paid but not applied: ${reason}`, url: `/admin/transactions/${tx.id}` }).catch(() => {});
+  return { ...tx, notes: note };
 }
