@@ -169,6 +169,9 @@ export function rememberSpot(x: number, z: number, h: number) { try { localStora
 /** The remembered spot if it is fresh, otherwise a random free point in the ring around the arcade plaza, facing it. */
 export function spawnPoint(): { x: number; z: number; h: number } {
   try {
+    // a browser refresh is a reset: start fresh. Arriving from another page (or back/forward) picks up where you were.
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type === "reload") { localStorage.removeItem(SPOT_KEY); throw new Error("fresh"); }
     const s = JSON.parse(localStorage.getItem(SPOT_KEY) || "null") as { x: number; z: number; h: number; t: number } | null;
     if (s && Date.now() - s.t < SPOT_TTL && Number.isFinite(s.x) && Number.isFinite(s.z) && !blocked(s.x, s.z)) return { x: s.x, z: s.z, h: Number.isFinite(s.h) ? s.h : 0 };
   } catch {}
