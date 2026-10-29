@@ -163,6 +163,25 @@ function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Mot
   return <primitive ref={ref} object={obj} />;
 }
 
+/* ---------- where a visit starts ---------- */
+const SPOT_KEY = "fcc_spot", SPOT_TTL = 6 * 3600_000;
+export function rememberSpot(x: number, z: number, h: number) { try { localStorage.setItem(SPOT_KEY, JSON.stringify({ x, z, h, t: Date.now() })); } catch {} }
+/** The remembered spot if it is fresh, otherwise a random free point in the ring around the arcade plaza, facing it. */
+export function spawnPoint(): { x: number; z: number; h: number } {
+  try {
+    const s = JSON.parse(localStorage.getItem(SPOT_KEY) || "null") as { x: number; z: number; h: number; t: number } | null;
+    if (s && Date.now() - s.t < SPOT_TTL && Number.isFinite(s.x) && Number.isFinite(s.z) && !blocked(s.x, s.z)) return { x: s.x, z: s.z, h: Number.isFinite(s.h) ? s.h : 0 };
+  } catch {}
+  // somewhere between the plaza's edge and the booths that line it: the cross aisles and the plaza floor itself
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 28;
+    const p = freePoint(ARCADE.x + Math.cos(a) * r, ARCADE.z + Math.sin(a) * r * (ARCADE.d / ARCADE.w));
+    if (Math.hypot(p.x - ARCADE.x, p.z - ARCADE.z) < 70) return { x: p.x, z: p.z, h: Math.atan2(ARCADE.x - p.x, ARCADE.z - p.z) };
+  }
+  const p = freePoint(ARCADE.x, ARCADE.z + ARCADE.d / 2 + 6);
+  return { x: p.x, z: p.z, h: Math.atan2(ARCADE.x - p.x, ARCADE.z - p.z) };
+}
+
 /* ---------- the player: walk mode controls + third-person camera ---------- */
 const WALK = 9, RUN = 17;
 export function Player() {
@@ -174,9 +193,11 @@ export function Player() {
   const booths = useHall((s) => s.booths);
   const { camera, gl } = useThree();
   const group = useRef<THREE.Group>(null);
-  const pos = useRef(new THREE.Vector3(X0 + 17 * PITCH + SLOT + AISLE_W / 2, 0, Z0 + 28)); // centre of aisle 1800, by the middle entrance
-  const heading = useRef(0); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
-  const yaw = useRef(0);
+  // where you stand: back where you were if you left the hall recently (any page, any reason), else a fresh spot around the arcade
+  const start = useRef(spawnPoint());
+  const pos = useRef(new THREE.Vector3(start.current.x, 0, start.current.z));
+  const heading = useRef(start.current.h); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
+  const yaw = useRef(start.current.h);
   const pitch = useRef(0); // mouse tilt, radians; + looks up
 
   // mouse look: drag anywhere on the hall to turn the view (a short click still opens banners)
@@ -236,15 +257,17 @@ export function Player() {
       .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
   };
   // tell the floor when we leave walk mode or the page; while the tab is in the background (no frames run) a slow
-  // heartbeat keeps our spot as "away" instead of letting it time out
+  // heartbeat keeps our spot as "away" instead of letting it time out. Leaving also remembers the spot, so the next
+  // visit (from the arcade, the dashboard, anywhere) starts right here.
   useEffect(() => {
     if (mode !== "walk") return;
-    const bye = () => report(true);
+    const bye = () => { report(true); rememberSpot(pos.current.x, pos.current.z, heading.current); };
+    const remember = setInterval(() => rememberSpot(pos.current.x, pos.current.z, heading.current), 5000);
     window.addEventListener("pagehide", bye);
     const beat = setInterval(() => { if (document.hidden) report(false, true); }, 3000);
     const back = () => { if (!document.hidden) report(false, false); };
     document.addEventListener("visibilitychange", back);
-    return () => { window.removeEventListener("pagehide", bye); document.removeEventListener("visibilitychange", back); clearInterval(beat); bye(); };
+    return () => { window.removeEventListener("pagehide", bye); document.removeEventListener("visibilitychange", back); clearInterval(beat); clearInterval(remember); bye(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 

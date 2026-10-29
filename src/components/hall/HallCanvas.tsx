@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { social, showBubble, bumpSocial } from "@/lib/hall/social";
 import { usePrefs } from "@/lib/hall/prefs";
-import { openDm } from "./Avatar";
+import { openDm, player } from "./Avatar";
 import { NOTICE_ICON } from "@/lib/hall/notices";
 import { perf } from "@/lib/hall/perf";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -62,7 +62,7 @@ export function HallCanvas() {
     // The stream is registered under the visitor cookie it saw. If a parallel request handed out a different cookie
     // first, private messages would miss this tab, so reconnect once the real id is known from the presence reply.
     // for debugging in the console and in tests: the live roster and social state
-    (window as unknown as { __fcc?: unknown }).__fcc = { live, social, hall: useHall };
+    (window as unknown as { __fcc?: unknown }).__fcc = { live, social, hall: useHall, player };
     // crews change while people are on the floor: refresh my booths when the tab comes back and every two minutes
     const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => { if (alive) setMe(d.user, d.booths); }).catch(() => {}); };
     document.addEventListener("visibilitychange", refreshMe);
