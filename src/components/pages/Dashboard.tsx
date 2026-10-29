@@ -7,7 +7,7 @@ import { REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_S
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
-interface Me { id: string; email: string; emailVerified?: boolean; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
+interface Me { id: string; email: string; emailVerified?: boolean; promoCents?: number; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
   booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
@@ -72,7 +72,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
         <Link href="/app?claim=1" className="btn-primary mt-6">Claim a booth →</Link>
         <div className="mt-8 rounded-2xl border border-white/10 p-4 text-left text-sm">
           <div className="font-bold">Your balances</div>
-          <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover, or cash it out)</div>
+          <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover, or cash it out){me.promoCents ? <> · {formatMoney(me.promoCents)} referral credit (spend-only)</> : null}</div>
           <div className="mt-2 text-xs text-slate-500">Referral link: <span className="mono">{origin}/?ref={me.referralCode}</span> · you both get {formatMoney(REFERRAL_CREDIT_CENTS)} credit when they make their first purchase</div>
           <Cashout me={me} setMsg={setMsg} onDone={() => void load()} />
           {msg && <p className="mt-2 text-xs text-amber-300">{msg}</p>}
@@ -91,7 +91,8 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your balances</div>
           <div className="mt-1 flex items-baseline gap-3"><span className="mono text-2xl font-bold text-amber-300">{me.coins}</span><span className="text-xs text-slate-400">coins · {me.streak}-day streak</span></div>
           <div className="mono text-lg">{formatMoney(me.creditCents)} <span className="text-xs text-slate-400">credit</span></div>
-          <p className="mt-1 text-[11px] text-slate-500">Credit comes from takeover payouts and referrals. Spend it on any claim, takeover, boost or banner, or cash it out to PayPal.</p>
+          {!!me.promoCents && <div className="mono text-sm">{formatMoney(me.promoCents)} <span className="text-xs text-slate-400">referral credit · spend-only</span></div>}
+          <p className="mt-1 text-[11px] text-slate-500">Credit from takeover payouts can be spent on any claim, takeover, boost or banner, or cashed out to PayPal. Referral credit is spent first and can't be cashed out.</p>
           <Cashout me={me} setMsg={setMsg} onDone={() => void load()} />
         </div>
         <div className="rounded-2xl border border-white/10 p-2">

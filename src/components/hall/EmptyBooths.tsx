@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import { drapeTexture, signTexture } from "./textures";
 import { useHall, dragged } from "@/lib/hall/store";
-import { hallLayout, ARCADE, type BoothSpace } from "@/lib/hall/layout";
+import { hallLayout, ARCADE, islandOpenEdges, type BoothSpace } from "@/lib/hall/layout";
 import { BOOTH_SIZES, formatMoney, type BoothSize } from "@/lib/config";
 
 const tmp = new THREE.Object3D();
@@ -84,7 +84,9 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
       }
       // card stands at the open side facing the aisle; islands face whichever concourse they border
       if (island) {
-        const dir = Math.abs(s.z - ARCADE.z) < d * 2 ? Math.sign(ARCADE.z - s.z) : -1;
+        const want = Math.abs(s.z - ARCADE.z) < d * 2 ? Math.sign(ARCADE.z - s.z) : -1;
+        const e = islandOpenEdges(s.id);
+        const dir = (want > 0 ? e.south : e.north) ? want : -want; // always on a side that still has its table
         tmp.position.set(s.x, 3.45, s.z + dir * (d / 2 - 1.6)); tmp.rotation.set(0, dir > 0 ? 0 : Math.PI, 0);
       } else {
         // standing on the table top (top at ~2.6 ft), over the table's centre line, instead of half inside the table
@@ -100,8 +102,16 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
         if (d === 20) seats.push({ x: s.x + f * w / 2, z: s.z - 5, rot, nx: f, nz: 0 }, { x: s.x + f * w / 2, z: s.z + 5, rot, nx: f, nz: 0 });
         else seats.push({ x: s.x + f * w / 2, z: s.z, rot, nx: f, nz: 0 });
       }
+      const edges = island ? islandOpenEdges(s.id) : null;
       seats.forEach((q, k) => {
         const j = i * per + k;
+        // an island side pressed against the next row gets no furniture (it would face the neighbours' back rail)
+        if (edges && !(q.nz > 0 ? edges.south : q.nz < 0 ? edges.north : q.nx > 0 ? edges.east : edges.west)) {
+          tmp.position.set(s.x, -50, s.z); tmp.rotation.set(0, 0, 0); tmp.scale.set(0, 0, 0); tmp.updateMatrix();
+          for (const m of [tables, hems, tops, banners, bases]) m.current?.setMatrixAt(j, tmp.matrix);
+          tmp.scale.set(1, 1, 1);
+          return;
+        }
         // the table runs long-ways along the open edge; q.rot faces the banner out toward the aisle
         tmp.rotation.set(0, q.rot + Math.PI / 2, 0);
         const tx = q.x - q.nx * 1.6, tz = q.z - q.nz * 1.6;

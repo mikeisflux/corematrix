@@ -10,7 +10,8 @@ export const users = sqliteTable("users", {
   title: text("title"), // optional job title shown under the name on the floor ("Artist · Divinity Comics")
   referralCode: text("referral_code").notNull().unique(),
   referredBy: text("referred_by"),
-  creditCents: integer("credit_cents").notNull().default(0), // referral + payout credit
+  creditCents: integer("credit_cents").notNull().default(0), // takeover payouts and admin credit: spendable and cashable
+  promoCents: integer("promo_cents").notNull().default(0), // referral rewards: spendable on the floor, never cashed out
   coins: integer("coins").notNull().default(0), // arcade soft currency
   lastDailyCoinsAt: integer("last_daily_coins_at"),
   streak: integer("streak").notNull().default(0),
@@ -525,6 +526,7 @@ export const teamMembers = sqliteTable(
     userId: text("user_id"),
     email: text("email").notNull(),
     via: text("via").notNull().default("friend"), // friend | email: an email invite shows only the address the owner typed
+    acceptedAt: integer("accepted_at"), // a seat counts once accepted: friends at once, email invites when the person says yes
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("team_members_team_idx").on(t.teamId), index("team_members_user_idx").on(t.userId), index("team_members_email_idx").on(t.email)],

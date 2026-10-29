@@ -20,7 +20,7 @@ export function TeamsPanel() {
   const select = useHall((s) => s.select);
   const soc = useSocial();
   const [teams, setTeams] = useState<TeamView[] | null>(null);
-  const [onTeams, setOnTeams] = useState<Array<{ id: string; name: string; owner: string }>>([]);
+  const [onTeams, setOnTeams] = useState<Array<{ id: string; name: string; owner: string; pending?: boolean }>>([]);
   const [friends, setFriends] = useState<Person[]>([]);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,7 +28,7 @@ export function TeamsPanel() {
   const staffed = myBooths.filter((b) => b.role === "staff");
   useEffect(() => {
     if (!me) return;
-    api<{ teams: TeamView[]; onTeams?: Array<{ id: string; name: string; owner: string }> }>("/api/teams").then((d) => { setTeams(d.teams); setOnTeams(d.onTeams ?? []); }).catch(() => setTeams([]));
+    api<{ teams: TeamView[]; onTeams?: Array<{ id: string; name: string; owner: string; pending?: boolean }> }>("/api/teams").then((d) => { setTeams(d.teams); setOnTeams(d.onTeams ?? []); }).catch(() => setTeams([]));
     api<{ friends: Person[] }>("/api/friends").then((d) => setFriends(d.friends)).catch(() => {});
   }, [me, soc.friendsVersion]);
   const run = async (f: () => Promise<{ teams: TeamView[] }>, ok?: string) => {
@@ -53,20 +53,29 @@ export function TeamsPanel() {
       <div className="space-y-3 p-3 text-sm">
         {onTeams.length > 0 && (
           <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Teams you're on</div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Teams you're on and invites</div>
             <div className="space-y-1">
               {onTeams.map((t) => (
                 <div key={t.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-2.5 py-1.5 text-[12px]">
-                  <span className="min-w-0 flex-1 truncate">{t.name}<span className="ml-1.5 text-[11px] text-slate-500">run by {t.owner}</span></span>
+                  <span className="min-w-0 flex-1 truncate">{t.name}<span className="ml-1.5 text-[11px] text-slate-500">{t.pending ? `${t.owner} invited you` : `run by ${t.owner}`}</span></span>
+                  {t.pending && <button className="btn-primary text-[11px]" disabled={busy} onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await api(`/api/teams/${t.id}/members?accept=1`, { method: "DELETE" });
+                      setOnTeams((x) => x.map((y) => (y.id === t.id ? { ...y, pending: false } : y))); setToast(`You're on ${t.name}: you can sit at its booths now`);
+                      const d = await api<{ user: Me | null; booths: Parameters<ReturnType<typeof useHall.getState>["setMe"]>[1] }>("/api/me"); useHall.getState().setMe(d.user, d.booths);
+                    } catch (e) { setToast((e as Error).message); }
+                    setBusy(false);
+                  }}>Accept</button>}
                   <button className="btn-ghost text-[11px]" disabled={busy} onClick={async () => {
                     setBusy(true);
                     try {
                       await api(`/api/teams/${t.id}/members?leave=1`, { method: "DELETE" });
-                      setOnTeams((x) => x.filter((y) => y.id !== t.id)); setToast(`You left ${t.name}`);
+                      setOnTeams((x) => x.filter((y) => y.id !== t.id)); setToast(t.pending ? `Declined the invite to ${t.name}` : `You left ${t.name}`);
                       const d = await api<{ user: Me | null; booths: Parameters<ReturnType<typeof useHall.getState>["setMe"]>[1] }>("/api/me"); useHall.getState().setMe(d.user, d.booths);
                     } catch (e) { setToast((e as Error).message); }
                     setBusy(false);
-                  }}>Leave</button>
+                  }}>{t.pending ? "Decline" : "Leave"}</button>
                 </div>
               ))}
             </div>
@@ -90,7 +99,7 @@ export function TeamsPanel() {
           <p className="text-xs text-slate-400">Teams belong to booths. {staffed.length ? "Get a booth of your own to run a crew." : "Get a booth and you can put friends on a team so they can sit at your table."} <button onClick={() => setPanel("claim")} className="text-amber-300 underline">Claim one</button>.</p>
         ) : (
           <>
-            <p className="text-xs text-slate-400">People on a team can sit at the chairs of the booths it staffs. Add friends by name (meet them under 👥 People) or anyone by email. An email invite becomes a seat once that person confirms the address.</p>
+            <p className="text-xs text-slate-400">People on a team can sit at the chairs of the booths it staffs. Add friends by name (meet them under 👥 People) or anyone by email. An email invite becomes a seat once that person confirms the address and accepts.</p>
             {teams === null && <p className="text-xs text-slate-500">Loading…</p>}
             {teams?.map((t) => <TeamCard key={t.id} t={t} booths={owned} friends={friends} busy={busy} run={run} />)}
             <form onSubmit={(e) => { e.preventDefault(); const name = newName.trim(); if (!name) return; void run(() => api("/api/teams", { method: "POST", body: JSON.stringify({ name }) }), `Team "${name}" created.`); setNewName(""); }} className="flex gap-1.5">
@@ -133,7 +142,7 @@ function TeamCard({ t, booths, friends, busy, run }: { t: TeamView; booths: Arra
           <ul className="mt-1 space-y-1">
             {t.members.map((m) => (
               <li key={m.id} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1 text-[12px]">
-                <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{!m.userId && <span className="ml-1.5 text-[10px] text-slate-500" title="The seat is theirs once they sign up and confirm this email address">invited · waiting for them to confirm their email</span>}</span>
+                <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{!m.userId && <span className="ml-1.5 text-[10px] text-slate-500" title="The seat is theirs once they confirm this email address and accept the invite">invited · waiting for them to accept</span>}</span>
                 <button onClick={() => void run(() => api(`/api/teams/${t.id}/members?member=${m.id}`, { method: "DELETE" }))} className="rounded-md px-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white" disabled={busy} aria-label="Remove">✕</button>
               </li>
             ))}

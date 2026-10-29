@@ -7,7 +7,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { Html } from "@react-three/drei";
 import { bannerTexture, drapeTexture, dropLogo, framedLogoTexture, logoTexture, signTexture, luminance } from "./textures";
 import { useHall, track, dragged, type HallBooth } from "@/lib/hall/store";
-import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
+import { boothSpace, signageForValue, CEILING, describeSpace, islandOpenEdges } from "@/lib/hall/layout";
 import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
 import { Prop } from "./models";
 import { registerSeat, unregisterSeat, requestSit, seatOf } from "@/lib/hall/seats";
@@ -30,6 +30,29 @@ const MAT_WHITE = new THREE.MeshStandardMaterial({ color: "#e9ecf1", roughness: 
 const BAR = new THREE.CylinderGeometry(0.045, 0.045, 1, 8); // unit length along y, rotated per use
 /** Island tower footprint: a thin 3 ft shaft so the roll-ups, chairs and tables all fit around it. */
 const TOWER_W = 3;
+
+/* A soft pool of coloured light on the floor, drawn without lighting. Real point lights per booth meant that every
+   night toggle (and every booth crossing the glow level at night) changed the scene's light count, which recompiles
+   every material in the hall; this is always mounted and only its opacity changes. */
+let poolTex: THREE.Texture | null = null;
+function glowTexture(): THREE.Texture {
+  if (poolTex) return poolTex;
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d")!; const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.35, "rgba(255,255,255,0.45)"); r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  poolTex = new THREE.CanvasTexture(c);
+  return poolTex;
+}
+function GlowPool({ radius, color, on, strength = 0.55 }: { radius: number; color: string; on: boolean; strength?: number }) {
+  const tex = useMemo(() => glowTexture(), []);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.16, 0]} renderOrder={2} visible={on}>
+      <planeGeometry args={[radius * 2, radius * 2]} />
+      <meshBasicMaterial map={tex} color={color} transparent opacity={strength} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
+  );
+}
 const uprights = new Map<number, THREE.BufferGeometry>();
 /** Pole + round base plate as one geometry per height (8 ft walls, 3 ft rails, 3.2 ft alley drape). */
 function uprightGeo(h: number): THREE.BufferGeometry {
@@ -125,6 +148,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     prevUrls.current = usedUrls;
   }, [usedUrls]);
   if (!space) return null;
+  const edges = islandOpenEdges(booth.id);
+  const onEdge = (x: number, z: number) => (z < 0 ? edges.north : z > 0 ? edges.south : x < 0 ? edges.west : edges.east);
   const facing = space.facing;
   const rotY = facing === -1 ? Math.PI : 0;
   const w = facing === 0 ? space.w : space.w; // depth from aisle (local x)
@@ -198,17 +223,18 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* tables on four sides + a header frame on corner uprights */}
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
         {/* one table per edge, each turned so its aisle side (local +x: stands, drape print) faces out of the island: north -z, south +z, west -x, east +x */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} wide />)}
+        {/* only edges that face an aisle: the side pressed against the next row of booths gets no table, chair or roll-up */}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} wide />)}
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
         {/* a chair behind each table, centred in front of the roll-up, facing the table (tucked up to the table when the roll-ups are wide) */}
-        {([[0, -1, Math.PI], [0, 1, 0], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const).map(([x, z, r], i) => <Chair key={i} booth={booth.id} n={i} x={x * cd} z={z * cd} rot={r} fallback={chairFallback} />)}
+        {([[0, -1, Math.PI], [0, 1, 0], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const).map(([x, z, r], i) => onEdge(x, z) && <Chair key={i} booth={booth.id} n={i} x={x * cd} z={z * cd} rot={r} fallback={chairFallback} />)}
         {/* roll-up banner on each side of the tower, facing out (3×6 by default, up to 8×16 when upgraded); wide ones stand further out so the four never cross at the corners */}
-        {([[0, -1, Math.PI], [0, 1, 0], [-1, 0, -Math.PI / 2], [1, 0, Math.PI / 2]] as const).map(([x, z, r], i) => (
+        {([[0, -1, Math.PI], [0, 1, 0], [-1, 0, -Math.PI / 2], [1, 0, Math.PI / 2]] as const).map(([x, z, r], i) => onEdge(x, z) && (
           <group key={i} position={[x * rd, 0, z * rd]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={rollups[i]} glow={glow} onClick={bannerClick} /></group>
         ))}
-        {night && !booth.house && <pointLight position={[0, th + 2, 0]} intensity={120} distance={50} color={booth.accent} />}
+        {!booth.house && <GlowPool radius={16} color={booth.accent} on={night} strength={0.5} />}
         {booth.house && cubeLogo && <Flagship color={booth.color} logo={cubeLogo} banner={banner} th={th} />}
         {tip}
       </group>
@@ -266,7 +292,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       {(wide ? [-5, 5] : [0]).map((z) => (
         <group key={z} position={[-w / 2 + 1.1, 0, z]} rotation={[0, Math.PI / 2, 0]}><RollUp bw={bw} bh={bh} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
       ))}
-      {night && sign.level >= 3 && <pointLight position={[0, 8, 0]} intensity={40} distance={24} color={booth.accent} />}
+      {sign.level >= 3 && <GlowPool radius={9} color={booth.accent} on={night} strength={0.45} />}
       {tip}
     </group>
   );

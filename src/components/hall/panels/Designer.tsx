@@ -30,7 +30,8 @@ export function Designer({ boothId, mode, initial }: Props) {
   const checkCode = async () => { if (!code.trim()) { setCodeState(null); return; } try { const r = await api<{ ok: boolean; covers?: string; error?: string }>(`/api/codes?code=${encodeURIComponent(code)}&booth=${boothId}`); setCodeState(r.ok ? { ok: true, covers: r.covers ?? "this booth" } : { ok: false, error: r.error ?? "Not valid" }); } catch (e) { setCodeState({ ok: false, error: (e as Error).message }); } };
 
   const price = mode === "claim" ? space.priceCents : splitTakeover(target?.valueCents ?? 0).price;
-  const credit = useCredit ? Math.min(me?.creditCents ?? 0, price) : 0;
+  const spendable = Math.max(0, (me?.creditCents ?? 0) + (me?.promoCents ?? 0)); // referral credit spends here too
+  const credit = useCredit ? Math.min(spendable, price) : 0;
   const rank = useMemo(() => Array.from(booths.values()).filter((p) => p.id !== boothId && p.valueCents > price).length + 1, [booths, price, boothId]);
 
   useEffect(() => {
@@ -115,8 +116,8 @@ export function Designer({ boothId, mode, initial }: Props) {
       <div><label className="label">About (optional)</label><textarea className="input" rows={3} maxLength={600} placeholder="Tell visitors what they'll find at your table." value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></div>
       <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
         <div className="flex items-center justify-between text-sm"><span className="text-slate-300">{mode === "claim" ? `${sizeDef.short} · ${ZONES[space.zone].name}` : "Takeover price"}</span><span className="mono font-bold">{formatMoney(price)}</span></div>
-        {me && me.creditCents > 0 && (
-          <label className="mt-2 flex items-center justify-between text-xs text-slate-300"><span className="flex items-center gap-2"><input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} />Use my {formatMoney(me.creditCents)} credit</span><span className="mono">−{formatMoney(credit)}</span></label>
+        {me && spendable > 0 && (
+          <label className="mt-2 flex items-center justify-between text-xs text-slate-300"><span className="flex items-center gap-2"><input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} />Use my {formatMoney(spendable)} credit</span><span className="mono">−{formatMoney(credit)}</span></label>
         )}
         {mode === "claim" && (
           <div className="mt-2 border-t border-white/10 pt-2">

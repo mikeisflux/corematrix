@@ -1,7 +1,7 @@
 /**
  * Referral credit. Someone who joins with your link is remembered at sign-up, but nobody is paid then:
  * making accounts is free, so paying at sign-up let anyone farm credit with throwaway emails. Both sides
- * are paid when the new person's first real payment clears, and a refund or chargeback of that payment
+ * are paid (as spend-only credit) when the new person's first real payment clears, and a refund or chargeback of that payment
  * takes it back. A qualifying payment is always larger than the credit it earns, so farming costs money.
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -29,8 +29,9 @@ export async function payReferral(tx: PaidTx) {
   const [referrer] = await db.select().from(schema.users).where(eq(schema.users.id, buyer.referredBy)).limit(1);
   if (!referrer) return;
   const amt = REFERRAL_CREDIT_CENTS, money = formatMoney(amt);
-  await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${amt}` }).where(eq(schema.users.id, buyer.id));
-  await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${amt}` }).where(eq(schema.users.id, referrer.id));
+  // referral credit is spend-only: it buys booths, boosts and banners but never cashes out
+  await db.update(schema.users).set({ promoCents: sql`${schema.users.promoCents} + ${amt}` }).where(eq(schema.users.id, buyer.id));
+  await db.update(schema.users).set({ promoCents: sql`${schema.users.promoCents} + ${amt}` }).where(eq(schema.users.id, referrer.id));
   await addCoins(buyer.id, COIN_RULES.referral, "referral", `tx:${tx.id}`);
   await addCoins(referrer.id, COIN_RULES.referral, "referral", `tx:${tx.id}`);
   const name = buyer.displayName || "Someone you invited";
@@ -43,14 +44,14 @@ export async function payReferral(tx: PaidTx) {
   }, { channel: "system", userId: referrer.id }).catch(() => {});
 }
 
-/** That payment was refunded in full or disputed: take both credits back (even below zero, which blocks cash-outs until covered) so a later real payment can earn it again. */
+/** That payment was refunded in full or disputed: take both credits back (from the spend-only referral balance) so a later real payment can earn it again. */
 export async function revokeReferral(txId: string): Promise<boolean> {
   await ensureMigrated();
   const [buyer] = await db.update(schema.users).set({ referralPaidAt: null, referralTxId: null }).where(eq(schema.users.referralTxId, txId)).returning();
   if (!buyer) return false;
-  // may go below zero: if the credit was already cashed out, the balance owes it back and blocks further cash-outs
-  const back = sql`${schema.users.creditCents} - ${REFERRAL_CREDIT_CENTS}`;
-  await db.update(schema.users).set({ creditCents: back }).where(eq(schema.users.id, buyer.id));
-  if (buyer.referredBy) await db.update(schema.users).set({ creditCents: back }).where(eq(schema.users.id, buyer.referredBy));
+  // referral credit can't have been cashed out, so taking back whatever is left of it is enough
+  const back = sql`max(0, ${schema.users.promoCents} - ${REFERRAL_CREDIT_CENTS})`;
+  await db.update(schema.users).set({ promoCents: back }).where(eq(schema.users.id, buyer.id));
+  if (buyer.referredBy) await db.update(schema.users).set({ promoCents: back }).where(eq(schema.users.id, buyer.referredBy));
   return true;
 }

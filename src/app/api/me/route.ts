@@ -35,6 +35,7 @@ export async function GET() {
       streak: checkin.streak,
       awardedToday: checkin.awarded,
       creditCents: u.creditCents,
+      promoCents: u.promoCents, // referral credit: spendable, never cashed out
       referralCode: u.referralCode,
       emailVerified: !!u.emailVerifiedAt,
       isAdmin: u.isAdmin,

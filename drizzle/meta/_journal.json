@@ -134,6 +134,13 @@
       "when": 1793300000000,
       "tag": "0018_social_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1793310000000,
+      "tag": "0019_promo_credit",
+      "breakpoints": true
     }
   ]
 }

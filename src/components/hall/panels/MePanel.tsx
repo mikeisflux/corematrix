@@ -49,7 +49,7 @@ export function MePanel() {
         {me.emailVerified === false && <VerifyNudge email={me.email} compact />}
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Coins" value={String(me.coins)} sub={`${me.streak}-day streak`} accent />
-          <Stat label="Credit" value={formatMoney(me.creditCents)} sub="from sales + referrals" />
+          <Stat label="Credit" value={formatMoney(Math.max(0, me.creditCents + (me.promoCents ?? 0)))} sub={me.promoCents ? `${formatMoney(me.promoCents)} referral (spend-only)` : "from sales + referrals"} />
           <Stat label="Booths" value={String(myBooths.length)} />
         </div>
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-xs">

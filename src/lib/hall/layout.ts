@@ -154,6 +154,31 @@ export function boothSpace(id: number): BoothSpace | undefined {
   return byId.get(id);
 }
 export function totalBooths(): number { return hallLayout().length; }
+
+/**
+ * Which edges of an island face an aisle. Most islands have one side pressed against the next row of booths:
+ * furniture there faces the neighbours' back rails and its chair can't be reached from any aisle.
+ * north = -z, south = +z, west = -x, east = +x.
+ */
+export type IslandEdges = { north: boolean; south: boolean; west: boolean; east: boolean };
+const edgeCache = new Map<number, IslandEdges>();
+export function islandOpenEdges(id: number): IslandEdges {
+  const hit = edgeCache.get(id); if (hit) return hit;
+  const b = boothSpace(id);
+  const open: IslandEdges = { north: true, south: true, west: true, east: true };
+  if (b) {
+    const GAP = 1.5; // a strip just outside each edge: another booth in it means that side is closed
+    const others = hallLayout().filter((o) => o.id !== b.id);
+    const touches = (x0: number, x1: number, z0: number, z1: number) => others.some((o) => o.x - o.w / 2 < x1 && o.x + o.w / 2 > x0 && o.z - o.d / 2 < z1 && o.z + o.d / 2 > z0);
+    const L = b.x - b.w / 2, R = b.x + b.w / 2, T = b.z - b.d / 2, B = b.z + b.d / 2, inset = 2;
+    open.north = !touches(L + inset, R - inset, T - GAP, T);
+    open.south = !touches(L + inset, R - inset, B, B + GAP);
+    open.west = !touches(L - GAP, L, T + inset, B - inset);
+    open.east = !touches(R, R + GAP, T + inset, B - inset);
+  }
+  edgeCache.set(id, open);
+  return open;
+}
 export function boothPosition(id: number): { x: number; z: number; rotationY: number; facing: number } {
   const b = boothSpace(id);
   return b ? { x: b.x, z: b.z, rotationY: b.rotationY, facing: b.facing } : { x: 0, z: 0, rotationY: 0, facing: 1 };

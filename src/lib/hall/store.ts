@@ -89,6 +89,7 @@ export interface Me {
   streak: number;
   awardedToday: number;
   creditCents: number;
+  promoCents?: number;
   referralCode: string;
   emailVerified?: boolean;
   isAdmin: boolean;

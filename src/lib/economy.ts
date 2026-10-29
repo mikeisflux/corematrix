@@ -751,8 +751,9 @@ async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string 
     codeTaken = true;
   }
   if (meta.creditUsed && tx.buyerId) {
-    const r = await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} - ${meta.creditUsed}` })
-      .where(and(eq(schema.users.id, tx.buyerId), sql`${schema.users.creditCents} >= ${meta.creditUsed}`)).returning({ id: schema.users.id });
+    const promoUsed = await takeCredit(tx.buyerId, meta.creditUsed);
+    const r = promoUsed === null ? [] : [1];
+    if (promoUsed !== null) await db.update(schema.transactions).set({ meta: JSON.stringify({ ...(tx.meta ? JSON.parse(tx.meta) : {}), promoUsed }) }).where(eq(schema.transactions.id, tx.id));
     if (!r.length) {
       if (codeTaken) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId!));
       return "The account credit this checkout used was spent elsewhere first.";
@@ -761,9 +762,35 @@ async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string 
   return null;
 }
 /** Give back what claimInputs took, when applying fails at the last step. */
-export async function releaseInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string }) {
+export async function releaseInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string; promoUsed?: number }) {
   if (meta.codeId) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId));
-  if (meta.creditUsed && tx.buyerId) await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${meta.creditUsed}` }).where(eq(schema.users.id, tx.buyerId));
+  if (meta.creditUsed && tx.buyerId) {
+    // put each part back where it came from: referral credit stays spend-only
+    const stored = (await db.select({ meta: schema.transactions.meta }).from(schema.transactions).where(eq(schema.transactions.id, tx.id)).limit(1))[0]?.meta;
+    const promo = Math.min(meta.creditUsed, Math.max(0, Number(meta.promoUsed ?? (stored ? JSON.parse(stored).promoUsed : 0)) || 0));
+    await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${meta.creditUsed - promo}`, promoCents: sql`${schema.users.promoCents} + ${promo}` }).where(eq(schema.users.id, tx.buyerId));
+  }
+}
+
+/** A person's spendable credit: referral credit plus regular credit (a regular balance owed back after a clawback counts against it). */
+export const spendableCredit = (u: { creditCents: number; promoCents: number }) => Math.max(0, u.creditCents + u.promoCents);
+
+/**
+ * Takes `amount` of credit, referral credit first, in a statement that only succeeds if both balances are still what
+ * was read (retried a few times if something else changed them). Returns how much came from referral credit, or null
+ * when there isn't enough.
+ */
+export async function takeCredit(userId: string, amount: number): Promise<number | null> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const [u] = await db.select({ c: schema.users.creditCents, p: schema.users.promoCents }).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+    if (!u || u.c + u.p < amount) return null;
+    const promo = Math.min(Math.max(0, u.p), amount), cash = amount - promo;
+    if (u.c - cash < 0) return null;
+    const r = await db.update(schema.users).set({ promoCents: sql`${schema.users.promoCents} - ${promo}`, creditCents: sql`${schema.users.creditCents} - ${cash}` })
+      .where(and(eq(schema.users.id, userId), eq(schema.users.promoCents, u.p), eq(schema.users.creditCents, u.c))).returning({ id: schema.users.id });
+    if (r.length) return promo;
+  }
+  return null;
 }
 /** The payment is real but nothing was granted: note it on the transaction, tell the buyer, and raise it in Sentinel. */
 async function flagForRefund(tx: Tx, reason: string): Promise<Tx> {

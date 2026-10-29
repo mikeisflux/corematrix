@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { teamsOf, addMember, removeMember, leaveTeam } from "@/lib/social-graph";
+import { teamsOf, addMember, removeMember, leaveTeam, acceptInvite } from "@/lib/social-graph";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,11 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (!u) return NextResponse.json({ error: "Sign in" }, { status: 401 });
   const { id } = await ctx.params;
   const member = new URL(req.url).searchParams.get("member") ?? "";
-  // ?leave=1: take myself off someone else's team
+  // ?accept=1: say yes to an invite
+  if (new URL(req.url).searchParams.get("accept") === "1") {
+    try { await acceptInvite(u.id, id); return NextResponse.json({ ok: true }); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); }
+  }
+  // ?leave=1: take myself off someone else's team (or decline an invite)
   if (new URL(req.url).searchParams.get("leave") === "1") {
     try { await leaveTeam(u.id, id); return NextResponse.json({ ok: true }); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); }
   }

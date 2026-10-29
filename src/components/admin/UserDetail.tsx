@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Field, Input, Checkbox, Empty } from "./shared";
 import { ADMIN_AREAS, parsePermissions, type AdminArea } from "@/lib/permissions";
-interface User { permissions: string | null; id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; emailVerifiedAt: number | null; referralPaidAt: number | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
+interface User { permissions: string | null; id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; promoCents?: number; emailVerifiedAt: number | null; referralPaidAt: number | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
 interface Resp { user: User; booths: { id: number; name: string | null; tier: string; valueCents: number; floors: number; hidden: boolean; claimedAt: number | null; subscriptionStatus: string | null }[]; txs: { id: string; kind: string; status: string; amountCents: number; boothId: number; createdAt: number; buyerId: string | null }[]; coins: { id: string; delta: number; reason: string; ref: string | null; createdAt: number }[]; mail: { id: string; direction: string; subject: string; status: string | null; createdAt: number }[]; sessions: number }
 export default function UserDetail({ id }: { id: string }) {
   const d = useJson<Resp>(`/api/admin/users/${id}`);
@@ -30,7 +30,7 @@ export default function UserDetail({ id }: { id: string }) {
         <ConfirmButton className="admBtn admBtn--danger" message="Delete this user? Booths must be released first. This cannot be undone." onConfirm={async () => { try { await api(`/api/admin/users/${id}`, { method: "DELETE" }); toast.ok("Deleted"); router.push("/admin/users"); } catch (e) { toast.err(e); } }}>Delete</ConfirmButton>
       </PageHead>
       <div className="admGrid">
-        <div className="admTile"><div className="admLabel">Credit</div><div className="admTile__n"><Money cents={u.creditCents} /></div></div>
+        <div className="admTile"><div className="admLabel">Credit</div><div className="admTile__n"><Money cents={u.creditCents} /></div>{!!u.promoCents && <div className="admTile__sub">+ <Money cents={u.promoCents} /> referral (spend-only)</div>}</div>
         <div className="admTile"><div className="admLabel">Coins</div><div className="admTile__n">{u.coins}</div><div className="admTile__sub">streak {u.streak}</div></div>
         <div className="admTile"><div className="admLabel">Booths</div><div className="admTile__n">{d.data!.booths.length}</div></div>
         <div className="admTile"><div className="admLabel">Saved card</div><div className="admTile__n">{u.dcPaymentMethodId ? "Yes" : "No"}</div>{u.dcPaymentMethodId && <div className="admTile__sub admMono">{u.dcPaymentMethodId.slice(0, 18)}… {u.cardIp && `· ${u.cardIp}`}</div>}</div>

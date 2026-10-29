@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { startBannerHeight, startBooks, startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft } from "@/lib/economy";
+import { startBannerHeight, startBooks, startBillboard, startBoost, startClaim, startCoinPack, startTakeover, startTier, type BoothDraft, spendableCredit } from "@/lib/economy";
 import { nextStepUrl } from "@/lib/payments";
 import { COIN_RULES } from "@/lib/arcade";
 
@@ -54,11 +54,11 @@ export async function POST(req: Request) {
   const b = parsed.data;
   try {
     if (b.kind === "claim") {
-      const tx = await startClaim(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : u.creditCents, b.code);
+      const tx = await startClaim(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : spendableCredit(u), b.code);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "takeover") {
-      const tx = await startTakeover(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : u.creditCents);
+      const tx = await startTakeover(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : spendableCredit(u));
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "boost") {
