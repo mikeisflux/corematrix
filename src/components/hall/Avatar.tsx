@@ -437,11 +437,12 @@ function plazaPoint(r: () => number): [number, number] {
 export function Crowd({ count = 110, cap = count }: { count?: number; cap?: number }) {
   // one roster for the larger (walk) count, sliced to what's shown: switching between map and walk used to rebuild
   // it, sending every figure back to its starting spot and re-cloning their rigs
+  const size = Math.max(cap, count);
   const roster = useMemo<Npc[]>(() => {
     const r = rnd(42);
     const corridors = hallLayout().filter((b) => b.facing === 1).map((b) => b.x + b.w / 2 + 5);
     const unique = Array.from(new Set(corridors.map((x) => Math.round(x))));
-    return Array.from({ length: Math.max(cap, count) }, (): Npc => {
+    return Array.from({ length: size }, (): Npc => {
       const roll = r();
       const kind: Npc["kind"] = roll < 0.18 ? "plaza" : roll < 0.32 ? "cross" : "aisle";
       const corridor = unique[Math.floor(r() * unique.length)];
@@ -453,7 +454,7 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
       if (kind === "cross") { const dir = r() < 0.5 ? 1 : -1; return { ...base, kind, x: X0 + 20 + r() * (HALL_LENGTH - 40), z: CROSS_Z0 + r() * (CROSS_Z1 - CROSS_Z0), vx: dir, vz: 0, tx: 0, tz: 0 }; }
       return { ...base, kind, x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), vx: 0, vz: r() < 0.5 ? 1 : -1, tx: 0, tz: 0 };
     }).map((n) => { const fp = freePoint(n.x, n.z); return { ...n, x: fp.x, z: fp.z }; }); // never start inside a cabinet row, the stage or a booth
-  }, [Math.max(cap, count)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size]);
   const npcs = useMemo(() => roster.slice(0, count), [roster, count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const motions = useMemo<Motion[]>(() => npcs.map(() => ({ speed: 1 })), [npcs]);
