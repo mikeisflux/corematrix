@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-/** Registered accounts. Email + password sign-in; login_tokens are one-time password-reset tokens. */
+/** Registered accounts. Email + password sign-in; login_tokens are one-time links (password reset, email verification). */
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -25,6 +25,9 @@ export const users = sqliteTable("users", {
   permissions: text("permissions"), // JSON list of admin areas for staff who are not superadmins (see lib/permissions.ts)
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),
+  emailVerifiedAt: integer("email_verified_at"), // set when they open a link we emailed (verify or password reset)
+  referralPaidAt: integer("referral_paid_at"), // referral credit paid out (on their first real payment), so it pays once
+  referralTxId: text("referral_tx_id"), // the payment that earned it; a refund or dispute of it takes the credit back
 });
 
 export const sessions = sqliteTable("sessions", {
@@ -39,6 +42,7 @@ export const loginTokens = sqliteTable("login_tokens", {
   email: text("email").notNull(),
   expiresAt: integer("expires_at").notNull(),
   usedAt: integer("used_at"),
+  purpose: text("purpose").notNull().default("reset"), // reset | verify: a verify link can never reset a password
 });
 
 /**

@@ -8,6 +8,7 @@ import { db, ensureMigrated, schema } from "@/lib/db";
 import { dayKey, newId, now } from "@/lib/util";
 import { addEvent, liveBooth } from "@/lib/economy";
 import { publish } from "@/lib/realtime";
+import { REFERRAL_COINS } from "@/lib/config";
 import { notify } from "@/lib/notify";
 
 export const GAMES = {
@@ -30,7 +31,7 @@ export const COIN_RULES = {
   streakBonusPerDay: 1, // up to +10
   explore: 1, // first view of a booth each day (max 10/day)
   claim: 50,
-  referral: 25,
+  referral: REFERRAL_COINS,
   flyoverCost: 5,
   convertRate: 100, // coins per $1 of booth value when converting
   packs: [

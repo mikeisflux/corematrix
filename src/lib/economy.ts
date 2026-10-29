@@ -539,6 +539,8 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
     });
   }
   await publishStats();
+  // their first real payment is what pays a referral (never sign-up), now that it has been applied
+  if (provider === "divinitycoin") { const { payReferral } = await import("@/lib/referrals"); await payReferral(updated[0]).catch(() => {}); }
   return updated[0];
 }
 

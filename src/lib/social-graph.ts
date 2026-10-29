@@ -173,8 +173,10 @@ export async function addMember(ownerId: string, teamId: string, who: { userId?:
     userId = u.id; email = u.email.toLowerCase();
   } else {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("That doesn't look like an email address");
-    const [u] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email));
-    userId = u?.id ?? null;
+    // only an account that has proven it owns this address takes the seat now; anyone else waits until they confirm it
+    // (otherwise whoever signs up first with someone else's address would get their seat)
+    const [u] = await db.select({ id: schema.users.id, verified: schema.users.emailVerifiedAt }).from(schema.users).where(eq(schema.users.email, email));
+    userId = u?.verified ? u.id : null;
   }
   if (userId === ownerId) throw new Error("You're already on all your teams");
   const [{ c }] = await db.select({ c: sql<number>`count(*)` }).from(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
@@ -200,15 +202,31 @@ export async function removeMember(ownerId: string, teamId: string, memberId: st
 /** Booths this person staffs through a team (matched by account or by the email the invite was sent to), with the team's name. */
 export async function staffedBooths(userId: string, email: string): Promise<Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string; team: string }>> {
   await ensureMigrated();
-  const ms = await db.select({ teamId: schema.teamMembers.teamId, userId: schema.teamMembers.userId }).from(schema.teamMembers)
-    .where(or(eq(schema.teamMembers.userId, userId), eq(schema.teamMembers.email, email.toLowerCase())));
+  void email; // email invites attach only once the address is confirmed (claimEmailInvites), never by matching it here
+  const ms = await db.select({ teamId: schema.teamMembers.teamId }).from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId));
   if (ms.length === 0) return [];
-  // an email invite becomes a proper membership the first time that account shows up
-  const unlinked = ms.filter((m) => !m.userId);
-  if (unlinked.length) await db.update(schema.teamMembers).set({ userId }).where(and(eq(schema.teamMembers.email, email.toLowerCase()), sql`${schema.teamMembers.userId} IS NULL`));
   const teamIds = Array.from(new Set(ms.map((m) => m.teamId)));
   const rows = await db.select({ id: schema.booths.id, name: schema.booths.name, valueCents: schema.booths.valueCents, tier: schema.booths.tier, color: schema.booths.color, team: schema.teams.name })
     .from(schema.booths).innerJoin(schema.teams, eq(schema.teams.id, schema.booths.teamId))
     .where(and(inArray(schema.booths.teamId, teamIds), eq(schema.booths.hidden, false)));
   return rows;
+}
+
+/**
+ * The address on this account was just proven (verify link or password reset): seats people invited it to by
+ * email become real memberships, and the people who sent them hear about it.
+ */
+export async function claimEmailInvites(userId: string, email: string) {
+  await ensureMigrated();
+  const rows = await db.update(schema.teamMembers).set({ userId })
+    .where(and(eq(schema.teamMembers.email, email.toLowerCase()), sql`${schema.teamMembers.userId} IS NULL`)).returning({ teamId: schema.teamMembers.teamId });
+  if (!rows.length) return;
+  const teams = await db.select({ id: schema.teams.id, name: schema.teams.name, ownerId: schema.teams.ownerId }).from(schema.teams).where(inArray(schema.teams.id, rows.map((r) => r.teamId)));
+  const me = (await people([userId])).get(userId)!;
+  for (const t of teams) {
+    if (t.ownerId === userId) continue;
+    await notify(userId, "team", `You're on ${t.name}`, "You can sit at the booths that team staffs. Walk up to the chair and press C.");
+    await notify(t.ownerId, "team", `${me.name} joined ${t.name}`, "They confirmed their email, so the seat you saved is theirs now.");
+    publishTo(visitorsOf(userId), { type: "team", name: t.name, from: (await people([t.ownerId])).get(t.ownerId) ?? me });
+  }
 }

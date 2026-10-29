@@ -90,6 +90,7 @@ export interface Me {
   awardedToday: number;
   creditCents: number;
   referralCode: string;
+  emailVerified?: boolean;
   isAdmin: boolean;
   unread: number;
   title?: string | null; // optional job title under the name

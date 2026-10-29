@@ -113,7 +113,10 @@ export const ART_FORMATS = "PNG, JPG, WebP or PDF (first page)";
 export const HOUSE_BOOTH_ID = 442;
 export const bannerWidth = (height: number) => Math.round((height / 2) * 10) / 10;
 export const bannerUpgradeCents = (from: number, to: number) => Math.max(0, to - from) * BANNER.perFootCents;
-export const REFERRAL_CREDIT_CENTS = 200; // both sides
+export const REFERRAL_CREDIT_CENTS = 200; // both sides, paid on the referred person's first qualifying payment
+export const REFERRAL_COINS = 25; // both sides, with the credit
+/** The smallest card payment that earns the referral: more than both sides' credit put together, so farming costs money. */
+export const REFERRAL_QUALIFY_CENTS = Math.max(500, REFERRAL_CREDIT_CENTS * 2 + 100);
 /** Cash-outs: credit → PayPal, paid by hand from Admin → Payouts. */
 export const PAYOUT_MIN_CENTS = 2500;
 export const PAYOUT_MAX_CENTS = 500000;

@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, useHall } from "@/lib/hall/store";
-import { formatMoney } from "@/lib/config";
+import { formatMoney, REFERRAL_CREDIT_CENTS, REFERRAL_COINS } from "@/lib/config";
 import { timeAgo } from "@/lib/util";
 import { PanelHeader, SignIn, Stat } from "./common";
-import { ChangePassword } from "@/components/ui/AuthForms";
+import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { NOTICE_ICON } from "@/lib/hall/notices";
 import { useSocial } from "@/lib/hall/social";
 
@@ -40,13 +40,14 @@ export function MePanel() {
     <>
       <PanelHeader title={me.displayName ?? me.email} sub={me.email} />
       <div className="space-y-3 p-3">
+        {me.emailVerified === false && <VerifyNudge email={me.email} compact />}
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Coins" value={String(me.coins)} sub={`${me.streak}-day streak`} accent />
           <Stat label="Credit" value={formatMoney(me.creditCents)} sub="from sales + referrals" />
           <Stat label="Booths" value={String(myBooths.length)} />
         </div>
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-xs">
-          <b>Refer a friend, both get $2 credit + 25 coins.</b>
+          <b>Refer a friend: you both get {formatMoney(REFERRAL_CREDIT_CENTS)} credit + {REFERRAL_COINS} coins when they make their first purchase.</b>
           <div className="mt-1 flex gap-2"><input readOnly className="input text-[11px]" value={refLink} /><button className="btn-ghost text-xs" onClick={() => { navigator.clipboard?.writeText(refLink); useHall.getState().setToast("Referral link copied"); }}>Copy</button></div>
         </div>
         {myBooths.length > 0 ? (

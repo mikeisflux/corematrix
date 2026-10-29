@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Field, Input, Checkbox, Empty } from "./shared";
 import { ADMIN_AREAS, parsePermissions, type AdminArea } from "@/lib/permissions";
-interface User { permissions: string | null; id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
+interface User { permissions: string | null; id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; emailVerifiedAt: number | null; referralPaidAt: number | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
 interface Resp { user: User; booths: { id: number; name: string | null; tier: string; valueCents: number; floors: number; hidden: boolean; claimedAt: number | null; subscriptionStatus: string | null }[]; txs: { id: string; kind: string; status: string; amountCents: number; boothId: number; createdAt: number; buyerId: string | null }[]; coins: { id: string; delta: number; reason: string; ref: string | null; createdAt: number }[]; mail: { id: string; direction: string; subject: string; status: string | null; createdAt: number }[]; sessions: number }
 export default function UserDetail({ id }: { id: string }) {
   const d = useJson<Resp>(`/api/admin/users/${id}`);
@@ -24,6 +24,8 @@ export default function UserDetail({ id }: { id: string }) {
       <PageHead title={u.email} sub={`User ${u.id} · joined ${new Date(u.createdAt).toLocaleDateString()} · ${d.data!.sessions} active session(s)`}>
         <Link className="admBtn" href={`/admin/emails?compose=1&to=${encodeURIComponent(u.email)}`}>Email</Link>
         <button className="admBtn" onClick={() => patch({ action: "reset_password" }, "Password reset email sent")}>Send password reset</button>
+        {!u.emailVerifiedAt && <button className="admBtn" onClick={() => patch({ action: "send_verification" }, "Confirm-email link sent")}>Send confirm-email link</button>}
+        {!u.emailVerifiedAt && <ConfirmButton className="admBtn" message="Mark this email as confirmed? Only do this if you know they own the address: it hands them any team seats invited to it." onConfirm={() => patch({ action: "mark_verified" }, "Email marked confirmed")}>Mark email confirmed</ConfirmButton>}
         <ConfirmButton className="admBtn" message="Sign this user out everywhere?" onConfirm={() => patch({ action: "sign_out_all" }, "Signed out everywhere")}>Sign out all</ConfirmButton>
         <ConfirmButton className="admBtn admBtn--danger" message="Delete this user? Booths must be released first. This cannot be undone." onConfirm={async () => { try { await api(`/api/admin/users/${id}`, { method: "DELETE" }); toast.ok("Deleted"); router.push("/admin/users"); } catch (e) { toast.err(e); } }}>Delete</ConfirmButton>
       </PageHead>
@@ -41,7 +43,8 @@ export default function UserDetail({ id }: { id: string }) {
             <Field label="Display name"><Input value={f.displayName} onChange={(e) => setForm({ ...f, displayName: e.target.value })} /></Field>
             <Field label="Handle"><Input value={f.handle} onChange={(e) => setForm({ ...f, handle: e.target.value })} /></Field>
             <Checkbox label="Receives email notifications" checked={f.notifyEmail} onChange={(e) => setForm({ ...f, notifyEmail: e.target.checked })} />
-            <div className="admRow"><span className="admLabel">Referral</span><span className="admMono">{u.referralCode}</span>{u.referredBy && <span className="admMuted">referred by {u.referredBy}</span>}</div>
+            <div className="admRow"><span className="admLabel">Referral</span><span className="admMono">{u.referralCode}</span>{u.referredBy && <span className="admMuted">referred by {u.referredBy} · {u.referralPaidAt ? "referral paid" : "referral pays on their first purchase"}</span>}</div>
+            <div className="admRow"><span className="admLabel">Email</span>{u.emailVerifiedAt ? <span className="admMuted">confirmed <DateTime value={u.emailVerifiedAt} /></span> : <span className="admMuted">not confirmed</span>}</div>
             <div className="span2 admRow">
               <button className="admBtn admBtn--primary">Save</button>
               {u.dcPaymentMethodId && <ConfirmButton className="admBtn" message="Forget the saved card? Plan renewals will fail until they add a new one." onConfirm={() => patch({ action: "clear_card" }, "Card cleared")}>Forget card</ConfirmButton>}

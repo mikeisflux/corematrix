@@ -1,17 +1,18 @@
 import { parsePermissions } from "@/lib/permissions";
 import { notify } from "@/lib/notify";
 import { cookies, headers } from "next/headers";
-import { eq, and, isNull, gt, ne, sql } from "drizzle-orm";
+import { eq, and, isNull, gt, ne } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newCode, newId, newToken, now } from "@/lib/util";
 import { sendTemplate } from "@/lib/sendgrid";
-import { SITE_NAME, SITE_URL, REFERRAL_CREDIT_CENTS } from "@/lib/config";
+import { SITE_NAME, SITE_URL } from "@/lib/config";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { getSetting } from "@/lib/settings";
 
 const SESSION_COOKIE = "fcc_session";
 const SESSION_TTL = 90 * 86_400_000;
 const LOGIN_TTL = 20 * 60_000;
+const VERIFY_TTL = 3 * 86_400_000;
 
 export type User = typeof schema.users.$inferSelect;
 
@@ -94,6 +95,7 @@ export async function register(emailRaw: string, password: string, displayName?:
   const user = await findOrCreateUser(email, ref);
   await db.update(schema.users).set({ passwordHash: hashPassword(password), displayName: displayName?.trim().slice(0, 40) || user.displayName }).where(eq(schema.users.id, user.id));
   await createSession(user.id);
+  await sendVerification(user.id).catch(() => {}); // a mail outage must not block signing up; they can resend from the dashboard
   await notify(user.id, "welcome", "Welcome to the show floor", "Set your name and a title under Your avatar, meet people under 👥 People, and claim a booth from $5.");
   return user;
 }
@@ -106,7 +108,7 @@ export async function requestPasswordReset(emailRaw: string): Promise<void> {
   const [u] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
   if (!u) return;
   const token = newToken();
-  await db.insert(schema.loginTokens).values({ token, email, expiresAt: now() + LOGIN_TTL });
+  await db.insert(schema.loginTokens).values({ token, email, expiresAt: now() + LOGIN_TTL, purpose: "reset" });
   const link = `${SITE_URL}/app/login/reset?token=${token}`;
   await sendTemplate("password_reset", email, {
     subject: `Reset your ${SITE_NAME} password`,
@@ -120,11 +122,13 @@ export async function resetPassword(token: string, password: string): Promise<Us
   await ensureMigrated();
   if (password.length < MIN_PASSWORD) throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
   // claim the token atomically: two requests racing with the same link can't both use it
-  const [t] = await db.update(schema.loginTokens).set({ usedAt: now() }).where(and(eq(schema.loginTokens.token, token), isNull(schema.loginTokens.usedAt), gt(schema.loginTokens.expiresAt, now()))).returning();
+  const [t] = await db.update(schema.loginTokens).set({ usedAt: now() }).where(and(eq(schema.loginTokens.token, token), eq(schema.loginTokens.purpose, "reset"), isNull(schema.loginTokens.usedAt), gt(schema.loginTokens.expiresAt, now()))).returning();
   if (!t) return null;
   const [u] = await db.select().from(schema.users).where(eq(schema.users.email, t.email)).limit(1);
   if (!u) return null;
   await db.update(schema.users).set({ passwordHash: hashPassword(password) }).where(eq(schema.users.id, u.id));
+  // the link reached their inbox, which proves the address as well as a verify link would
+  if (!u.emailVerifiedAt) await markVerified(u.id);
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, u.id)); // a reset signs every other device out
   await createSession(u.id);
   return u;
@@ -155,26 +159,57 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
     displayName: `Fan ${1000 + Math.floor(Math.random() * 9000)}`,
     referralCode: newCode(),
     referredBy,
-    creditCents: referredBy ? REFERRAL_CREDIT_CENTS : 0,
+    creditCents: 0, // referral credit is paid on their first real payment (see payReferral in economy.ts), never at signup
     isAdmin: isAdminEmail(email),
     createdAt: now(),
     lastSeenAt: now(),
   };
   await db.insert(schema.users).values(user);
   await bumpSiteDaily({ signups: 1 });
-  if (referredBy) {
-    await db
-      .update(schema.users)
-      .set({ creditCents: sql`${schema.users.creditCents} + ${REFERRAL_CREDIT_CENTS}` })
-      .where(eq(schema.users.id, referredBy));
-    await notify(referredBy, "referral", "Someone joined with your link", `You both earned $${(REFERRAL_CREDIT_CENTS / 100).toFixed(2)} in booth credit.`);
-  }
   return (await db.select().from(schema.users).where(eq(schema.users.id, user.id)))[0];
 }
 
-async function creditOf(userId: string): Promise<number> {
-  const [u] = await db.select({ c: schema.users.creditCents }).from(schema.users).where(eq(schema.users.id, userId));
-  return u?.c ?? 0;
+/* ---------- email verification ---------- */
+
+/** Email a one-time link that proves this account owns its address. Limited to one every 2 minutes. */
+export async function sendVerification(userId: string): Promise<"sent" | "already" | "wait"> {
+  await ensureMigrated();
+  const [u] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+  if (!u) throw new Error("No such account");
+  if (u.emailVerifiedAt) return "already";
+  const [recent] = await db.select({ t: schema.loginTokens.expiresAt }).from(schema.loginTokens)
+    .where(and(eq(schema.loginTokens.email, u.email), eq(schema.loginTokens.purpose, "verify"), gt(schema.loginTokens.expiresAt, now() + VERIFY_TTL - 120_000))).limit(1);
+  if (recent) return "wait";
+  const token = newToken();
+  await db.insert(schema.loginTokens).values({ token, email: u.email, expiresAt: now() + VERIFY_TTL, purpose: "verify" });
+  const link = `${SITE_URL}/app/login/verify?token=${token}`;
+  await sendTemplate("verify_email", u.email, {
+    subject: `Confirm your email for ${SITE_NAME}`,
+    fallbackText: `Confirm your email: ${link}\n\nThis link works once and expires in 3 days. If you didn't sign up, ignore this email.`,
+    fallbackHtml: `<p>Confirm your email for ${SITE_NAME}:</p><p><a href="${link}">${link}</a></p><p>This link works once and expires in 3 days.</p>`,
+    link,
+  }, { channel: "system", userId: u.id });
+  return "sent";
+}
+
+/** Use a verify link. Returns the account, or null when the link is unknown, used or expired. */
+export async function verifyEmail(token: string): Promise<User | null> {
+  await ensureMigrated();
+  const [t] = await db.update(schema.loginTokens).set({ usedAt: now() })
+    .where(and(eq(schema.loginTokens.token, token), eq(schema.loginTokens.purpose, "verify"), isNull(schema.loginTokens.usedAt), gt(schema.loginTokens.expiresAt, now()))).returning();
+  if (!t) return null;
+  const [u] = await db.select().from(schema.users).where(eq(schema.users.email, t.email)).limit(1);
+  if (!u) return null;
+  if (!u.emailVerifiedAt) await markVerified(u.id);
+  return u;
+}
+
+/** Mark the address proven and hand over any team seats that were waiting for it. */
+export async function markVerified(userId: string) {
+  const [u] = await db.update(schema.users).set({ emailVerifiedAt: now() }).where(and(eq(schema.users.id, userId), isNull(schema.users.emailVerifiedAt))).returning();
+  if (!u) return;
+  const { claimEmailInvites } = await import("@/lib/social-graph");
+  await claimEmailInvites(u.id, u.email).catch(() => {});
 }
 
 /* ---------- optional password sign-in (scrypt, no extra deps) ---------- */

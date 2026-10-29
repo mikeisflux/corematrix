@@ -161,6 +161,7 @@ export async function refundTx(txId: string, amountCents: number | undefined, re
     refundedCents: tx.refundedCents + amt, status: full ? "refunded" : "paid",
     notes: [tx.notes, `Refunded $${(amt / 100).toFixed(2)} by ${adminName} on ${new Date().toISOString()}${reason ? ` — ${reason}` : ""}`].filter(Boolean).join("\n"),
   }).where(eq(schema.transactions.id, tx.id));
+  if (full) { const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id); }
   if (full && tx.kind === "claim") {
     const p = await getBooth(tx.boothId);
     if (p && p.ownerId === tx.buyerId) await db.update(schema.booths).set({ ownerId: null, hidden: true, updatedAt: now() }).where(eq(schema.booths.id, tx.boothId));

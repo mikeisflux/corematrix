@@ -68,7 +68,7 @@ export function TeamsPanel() {
           <p className="text-xs text-slate-400">Teams belong to booths. {staffed.length ? "Get a booth of your own to run a crew." : "Get a booth and you can put friends on a team so they can sit at your table."} <button onClick={() => setPanel("claim")} className="text-amber-300 underline">Claim one</button>.</p>
         ) : (
           <>
-            <p className="text-xs text-slate-400">People on a team can sit at the chairs of the booths it staffs. Add friends by name (meet them under 👥 People) or anyone by email.</p>
+            <p className="text-xs text-slate-400">People on a team can sit at the chairs of the booths it staffs. Add friends by name (meet them under 👥 People) or anyone by email. An email invite becomes a seat once that person confirms the address.</p>
             {teams === null && <p className="text-xs text-slate-500">Loading…</p>}
             {teams?.map((t) => <TeamCard key={t.id} t={t} booths={owned} friends={friends} busy={busy} run={run} />)}
             <form onSubmit={(e) => { e.preventDefault(); const name = newName.trim(); if (!name) return; void run(() => api("/api/teams", { method: "POST", body: JSON.stringify({ name }) }), `Team "${name}" created.`); setNewName(""); }} className="flex gap-1.5">
@@ -111,7 +111,7 @@ function TeamCard({ t, booths, friends, busy, run }: { t: TeamView; booths: Arra
           <ul className="mt-1 space-y-1">
             {t.members.map((m) => (
               <li key={m.id} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1 text-[12px]">
-                <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{!m.userId && <span className="ml-1.5 text-[10px] text-slate-500">invited</span>}</span>
+                <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{!m.userId && <span className="ml-1.5 text-[10px] text-slate-500" title="The seat is theirs once they sign up and confirm this email address">invited · waiting for them to confirm their email</span>}</span>
                 <button onClick={() => void run(() => api(`/api/teams/${t.id}/members?member=${m.id}`, { method: "DELETE" }))} className="rounded-md px-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white" disabled={busy} aria-label="Remove">✕</button>
               </li>
             ))}

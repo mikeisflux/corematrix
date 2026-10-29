@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { audit, requestPasswordReset, setPassword } from "@/lib/auth";
+import { audit, markVerified, requestPasswordReset, sendVerification, setPassword } from "@/lib/auth";
 import { addCoins } from "@/lib/arcade";
 import { guard, bad, notFound, readJson, int, optStr } from "../../_lib";
 import { isAdminArea } from "@/lib/permissions";
@@ -21,9 +21,9 @@ export async function GET(_req: Request, ctx: Ctx) {
     db.select({ id: schema.mailMessages.id, direction: schema.mailMessages.direction, subject: schema.mailMessages.subject, status: schema.mailMessages.status, createdAt: schema.mailMessages.createdAt }).from(schema.mailMessages).where(sql`user_id = ${id} OR to_email = ${user.email} OR from_email = ${user.email}`).orderBy(desc(schema.mailMessages.createdAt)).limit(20),
     db.select({ n: sql<number>`count(*)` }).from(schema.sessions).where(eq(schema.sessions.userId, id)),
   ]);
-  return NextResponse.json({ user: { ...user, stripeCustomerId: undefined }, booths, txs, coins, mail, sessions: Number(sessions.n) });
+  return NextResponse.json({ user: { ...user, stripeCustomerId: undefined, passwordHash: undefined }, booths, txs, coins, mail, sessions: Number(sessions.n) });
 }
-/* PATCH { displayName?, handle?, notifyEmail?, isAdmin?, creditDeltaCents?, coinsDelta?, reason?, action?: "reset_password" | "set_password" | "sign_out_all" | "clear_card" } */
+/* PATCH { displayName?, handle?, notifyEmail?, isAdmin?, creditDeltaCents?, coinsDelta?, reason?, action?: "mark_verified" | "send_verification" | "reset_password" | "set_password" | "sign_out_all" | "clear_card" } */
 export async function PATCH(req: Request, ctx: Ctx) {
   const g = await guard("users"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
@@ -32,6 +32,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (u.isAdmin && !g.isAdmin) return bad("Only a superadmin can change a superadmin's account.", 403);
   const b = await readJson(req);
   const reason = optStr(b.reason, 300) || "admin";
+  if (b.action === "mark_verified") { await markVerified(id); await audit(g.id, "user.mark_verified", "user", id, undefined, { email: u.email }, g.email); return NextResponse.json({ ok: true }); }
+  if (b.action === "send_verification") { const r = await sendVerification(id); await audit(g.id, "user.send_verification", "user", id, undefined, { email: u.email, result: r }, g.email); return NextResponse.json({ ok: true, status: r }); }
   if (b.action === "reset_password") { await requestPasswordReset(u.email); await audit(g.id, "user.reset_password", "user", id, undefined, { email: u.email }, g.email); return NextResponse.json({ ok: true }); }
   if (b.action === "sign_out_all") { await db.delete(schema.sessions).where(eq(schema.sessions.userId, id)); await audit(g.id, "user.sign_out_all", "user", id, undefined, undefined, g.email); return NextResponse.json({ ok: true }); }
   if (b.action === "set_password") {

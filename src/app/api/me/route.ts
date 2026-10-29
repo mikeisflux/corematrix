@@ -36,6 +36,7 @@ export async function GET() {
       awardedToday: checkin.awarded,
       creditCents: u.creditCents,
       referralCode: u.referralCode,
+      emailVerified: !!u.emailVerifiedAt,
       isAdmin: u.isAdmin,
       notifyEmail: u.notifyEmail,
       avatar: u.avatar ? JSON.parse(u.avatar) : null,

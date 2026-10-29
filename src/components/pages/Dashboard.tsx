@@ -1,13 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChangePassword } from "@/components/ui/AuthForms";
+import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
+import { REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
-interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
+interface Me { id: string; email: string; emailVerified?: boolean; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
   booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
@@ -63,13 +63,14 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   if (booths.length === 0) {
     return (
       <div className="mx-auto max-w-xl text-center">
+        {me.emailVerified === false && <div className="mb-6 text-left"><VerifyNudge email={me.email} /></div>}
         <h1 className="text-3xl font-bold">You don't have a booth yet</h1>
         <p className="mt-2 text-slate-300">Get a booth from $5. You'll get a permanent booth number, your banner on the show floor, and daily numbers on who saw it and who clicked.</p>
         <Link href="/app?claim=1" className="btn-primary mt-6">Claim a booth →</Link>
         <div className="mt-8 rounded-2xl border border-white/10 p-4 text-left text-sm">
           <div className="font-bold">Your balances</div>
           <div className="mt-1 text-slate-300">{me.coins} arcade coins · {formatMoney(me.creditCents)} credit (spendable on any claim or takeover, or cash it out)</div>
-          <div className="mt-2 text-xs text-slate-500">Referral link: <span className="mono">{origin}/?ref={me.referralCode}</span></div>
+          <div className="mt-2 text-xs text-slate-500">Referral link: <span className="mono">{origin}/?ref={me.referralCode}</span> · you both get {formatMoney(REFERRAL_CREDIT_CENTS)} credit when they make their first purchase</div>
           <Cashout me={me} setMsg={setMsg} onDone={() => void load()} />
           {msg && <p className="mt-2 text-xs text-amber-300">{msg}</p>}
         </div>
@@ -101,7 +102,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <Link href="/app?claim=1" className="btn-ghost mt-1 w-full text-xs">+ Claim another booth</Link>
         </div>
         <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-xs">
-          <b>Refer a friend.</b> You both get $2 credit and 25 coins when they claim.
+          <b>Refer a friend.</b> You both get {formatMoney(REFERRAL_CREDIT_CENTS)} credit and {REFERRAL_COINS} coins when they make their first purchase of {formatMoney(REFERRAL_QUALIFY_CENTS)} or more.
           <input readOnly className="input mt-2 text-[11px]" value={`${origin}/?ref=${me.referralCode}`} onFocus={(e) => e.target.select()} />
         </div>
       </aside>
@@ -445,6 +446,7 @@ function Emails({ me, onChanged }: { me: Me; onChanged: () => void }) {
   };
   return (
     <div className="rounded-2xl border border-white/10 p-4">
+      {me.emailVerified === false && <div className="mb-3"><VerifyNudge email={me.email} compact /></div>}
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Emails</div>
       <p className="mt-1 text-xs text-slate-300">A weekly report every Monday (views, clicks, CTR, rank movement), an email the moment you're bought out with your payout, a heads-up when someone opens your takeover page, and season results.</p>
       <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={me.notifyEmail} onChange={toggle} disabled={busy} /> Send me these</label>

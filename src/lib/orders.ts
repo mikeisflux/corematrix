@@ -66,6 +66,7 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
       const refunded = Math.min(tx.amountCents, tx.refundedCents + amt);
       const full = !d.partial && refunded >= tx.amountCents;
       await db.update(schema.transactions).set({ refundedCents: refunded, status: full ? "refunded" : tx.status, notes: [tx.notes, `${d.partial ? "Partial refund" : "Refunded"} ${formatMoney(amt)} via DivinityCoin (${d.refundId ?? "?"})`].filter(Boolean).join("\n") }).where(eq(schema.transactions.id, tx.id));
+      if (full) { const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id); }
       return { status: "processed", note: full ? "refunded" : "partial refund noted" };
     }
 
@@ -78,6 +79,7 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
       const s = await getSettings(["SUPPORT_EMAIL", "MAIL_BCC_ADMIN"]);
       const to = s.MAIL_BCC_ADMIN || s.SUPPORT_EMAIL;
       if (to) await sendTemplate("admin_dispute", to, { subject: `Chargeback on transaction ${tx.id}`, fallbackText: `${note}\n/admin/transactions/${tx.id}`, txId: tx.id, reason: String(d.reason ?? ""), amount: formatMoney(amountCents ?? tx.amountCents) }, { txId: tx.id, channel: "system" }).catch(() => {});
+      { const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id); } // a chargeback doesn't keep the referral it earned
       return { status: "processed", note: `tx ${tx.id} disputed` };
     }
 
