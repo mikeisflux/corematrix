@@ -113,6 +113,10 @@ export function HallCanvas() {
   const prefs = usePrefs();
   const [lost, setLost] = useState(false);
   const onCreated = ({ gl, invalidate }: { gl: THREE.WebGLRenderer; invalidate: () => void }) => {
+    (window as unknown as { __fccGl?: THREE.WebGLRenderer }).__fccGl = gl; // debug handle: renderer.info in the console
+    // three's shader error check reads the link status straight after compiling, which makes the browser compile every
+    // program synchronously on first use: the single biggest cost of opening the hall. Production skips it.
+    if (process.env.NODE_ENV === "production") gl.debug.checkShaderErrors = false;
     const el = gl.domElement;
     el.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
@@ -147,12 +151,27 @@ export function HallCanvas() {
       className="h-full w-full"
     >
       <FrameTicker cap={prefs.fpsCap} />
+      <Precompile />
       <Suspense fallback={null}>
         <Scene />
       </Suspense>
     </Canvas>
     </>
   );
+}
+
+/** Once the floor's content is in, compile every material's shader in parallel (KHR_parallel_shader_compile where the
+ *  browser has it) instead of one by one, stalling, on the first frames. */
+function Precompile() {
+  const { gl, scene, camera, invalidate } = useThree();
+  const loaded = useHall((s) => s.loaded);
+  useEffect(() => {
+    if (!loaded) return;
+    let done = false;
+    const t = setTimeout(() => { gl.compileAsync(scene, camera).then(() => { if (!done) invalidate(); }).catch(() => {}); }, 50);
+    return () => { done = true; clearTimeout(t); };
+  }, [loaded, gl, scene, camera, invalidate]);
+  return null;
 }
 
 /** Asks for a frame every 1/cap seconds, paced on the screen's own refresh so the cadence is even. */
