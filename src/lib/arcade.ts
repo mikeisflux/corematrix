@@ -3,7 +3,7 @@
  * and referring; bought for cash; spent to play and to ride; won as prizes.
  * Coins never cash out, but they can be converted into booth value.
  */
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { dayKey, newId, now } from "@/lib/util";
 import { addEvent, liveBooth } from "@/lib/economy";
@@ -51,6 +51,16 @@ export async function addCoins(userId: string, delta: number, reason: string, re
   return u?.coins ?? 0;
 }
 
+/** Take coins only if the balance covers them, in one statement. Null when it doesn't, so two racing spends can't both pass. */
+export async function spendCoins(userId: string, amount: number, reason: string, ref?: string): Promise<number | null> {
+  await ensureMigrated();
+  const [u] = await db.update(schema.users).set({ coins: sql`${schema.users.coins} - ${amount}` })
+    .where(and(eq(schema.users.id, userId), sql`${schema.users.coins} >= ${amount}`)).returning({ coins: schema.users.coins });
+  if (!u) return null;
+  await db.insert(schema.coinLedger).values({ id: newId(), userId, delta: -amount, reason, ref: ref ?? null, createdAt: now() });
+  return u.coins;
+}
+
 /** Daily check-in with streak. Returns coins awarded (0 if already claimed today). */
 export async function dailyCheckIn(userId: string): Promise<{ awarded: number; streak: number; coins: number }> {
   await ensureMigrated();
@@ -62,7 +72,10 @@ export async function dailyCheckIn(userId: string): Promise<{ awarded: number; s
   const yesterday = dayKey(now() - 86_400_000);
   const streak = last === yesterday ? u.streak + 1 : 1;
   const awarded = COIN_RULES.dailyVisit + Math.min(10, (streak - 1) * COIN_RULES.streakBonusPerDay);
-  await db.update(schema.users).set({ lastDailyCoinsAt: now(), streak }).where(eq(schema.users.id, userId));
+  // only the request that still sees the old check-in time pays out: two tabs at once can't both collect
+  const won = await db.update(schema.users).set({ lastDailyCoinsAt: now(), streak })
+    .where(and(eq(schema.users.id, userId), sql`${schema.users.lastDailyCoinsAt} IS ${u.lastDailyCoinsAt ?? null}`)).returning({ id: schema.users.id });
+  if (!won.length) return { awarded: 0, streak: u.streak, coins: u.coins };
   const coins = await addCoins(userId, awarded, "daily", `streak:${streak}`);
   return { awarded, streak, coins };
 }
@@ -86,9 +99,8 @@ export async function exploreReward(userId: string, boothId: number): Promise<nu
 export async function startPlay(userId: string, gameId: GameId): Promise<{ playId: string; coins: number }> {
   await ensureMigrated();
   const g = GAMES[gameId];
-  const [u] = await db.select({ coins: schema.users.coins }).from(schema.users).where(eq(schema.users.id, userId));
-  if (!u || u.coins < g.cost) throw new Error(`You need ${g.cost} coins to play. Come back tomorrow for your daily coins, or grab a pack.`);
-  const coins = await addCoins(userId, -g.cost, "play", gameId);
+  const coins = await spendCoins(userId, g.cost, "play", gameId);
+  if (coins === null) throw new Error(`You need ${g.cost} coins to play. Come back tomorrow for your daily coins, or grab a pack.`);
   const playId = newId();
   await db.insert(schema.gamePlays).values({ id: playId, gameId, userId, startedAt: now() });
   return { playId, coins };
@@ -96,16 +108,23 @@ export async function startPlay(userId: string, gameId: GameId): Promise<{ playI
 
 export async function finishPlay(userId: string, playId: string, score: number, playerName: string, boothId: number | null) {
   await ensureMigrated();
-  const [p] = await db.select().from(schema.gamePlays).where(eq(schema.gamePlays.id, playId));
-  if (!p || p.userId !== userId) throw new Error("Unknown play");
-  if (p.finishedAt) throw new Error("Already scored");
+  // close the play in one statement: two submissions of one play can't both score or both win the prize
+  const [p] = await db.update(schema.gamePlays).set({ finishedAt: now() })
+    .where(and(eq(schema.gamePlays.id, playId), eq(schema.gamePlays.userId, userId), isNull(schema.gamePlays.finishedAt))).returning();
+  if (!p) throw new Error("Unknown or already scored play");
   const g = GAMES[p.gameId as GameId];
   const elapsed = now() - p.startedAt;
   // Sanity: scores accrue over time. Reject the impossible.
   const caps: Record<string, number> = { runner: 60, breakout: 120, snake: 40, swarm: 260, rocks: 150, paddle: 80, stack: 120, flap: 30, cross: 70, whack: 60, match: 200 };
   const maxPerSecond = caps[p.gameId] ?? 40;
-  const s = Math.max(0, Math.min(Math.floor(score), Math.floor((elapsed / 1000 + 2) * maxPerSecond)));
-  await db.update(schema.gamePlays).set({ finishedAt: now() }).where(eq(schema.gamePlays.id, playId));
+  // fixed-length games have a real minimum and maximum; everything else expires after an hour
+  const LIMITS: Record<string, { minS?: number; maxS: number; maxScore?: number }> = { whack: { minS: 44, maxS: 90 }, match: { maxS: 90, maxScore: 1400 } };
+  const lim = LIMITS[p.gameId] ?? { maxS: 3600 };
+  if (elapsed > lim.maxS * 1000 + 60_000) throw new Error("That game timed out. Start a new one.");
+  const cap = Math.floor((elapsed / 1000 + 2) * maxPerSecond);
+  const impossible = !Number.isFinite(score) || score > cap || (lim.minS !== undefined && elapsed < lim.minS * 1000) || (lim.maxScore !== undefined && score > lim.maxScore);
+  // an impossible score is thrown out, not trimmed down to the most a fast player could have reached
+  const s = impossible ? 0 : Math.max(0, Math.floor(score));
   await db.insert(schema.gameScores).values({ id: newId(), gameId: p.gameId, userId, playerName, boothId, score: s, day: dayKey(), createdAt: now() });
   let prize = 0;
   if (s >= g.prizeAt) {
@@ -158,9 +177,8 @@ export async function myBest(gameId: GameId, userId: string) {
 }
 
 export async function rideFlyover(userId: string): Promise<number> {
-  const [u] = await db.select({ coins: schema.users.coins }).from(schema.users).where(eq(schema.users.id, userId));
-  if (!u || u.coins < COIN_RULES.flyoverCost) throw new Error(`The Hall Flyover costs ${COIN_RULES.flyoverCost} coins.`);
-  const coins = await addCoins(userId, -COIN_RULES.flyoverCost, "flyover");
+  const coins = await spendCoins(userId, COIN_RULES.flyoverCost, "flyover");
+  if (coins === null) throw new Error(`The Hall Flyover costs ${COIN_RULES.flyoverCost} coins.`);
   publish({ type: "presence", online: -1 }); // no-op marker; presence recomputed by bus
   return coins;
 }
@@ -175,7 +193,7 @@ export async function convertCoinsToValue(userId: string, boothId: number, coins
   const spend = Math.min(Math.floor(coins / COIN_RULES.convertRate) * COIN_RULES.convertRate, u?.coins ?? 0);
   if (spend < COIN_RULES.convertRate) throw new Error("Not enough coins");
   const cents = (spend / COIN_RULES.convertRate) * 100;
-  await addCoins(userId, -spend, "boost_convert", `booth:${boothId}`);
+  if ((await spendCoins(userId, spend, "boost_convert", `booth:${boothId}`)) === null) throw new Error("Not enough coins");
   const [np] = await db
     .update(schema.booths)
     .set({ valueCents: sql`${schema.booths.valueCents} + ${cents}`, updatedAt: now() })

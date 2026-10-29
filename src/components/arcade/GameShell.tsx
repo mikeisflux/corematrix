@@ -52,6 +52,8 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
   };
   const finish = async (pid: string, final: number) => {
     setState("over");
+    // release the finished game's key and pointer capture so the results screen types normally
+    const done = stop.current; stop.current = null; setTimeout(() => done?.(), 0);
     try {
       const r = await api<{ score: number; prize: number; coins: number }>("/api/arcade/finish", { method: "POST", body: JSON.stringify({ playId: pid, score: final }) });
       setResult({ score: r.score, prize: r.prize });
