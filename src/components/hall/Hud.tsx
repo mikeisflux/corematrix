@@ -27,6 +27,7 @@ import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
 import { useTheater, setTheaterSound } from "@/lib/hall/theater";
 import { Minimap } from "./Minimap";
+import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { Tips } from "./Tips";
 import { SignupNudge } from "./SignupNudge";
 
@@ -36,6 +37,7 @@ export function Hud() {
   const setPanel = useHall((s) => s.setPanel);
   const night = useHall((s) => s.night);
   const toggleNight = useHall((s) => s.toggleNight);
+  const firstPerson = usePrefs().firstPerson;
   const me = useHall((s) => s.me);
   const toast = useHall((s) => s.toast);
   const setToast = useHall((s) => s.setToast);
@@ -141,6 +143,7 @@ export function Hud() {
       {/* mode switch + lights */}
       <div className="absolute bottom-3 right-3 flex flex-col gap-1 panel rounded-2xl p-1 pointer-events-auto">
         <RailButton label={mode === "walk" ? "Back to the map" : "Walk the floor"} active={mode === "walk"} onClick={() => { if (mode === "walk") setMode("map"); else { setMode("walk"); setPanel("none"); } }} icon={mode === "walk" ? "🗺️" : "🚶"} />
+        {mode === "walk" && <RailButton label={firstPerson ? "Third person view (V)" : "First person view (V)"} active={firstPerson} onClick={toggleFirstPerson} icon={firstPerson ? "🧍" : "👁️"} />}
         <RailButton label="Your avatar" active={panel === "avatar"} onClick={() => toggle("avatar")} icon="🧑‍🎤" />
         <RailButton label="Emotes" active={panel === "emotes"} onClick={() => toggle("emotes")} icon="🙌" />
         <RailButton label={night ? "House lights up" : "After hours"} onClick={toggleNight} icon={night ? "💡" : "🌙"} />

@@ -9,7 +9,7 @@ import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } fro
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
-import { getPrefs } from "@/lib/hall/prefs";
+import { getPrefs, usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { perf } from "@/lib/hall/perf";
 import { conbot } from "@/lib/hall/conbot";
 import { nearestSeat, seating, type Seat } from "@/lib/hall/seats";
@@ -24,22 +24,16 @@ export const player = { x: 0, z: 0, h: 0, seated: false };
 /** The walker's animation state; the emote panel and number keys write emotes into it. */
 export const playerMotion: Motion = { speed: 0, emote: null, sit: false };
 /**
- * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a find bar, a menu, another window),
- * which would leave the figure walking forever. Focus loss or a hidden tab releases everything. The OS only
- * auto-repeats the LAST key pressed, so a key's own repeats can't tell whether it's still held (holding Shift then
- * W repeats only W, and Shift used to time out after a second, which stopped running): instead, held keys count as
- * released only if the keyboard goes completely quiet (no repeat from any key) for 1.5 s. Shift's real state comes
- * with every key event, so it is synced from there.
+ * Held keys. A key stays down until its keyup, with no timer: an OS repeats only the last key pressed and never
+ * repeats a modifier (macOS), so silence from the keyboard does not mean a key was let go, and a timeout dropped
+ * Shift (and everything else) mid-run. The ways a keyup really goes missing are covered instead: focus loss or a
+ * hidden tab releases everything; macOS swallows keyups while Cmd is held, so releasing Cmd releases everything;
+ * and Shift's real state rides along on every key and pointer event, so a stuck Shift corrects itself.
  */
-const keys = new Map<string, number>();
-let repeatSeen = false, lastKeyEvent = 0;
+const keys = new Set<string>();
 const GAME_KEYS = new Set(["w", "a", "s", "d", "q", "e", "v", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "'", "/"]);
-function isDown(k: string): boolean {
-  const t = keys.get(k);
-  if (t === undefined) return false;
-  if (repeatSeen && performance.now() - lastKeyEvent > 1500) { keys.clear(); return false; }
-  return true;
-}
+const isDown = (k: string) => keys.has(k);
+const syncShift = (e: { shiftKey: boolean }) => { if (e.shiftKey) keys.add("shift"); else keys.delete("shift"); };
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {
     // these listeners outlive the hall (client-side navigation keeps the module): only act while the hall is on screen,
@@ -47,19 +41,22 @@ if (typeof window !== "undefined") {
     if (document.body.dataset.hall !== "1") return;
     const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.tagName === "SELECT" || t?.isContentEditable) return;
     const k = e.key.toLowerCase();
-    if (e.repeat) repeatSeen = true;
-    lastKeyEvent = performance.now();
-    if (e.shiftKey) keys.set("shift", lastKeyEvent); else keys.delete("shift");
+    syncShift(e);
     // claim the game keys so the browser doesn't treat them as typing (Firefox find-as-you-type, page scroll on arrows)
     if (GAME_KEYS.has(k) && !e.ctrlKey && !e.metaKey && !e.altKey && useHall.getState().mode === "walk") e.preventDefault();
     if (k === "escape" || k === " ") { keys.clear(); return; } // full stop
-    keys.set(k, performance.now());
+    // Cmd+key is a browser shortcut, and macOS won't send that key's keyup: don't hold it
+    if (e.metaKey) return;
+    keys.add(k);
   });
   window.addEventListener("keyup", (e) => {
-    keys.delete(e.key.toLowerCase());
-    lastKeyEvent = performance.now();
-    if (!e.shiftKey) keys.delete("shift"); else keys.set("shift", lastKeyEvent);
+    const k = e.key.toLowerCase();
+    if (k === "meta") { keys.clear(); return; }
+    keys.delete(k);
+    syncShift(e);
   });
+  window.addEventListener("pointermove", syncShift, { passive: true });
+  window.addEventListener("pointerdown", syncShift, { passive: true });
   const release = () => keys.clear();
   window.addEventListener("blur", release);
   document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
@@ -249,8 +246,10 @@ export function Player() {
   const motion = playerMotion;
   const near = useRef<number | null>(null);
   const lastNear = useRef(0);
-  const [firstPerson, setFirstPerson] = useState(false);
-  const fp = useRef(false);
+  // first person is a saved preference: the V key and the HUD button both flip it
+  const firstPerson = usePrefs().firstPerson;
+  const fp = useRef(firstPerson);
+  fp.current = firstPerson;
   const me = useHall((s) => s.me);
   const lastReport = useRef(0);
   // sitting: the figure snaps onto the seat facing the way the chair faces; any movement input stands it up again
@@ -330,7 +329,7 @@ export function Player() {
       if (mode !== "walk") return;
       const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
       if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); else if (useHall.getState().nearBot) useHall.getState().setPanel("conbot"); }
-      if (e.key === "v" || e.key === "V") { fp.current = !fp.current; setFirstPerson(fp.current); }
+      if (e.key === "v" || e.key === "V") toggleFirstPerson();
       if (e.key === "c" || e.key === "C") toggleSit();
       const n = Number(e.key); if (n >= 1 && n <= EMOTES.length) { const em = EMOTES[n - 1]; social.pending.e = { n: em.id, t: Date.now() }; social.pending.dirty = true; bumpSocial(); }
     };

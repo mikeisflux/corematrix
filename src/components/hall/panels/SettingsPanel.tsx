@@ -69,6 +69,7 @@ export function SettingsPanel() {
             <input type="range" min={0.3} max={3} step={0.1} value={p.sensitivity} onChange={(e) => set({ sensitivity: Number(e.target.value) })} className="w-32 accent-amber-300" />
           </Row>
           <Row label="Invert vertical look"><Toggle on={p.invertY} onChange={(v) => set({ invertY: v })} /></Row>
+          <Row label="First person view (V)"><Toggle on={p.firstPerson} onChange={(v) => set({ firstPerson: v })} /></Row>
           <div className="mono pt-1 text-[11px] text-slate-400">arrows / WASD walk · Q E turn · shift run · V first person · E open booth · P stats overlay</div>
         </div>
         <div className="py-2">
