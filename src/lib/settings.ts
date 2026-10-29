@@ -75,6 +75,7 @@ export async function getSetting(key: string): Promise<string> {
     /* table may not exist yet */
   }
   if (!v) v = process.env[key] || "";
+  v = v.trim();
   cache.set(key, { v, t: Date.now() });
   return v;
 }

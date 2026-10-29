@@ -1,3 +1,4 @@
+import { setSetting } from "@/lib/settings";
 import { NextResponse } from "next/server";
 import { audit } from "@/lib/auth";
 import { getSetting } from "@/lib/settings";
@@ -26,7 +27,8 @@ export async function POST(req: Request) {
 /** Reorder: the ids in play order. */
 export async function PATCH(req: Request) {
   const g = await guard("theater"); if (g instanceof NextResponse) return g;
-  const b = await readJson<{ order?: string[] }>(req);
+  const b = await readJson<{ order?: string[]; title?: string }>(req);
+  if (typeof b.title === "string") { await setSetting("THEATER_TITLE", b.title.trim().slice(0, 80)); return NextResponse.json({ ok: true }); }
   if (!Array.isArray(b.order) || b.order.some((x) => typeof x !== "string")) return bad("order must be a list of ids");
   await reorderVideos(b.order.slice(0, 500));
   return NextResponse.json({ ok: true });

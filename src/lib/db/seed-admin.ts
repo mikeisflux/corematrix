@@ -15,7 +15,9 @@ import { HOUSE_BOOTH_ID } from "@/lib/config";
 import { boothSpace } from "@/lib/hall/layout";
 
 export const SUPERADMIN_EMAIL = (process.env.SUPERADMIN_EMAIL || "divinitycomicsinc@gmail.com").trim().toLowerCase();
-const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || "DFLKji4i9ksl";
+// no password in the source: set SUPERADMIN_PASSWORD, or a random one is generated and printed once to the server log
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || randomBytes(12).toString("base64url");
+const PASSWORD_FROM_ENV = !!process.env.SUPERADMIN_PASSWORD;
 
 function hash(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -28,7 +30,7 @@ export async function seedSuperadmin(db: LibSQLDatabase<typeof schema>): Promise
   if (existing) {
     if (!existing.isAdmin || !existing.passwordHash) {
       await db.update(schema.users).set({ isAdmin: true, ...(existing.passwordHash ? {} : { passwordHash: hash(SUPERADMIN_PASSWORD) }) }).where(eq(schema.users.id, existing.id));
-      console.log(`[seed] superadmin ${SUPERADMIN_EMAIL} ${existing.isAdmin ? "" : "promoted"}${existing.passwordHash ? "" : " password set"}`);
+      console.log(`[seed] superadmin ${SUPERADMIN_EMAIL} ${existing.isAdmin ? "" : "promoted"}${existing.passwordHash ? "" : PASSWORD_FROM_ENV ? " password set from SUPERADMIN_PASSWORD" : ` password set to ${SUPERADMIN_PASSWORD} (change it after signing in)`}`);
     }
   } else {
     adminId = newId();

@@ -1,6 +1,7 @@
 /* Shared helpers for /api/admin/* routes (not a route itself). */
 import { NextResponse } from "next/server";
-import { requireAdmin, type User } from "@/lib/auth";
+import { requireAdmin, clientIp, type User } from "@/lib/auth";
+import { getSetting } from "@/lib/settings";
 import { canAccess, type AdminArea } from "@/lib/permissions";
 
 export const forbidden = () => NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -11,6 +12,8 @@ export const notFound = () => NextResponse.json({ error: "not found" }, { status
 export async function guard(area?: AdminArea): Promise<User | NextResponse> {
   const admin = await requireAdmin();
   if (!admin) return forbidden();
+  const allow = (await getSetting("ADMIN_ALLOWED_IPS")).split(",").map((s) => s.trim()).filter(Boolean);
+  if (allow.length && !allow.includes(await clientIp())) return forbidden();
   if (area && !canAccess(admin, area)) return NextResponse.json({ error: `You don't have access to ${area}` }, { status: 403 });
   return admin;
 }
@@ -23,7 +26,8 @@ export function paged<T>(rows: T[], total: number, page: number, size: number) {
   return { rows, total, page, pages: Math.max(1, Math.ceil(total / size)) };
 }
 export function csvEscape(v: unknown): string {
-  const s = v === null || v === undefined ? "" : v instanceof Date ? v.toISOString() : typeof v === "object" ? JSON.stringify(v) : String(v);
+  let s = v === null || v === undefined ? "" : v instanceof Date ? v.toISOString() : typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (/^[=+\-@\t\r]/.test(s) && typeof v === "string") s = `'${s}`; // spreadsheet apps run cells that start like a formula
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 export function toCsv(headers: string[], rows: unknown[][]): string {

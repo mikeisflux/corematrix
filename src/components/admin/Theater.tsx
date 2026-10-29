@@ -39,7 +39,7 @@ export default function Theater() {
   void tick;
 
   const saveTitle = async () => {
-    try { await api("/api/admin/settings", { method: "PUT", json: { key: "THEATER_TITLE", value: title ?? "" } }); toast.ok("Caption saved"); list.reload(); }
+    try { await api("/api/admin/theater", { method: "PATCH", json: { title: title ?? "" } }); toast.ok("Caption saved"); list.reload(); }
     catch (e) { toast.err((e as Error).message); }
   };
   // Resumable upload: 8 MB chunks, each retried on its own; the upload id is remembered per file so picking the same

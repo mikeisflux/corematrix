@@ -17,6 +17,7 @@ export default function Sentinel() {
   const resolve = async (id: string, resolved: boolean) => { try { await api("/api/admin/errors", { method: "PATCH", json: { id, resolved } }); list.reload(); } catch (e) { toast.err(e); } };
   return (
     <>
+      {toast.node}
       <PageHead title="Sentinel" sub="Every error the hall throws in a browser (white screens, uncaught errors) and every error a server route throws. Repeats within an hour fold into one row with a count.">
         <SearchBox value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Message, route, URL, browser…" />
         <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} options={[{ value: "open", label: "Open" }, { value: "resolved", label: "Resolved" }, { value: "all", label: "All" }]} />

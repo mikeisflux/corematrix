@@ -54,7 +54,9 @@ export async function requireAdmin(): Promise<User | null> {
 export async function clientIp(): Promise<string> {
   try {
     const h = await headers();
-    return (h.get("x-forwarded-for") || h.get("x-real-ip") || "").split(",")[0].trim() || "0.0.0.0";
+    // the proxy in front (Caddy) appends the address it saw; anything earlier in the list came from the client and can be forged
+    const xff = (h.get("x-forwarded-for") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    return xff[xff.length - 1] || h.get("x-real-ip") || "0.0.0.0";
   } catch { return "0.0.0.0"; }
 }
 

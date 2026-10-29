@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { useJson, Badge, Money, DateTime, PageHead, Empty } from "./shared";
 interface Stats {
-  revenue: { today: number; week: number; month: number; lifetime: number; txToday: number; txLifetime: number };
+  revenue: { today: number; week: number; month: number; lifetime: number; txToday: number; txLifetime: number } | null;
   pending: number; disputes: number; booths: number; boothValue: number; users: number; unread: number; failedEmails: number; webhookFailures: number; errors24h?: number;
-  mrr: number; plans: Record<string, number>; payouts?: { owedCents: number; owedCount: number; paidCents: number }; divinity: { ok: boolean; detail: string }; testMode: boolean; visits7d: number; clicks7d: number; signups7d: number;
+  mrr: number | null; plans: Record<string, number>; payouts?: { owedCents: number; owedCount: number; paidCents: number }; divinity: { ok: boolean; detail: string }; testMode: boolean; visits7d: number; clicks7d: number; signups7d: number;
   checks: { label: string; ok: boolean; hint: string }[];
   recentTx: { id: string; kind: string; boothId: number; status: string; amountCents: number; createdAt: number; provider: string }[];
   recentInbox: { id: string; fromEmail: string; fromName: string | null; subject: string; read: boolean; createdAt: number; channel: string }[];
@@ -20,12 +20,12 @@ export default function Dashboard() {
       {data && (<>
         {data.testMode && <div className="admNote">DivinityCoin test mode is ON: checkouts use the local simulator and nothing is charged. Turn it off in Settings → DivinityCoin before launch.</div>}
         <div className="admGrid">
-          <Tile c={HEAT[0]} label="Revenue today" value={<Money cents={data.revenue.today} />} sub={`${data.revenue.txToday} payments`} />
+          {data.revenue && <><Tile c={HEAT[0]} label="Revenue today" value={<Money cents={data.revenue.today} />} sub={`${data.revenue.txToday} payments`} />
           <Tile c={HEAT[1]} label="Last 7 days" value={<Money cents={data.revenue.week} />} />
           <Tile c={HEAT[2]} label="Last 30 days" value={<Money cents={data.revenue.month} />} />
-          <Tile c={HEAT[3]} label="Lifetime" value={<Money cents={data.revenue.lifetime} />} sub={`${data.revenue.txLifetime} paid`} />
+          <Tile c={HEAT[3]} label="Lifetime" value={<Money cents={data.revenue.lifetime} />} sub={`${data.revenue.txLifetime} paid`} /></>}
           {data.payouts && <Link href="/admin/payouts?status=pending" style={{ textDecoration: "none" }}><Tile c={HEAT[4]} label="Payouts owed" value={<Money cents={data.payouts.owedCents} />} sub={`${data.payouts.owedCount} waiting · paid out ${(data.payouts.paidCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}`} /></Link>}
-          <Tile c={HEAT[6]} label="MRR (plans)" value={<Money cents={data.mrr} />} sub={Object.entries(data.plans).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no paid plans"} href="/admin/plans" />
+          {data.mrr !== null && <Tile c={HEAT[6]} label="MRR (plans)" value={<Money cents={data.mrr} />} sub={Object.entries(data.plans).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no paid plans"} href="/admin/plans" />}
           <Tile c={HEAT[4]} label="Booths claimed" value={data.booths} sub={`floor value ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(data.boothValue / 100)}`} href="/admin/booths" />
           <Tile c={HEAT[5]} label="Users" value={data.users} sub={`${data.signups7d} new this week`} href="/admin/users" />
           <Tile c={data.pending ? "var(--heat-7)" : undefined} label="Pending checkouts" value={data.pending} href="/admin/transactions?status=pending" />

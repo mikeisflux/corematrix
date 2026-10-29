@@ -6,6 +6,7 @@ import { divinitycoin } from "@/lib/divinitycoin";
 import { currentMrrCents } from "@/lib/subscriptions";
 import { siteSeries } from "@/lib/analytics";
 import { guard } from "../_lib";
+import { canAccess } from "@/lib/permissions";
 import { payoutTotals } from "@/lib/payouts";
 export const dynamic = "force-dynamic";
 export async function GET() {
@@ -32,11 +33,13 @@ export async function GET() {
   ]);
   const tierCounts = await db.select({ tier: schema.booths.tier, n: sql<number>`count(*)` }).from(schema.booths).where(and(sql`tier != 'free'`, eq(schema.booths.subscriptionStatus, "active"))).groupBy(schema.booths.tier);
   const testMode = flag(s.DIVINITYCOIN_TEST_MODE);
+  const can = (a: Parameters<typeof canAccess>[1]) => canAccess(g, a);
   return NextResponse.json({
-    revenue: { today: today.sum, week: week.sum, month: month.sum, lifetime: lifetime.sum, txToday: today.n, txLifetime: lifetime.n },
+    access: { transactions: can("transactions"), emails: can("emails"), payouts: can("payouts"), plans: can("plans"), settings: can("settings"), errors: can("errors"), webhooks: can("webhooks"), users: can("users"), booths: can("booths") },
+    revenue: !can("transactions") ? null : { today: today.sum, week: week.sum, month: month.sum, lifetime: lifetime.sum, txToday: today.n, txLifetime: lifetime.n },
     pending: Number(pending.n), disputes: Number(disputes.n), booths: Number(booths.n), boothValue: Number(booths.v), users: Number(users.n), unread: Number(unread.n), failedEmails: Number(failedEmails.n), webhookFailures: Number(whFail.n), errors24h: Number(errs.n),
-    mrr, plans: Object.fromEntries(tierCounts.map((r) => [r.tier, Number(r.n)])),
-    payouts: await payoutTotals(),
+    mrr: can("plans") ? mrr : null, plans: Object.fromEntries(tierCounts.map((r) => [r.tier, Number(r.n)])),
+    payouts: can("payouts") ? await payoutTotals() : null,
     divinity: dc, testMode,
     visits7d: series.slice(-7).reduce((a, r) => a + r.visits, 0), clicks7d: series.slice(-7).reduce((a, r) => a + r.outboundClicks, 0), signups7d: series.slice(-7).reduce((a, r) => a + r.signups, 0),
     checks: [
@@ -50,6 +53,6 @@ export async function GET() {
       { label: "Public site URL", ok: !!s.SITE_URL, hint: "SITE_URL" },
       { label: "Cron secret", ok: !!s.CRON_SECRET, hint: "CRON_SECRET (renewals + digests)" },
     ],
-    recentTx, recentInbox,
+    recentTx: can("transactions") ? recentTx : [], recentInbox: can("emails") ? recentInbox : [],
   });
 }

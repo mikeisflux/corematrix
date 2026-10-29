@@ -29,6 +29,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!u) return notFound();
+  if (u.isAdmin && !g.isAdmin) return bad("Only a superadmin can change a superadmin's account.", 403);
   const b = await readJson(req);
   const reason = optStr(b.reason, 300) || "admin";
   if (b.action === "reset_password") { await requestPasswordReset(u.email); await audit(g.id, "user.reset_password", "user", id, undefined, { email: u.email }, g.email); return NextResponse.json({ ok: true }); }
