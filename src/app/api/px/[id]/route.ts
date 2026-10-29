@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { dayKey } from "@/lib/util";
+import { boothSpace } from "@/lib/hall/layout";
+import { allow } from "@/lib/throttle";
+import { clientIp } from "@/lib/auth";
 
 const GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "base64");
 
@@ -16,7 +19,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const boothId = Number(id);
   const v = Number(new URL(req.url).searchParams.get("v") ?? 0);
   const cents = Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 10_000_000) : 0;
-  if (Number.isFinite(boothId) && boothId > 0) {
+  // real booths only, and one buyer reloading a thank-you page counts a handful of times at most
+  if (Number.isFinite(boothId) && boothSpace(boothId) && allow(`px:${boothId}:${await clientIp()}`, 5, 10 * 60_000)) {
     await db
       .insert(schema.boothDaily)
       .values({ boothId, day: dayKey(), conversions: 1, conversionValueCents: cents })

@@ -7,6 +7,9 @@ import { ensureMigrated } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { exploreReward } from "@/lib/arcade";
 import { takeoverNudge } from "@/lib/nudges";
+import { boothSpace } from "@/lib/hall/layout";
+import { allow } from "@/lib/throttle";
+import { clientIp } from "@/lib/auth";
 
 const Body = z.union([
   z.object({ kind: z.literal("impressions"), boothIds: z.array(z.number().int().positive()).max(500) }),
@@ -22,7 +25,11 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false }, { status: 400 });
   const b = parsed.data;
-  if (b.kind === "impressions") await trackImpressions(b.boothIds, visitor);
+  // a real visitor sends a few of these a minute; a script looping them only gets its first share counted
+  if (!allow(`track:${visitor ?? (await clientIp())}`, 120, 60_000)) return res;
+  // only booths that exist on the floor get rows
+  if ("boothId" in b && !boothSpace(b.boothId)) return res;
+  if (b.kind === "impressions") await trackImpressions(b.boothIds.filter((id) => boothSpace(id)), visitor);
   else if (b.kind === "takeover_view") {
     const u = await currentUser();
     await takeoverNudge(b.boothId, u?.id ?? null);
