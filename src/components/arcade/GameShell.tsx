@@ -67,7 +67,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
     <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_320px]">
       <div>
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <div><Link href="/app/arcade" className="text-xs text-slate-400 hover:text-white">← Arcade</Link><h1 className="text-2xl font-bold">{name}</h1><p className="text-sm text-slate-400">{blurb}</p></div>
+          <div><div className="flex gap-3 text-xs"><Link href="/app/arcade" className="text-slate-400 hover:text-white">← Arcade</Link><Link href="/app?mode=walk&arcade=1" className="text-amber-300 hover:text-white">← Back to the show floor</Link></div><h1 className="text-2xl font-bold">{name}</h1><p className="text-sm text-slate-400">{blurb}</p></div>
           <div className="mono text-sm">{coins == null ? <Link className="text-amber-300 underline" href={`/app/login?next=/arcade/${gameId}`}>Sign in to play</Link> : <>{coins} coins</>}</div>
         </div>
         <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#070a16]">

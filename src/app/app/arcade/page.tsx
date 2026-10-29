@@ -17,7 +17,10 @@ export default async function Arcade() {
           <h1 className="text-3xl font-bold">Arcade</h1>
           <p className="text-sm text-slate-400">Original machines, daily and all-time leaderboards, coin prizes. Coins turn into booth value: {COIN_RULES.convertRate} coins = $1.</p>
         </div>
-        {!user && <Link href="/app/login?next=/arcade" className="btn-primary">Sign in to play (free coins)</Link>}
+        <div className="flex flex-wrap gap-2">
+          <Link href="/app?mode=walk&arcade=1" className="btn-primary">← Back to the show floor</Link>
+          {!user && <Link href="/app/login?next=/arcade" className="btn-ghost">Sign in to play (free coins)</Link>}
+        </div>
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         {boards.map((b) => {
