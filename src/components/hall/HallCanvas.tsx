@@ -76,7 +76,7 @@ export function HallCanvas() {
       else if (m.type === "booth") upsertBooth({ ...m.booth });
       else if (m.type === "presence") setStats({ online: Math.max(1, m.online) });
       else if (m.type === "players") { applyRoster(m.players as LivePlayer[]); friendsOnFloor(m.players as LivePlayer[]); }
-      else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me) useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
+      else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me && useHall.getState().panel !== "me") useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
       else if (m.type === "chat") { emitChat(m.message); if (m.message.playerId) showBubble(m.message.playerId, m.message.body); }
       else if (m.type === "dm") {
         const msg = m.message; const d = social.dm;
@@ -94,17 +94,20 @@ export function HallCanvas() {
         if (!mine) { showBubble(msg.from, msg.body, 6000); if (!seen) setToast(`💬 ${msg.fromName}: ${msg.body.slice(0, 80)}`, () => openDm(msg.from, msg.fromName)); }
         bumpSocial();
       }
-      else if (m.type === "friend") { setToast(m.kind === "request" ? `🤝 ${m.from.name} sent you a friend request` : `🤝 ${m.from.name} accepted your friend request`, () => useHall.getState().setPanel("people")); social.friendsVersion++; bumpSocial(); if (m.kind === "accepted") social.friendIds.add(m.from.id); }
+      else if (m.type === "friend") { setToast(m.kind === "request" ? `🤝 ${m.from.name} sent you a friend request` : `🤝 ${m.from.name} accepted your friend request`, () => useHall.getState().setPanel("people")); social.friendsVersion++; bumpSocial(); api<{ friends: Array<{ id: string }> }>("/api/friends").then((f) => { social.friendIds = new Set(f.friends.map((x) => x.id)); }).catch(() => {}); }
+      else if (m.type === "team" && m.quiet) { api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)).catch(() => {}); }
       else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`, () => useHall.getState().setPanel("me")); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)).catch(() => {}); }
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
     };
     es.onmessage = onMessage;
     // a non-200 (a deploy, a restart) closes an EventSource for good: reopen it with a growing delay
     let backoff = 1000, retry: ReturnType<typeof setTimeout> | null = null;
-    const watch = (src: EventSource) => { src.onerror = () => { if (src.readyState !== EventSource.CLOSED || !alive) return; retry = setTimeout(() => { if (!alive) return; es = new EventSource("/api/live"); es.onmessage = onMessage; es.onopen = () => { backoff = 1000; }; watch(es); }, backoff); backoff = Math.min(30_000, backoff * 2); }; };
+    // only ever one stream: a reconnect (from either path) closes whatever was open first, or every message is handled twice
+    const reopen = () => { if (retry) { clearTimeout(retry); retry = null; } es.close(); sseId = ""; es = new EventSource("/api/live"); es.onmessage = onMessage; es.onopen = () => { backoff = 1000; }; watch(es); };
+    const watch = (src: EventSource) => { src.onerror = () => { if (src.readyState !== EventSource.CLOSED || !alive || src !== es) return; retry = setTimeout(() => { retry = null; if (!alive) return; es.close(); es = new EventSource("/api/live"); es.onmessage = onMessage; es.onopen = () => { backoff = 1000; }; watch(es); }, backoff); backoff = Math.min(30_000, backoff * 2); }; };
     watch(es);
     const check = setInterval(() => {
-      if (live.me && sseId && live.me !== sseId) { es.close(); sseId = ""; es = new EventSource("/api/live"); es.onmessage = onMessage; watch(es); }
+      if (live.me && sseId && live.me !== sseId) reopen();
     }, 2000);
     return () => {
       alive = false;

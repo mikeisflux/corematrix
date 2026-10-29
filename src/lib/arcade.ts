@@ -189,7 +189,6 @@ export async function myBest(gameId: GameId, userId: string) {
 export async function rideFlyover(userId: string): Promise<number> {
   const coins = await spendCoins(userId, COIN_RULES.flyoverCost, "flyover");
   if (coins === null) throw new Error(`The Hall Flyover costs ${COIN_RULES.flyoverCost} coins.`);
-  publish({ type: "presence", online: -1 }); // no-op marker; presence recomputed by bus
   return coins;
 }
 

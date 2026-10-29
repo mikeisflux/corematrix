@@ -24,9 +24,15 @@ export function MePanel() {
     void soc.noticeVersion;
     // read the list first, then mark it read: the other order could mark a notice read before it was ever shown
     let on = true;
-    api<{ notifications: N[] }>("/api/notifications").then((d) => { if (!on) return; setNotes(d.notifications); return api("/api/notifications", { method: "POST" }); }).catch(() => {});
+    // mark read only what was shown (up to the newest one listed), then clear the badge
+    api<{ notifications: N[] }>("/api/notifications").then(async (d) => {
+      if (!on) return; setNotes(d.notifications);
+      const newest = d.notifications.reduce((a, n) => Math.max(a, n.createdAt), 0);
+      if (newest) await api("/api/notifications", { method: "POST", body: JSON.stringify({ upTo: newest }) });
+      const st = useHall.getState(); if (on && st.me && st.me.unread) st.setMe({ ...st.me, unread: 0 }, st.myBooths);
+    }).catch(() => {});
     return () => { on = false; };
-  }, [me, soc.noticeVersion]);
+  }, [me?.id, soc.noticeVersion]); // the id, not the object: clearing the badge replaces the object
   if (!me) {
     return (
       <>

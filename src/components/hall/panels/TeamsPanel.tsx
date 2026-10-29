@@ -4,7 +4,7 @@
  * the chairs), and the teams you are on. Friends by name, anyone by email.
  */
 import { useEffect, useState } from "react";
-import { api, useHall } from "@/lib/hall/store";
+import { api, useHall, type Me } from "@/lib/hall/store";
 import { useSocial } from "@/lib/hall/social";
 import { PanelHeader } from "./common";
 
@@ -20,6 +20,7 @@ export function TeamsPanel() {
   const select = useHall((s) => s.select);
   const soc = useSocial();
   const [teams, setTeams] = useState<TeamView[] | null>(null);
+  const [onTeams, setOnTeams] = useState<Array<{ id: string; name: string; owner: string }>>([]);
   const [friends, setFriends] = useState<Person[]>([]);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,7 @@ export function TeamsPanel() {
   const staffed = myBooths.filter((b) => b.role === "staff");
   useEffect(() => {
     if (!me) return;
-    api<{ teams: TeamView[] }>("/api/teams").then((d) => setTeams(d.teams)).catch(() => setTeams([]));
+    api<{ teams: TeamView[]; onTeams?: Array<{ id: string; name: string; owner: string }> }>("/api/teams").then((d) => { setTeams(d.teams); setOnTeams(d.onTeams ?? []); }).catch(() => setTeams([]));
     api<{ friends: Person[] }>("/api/friends").then((d) => setFriends(d.friends)).catch(() => {});
   }, [me, soc.friendsVersion]);
   const run = async (f: () => Promise<{ teams: TeamView[] }>, ok?: string) => {
@@ -50,6 +51,27 @@ export function TeamsPanel() {
     <>
       <PanelHeader title="Teams" sub={owned.length ? `${teams?.length ?? 0} team${teams?.length === 1 ? "" : "s"} · ${owned.length} booth${owned.length === 1 ? "" : "s"}` : "Crews that staff booths"} />
       <div className="space-y-3 p-3 text-sm">
+        {onTeams.length > 0 && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Teams you're on</div>
+            <div className="space-y-1">
+              {onTeams.map((t) => (
+                <div key={t.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-2.5 py-1.5 text-[12px]">
+                  <span className="min-w-0 flex-1 truncate">{t.name}<span className="ml-1.5 text-[11px] text-slate-500">run by {t.owner}</span></span>
+                  <button className="btn-ghost text-[11px]" disabled={busy} onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await api(`/api/teams/${t.id}/members?leave=1`, { method: "DELETE" });
+                      setOnTeams((x) => x.filter((y) => y.id !== t.id)); setToast(`You left ${t.name}`);
+                      const d = await api<{ user: Me | null; booths: Parameters<ReturnType<typeof useHall.getState>["setMe"]>[1] }>("/api/me"); useHall.getState().setMe(d.user, d.booths);
+                    } catch (e) { setToast((e as Error).message); }
+                    setBusy(false);
+                  }}>Leave</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {staffed.length > 0 && (
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">You're on the crew at</div>

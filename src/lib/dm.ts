@@ -48,6 +48,11 @@ export async function dmThread(me: string, other: string): Promise<DmMessage[]> 
   const rows = await db.select().from(schema.dms).where(between(me, other)).orderBy(desc(schema.dms.createdAt)).limit(KEEP);
   return rows.reverse().map(row);
 }
+export async function hasThread(me: string, other: string): Promise<boolean> {
+  await rekey();
+  const [r] = await db.select({ id: schema.dms.id }).from(schema.dms).where(between(me, other)).limit(1);
+  return !!r;
+}
 export async function markRead(me: string, other: string) {
   await rekey();
   await db.update(schema.dms).set({ readAt: now() }).where(and(eq(schema.dms.toId, me), eq(schema.dms.fromId, other), sql`${schema.dms.readAt} IS NULL`));

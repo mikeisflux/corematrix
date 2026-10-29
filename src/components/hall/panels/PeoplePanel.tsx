@@ -22,7 +22,8 @@ export function PeoplePanel() {
   // friends: who I'm friends with, who asked me, who I asked; refetched when a request arrives or is answered
   const [fr, setFr] = useState<{ friends: Person[]; incoming: Array<Person & { requestId: string }>; outgoing: Array<Person & { requestId: string }> } | null>(null);
   const setToast = useHall((s) => s.setToast);
-  const loadFriends = () => { if (me) api<NonNullable<typeof fr>>("/api/friends").then(setFr).catch(() => {}); };
+  // the floor's "friend walked in" notices read social.friendIds: keep it in step with every change made here
+  const loadFriends = () => { if (me) api<NonNullable<typeof fr>>("/api/friends").then((d) => { setFr(d); social.friendIds = new Set(d.friends.map((x) => x.id)); }).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadFriends, [me, soc.friendsVersion]);
   const relation = (uid: string | null | undefined): "me" | "friend" | "asked" | "pending" | "none" | null => {

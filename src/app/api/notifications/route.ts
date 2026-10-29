@@ -13,9 +13,12 @@ export async function GET() {
   return NextResponse.json({ notifications: rows });
 }
 
-export async function POST() {
+/** POST { upTo? }: mark read everything up to that moment (what was on screen), not notices that arrived since. */
+export async function POST(req: Request) {
   const u = await currentUser();
   if (!u) return NextResponse.json({ ok: false }, { status: 401 });
-  await db.update(schema.notifications).set({ readAt: now() }).where(and(eq(schema.notifications.userId, u.id), sql`${schema.notifications.readAt} IS NULL`));
+  const b = (await req.json().catch(() => ({}))) as { upTo?: unknown };
+  const upTo = typeof b.upTo === "number" && Number.isFinite(b.upTo) ? b.upTo : now();
+  await db.update(schema.notifications).set({ readAt: now() }).where(and(eq(schema.notifications.userId, u.id), sql`${schema.notifications.readAt} IS NULL`, sql`${schema.notifications.createdAt} <= ${upTo}`));
   return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,7 @@ import { subscribe, onlineCount, type LiveMessage } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { ensureMigrated } from "@/lib/db";
 import { getOrSetVisitor, publicId } from "@/lib/visitor";
+import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export async function GET(req: Request) {
   await ensureMigrated();
   const res = new NextResponse(null); // only used to collect a Set-Cookie when the visitor is new
   const visitorId = await publicId(await getOrSetVisitor(res)); // targeted messages go to the public floor id
+  const user = await currentUser().catch(() => null); // notices reach this tab even when it isn't walking the floor
   const encoder = new TextEncoder();
   let unsub: (() => void) | null = null;
   let ping: NodeJS.Timeout | null = null;
@@ -22,7 +24,7 @@ export async function GET(req: Request) {
           /* closed */
         }
       };
-      unsub = subscribe(send, visitorId);
+      unsub = subscribe(send, visitorId, user?.id ?? null);
       send({ type: "hello", id: visitorId }); // so the client can tell if this stream is registered under its real id
       send({ type: "presence", online: onlineCount() });
       ping = setInterval(() => {

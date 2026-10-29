@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { COSTUME_IDS } from "@/lib/hall/costumes";
+import { hallLayout } from "@/lib/hall/layout";
+import { getBooth } from "@/lib/economy";
+import { staffedBooths } from "@/lib/social-graph";
 import { getOrSetPlayer } from "@/lib/visitor";
 import { updatePlayer, removePlayer, hasPlayer, playerCount } from "@/lib/presence";
 import { allow } from "@/lib/throttle";
@@ -10,6 +13,23 @@ import { currentUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const HEX = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+const sitCache = new Map<string, { ids: Set<number>; at: number }>();
+async function maySitAt(x: number, z: number, userId: string | null, email: string): Promise<boolean> {
+  const space = hallLayout().find((s) => Math.abs(s.x - x) <= s.w / 2 && Math.abs(s.z - z) <= s.d / 2);
+  if (!space) return true; // benches and the rest of the floor are open to everyone
+  const booth = await getBooth(space.id);
+  if (!booth?.ownerId) return true;
+  if (!userId) return false;
+  let mine = sitCache.get(userId);
+  if (!mine || Date.now() - mine.at > 60_000) {
+    const staffed = await staffedBooths(userId, email).catch(() => []);
+    mine = { ids: new Set(staffed.map((b) => b.id)), at: Date.now() };
+    if (sitCache.size > 2000) sitCache.clear();
+    sitCache.set(userId, mine);
+  }
+  return booth.ownerId === userId || mine.ids.has(space.id);
+}
 const Body = z.object({
   leave: z.boolean().optional(),
   x: z.number().finite().optional(),
@@ -36,6 +56,8 @@ export async function POST(req: Request) {
   // a script without cookies mints a fresh player per request: new players are limited per address and the floor is capped
   if (!hasPlayer(id) && (playerCount() >= 600 || !allow(`newplayer:${await clientIp()}`, 30, 60_000))) return NextResponse.json({ error: "The floor is full right now" }, { status: 429 });
   const u = await currentUser().catch(() => null);
+  // sitting inside a claimed booth is for its owner and crew; anyone else is shown standing there
+  if (b.s === 3 && !(await maySitAt(b.x, b.z, u?.id ?? null, u?.email ?? ""))) b.s = 0;
   // an emote or reaction stamped in the future would stay "fresh" forever: clamp the time to now
   const t = Date.now(); const stamp = <T extends { t: number }>(v: T | null | undefined) => (v ? { ...v, t: Math.min(v.t, t) } : null);
   updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: stamp(b.e), r: stamp(b.r), uid: u?.id ?? null, j: u?.title ?? null, w: b.w === true });

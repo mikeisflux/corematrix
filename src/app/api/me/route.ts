@@ -59,7 +59,13 @@ export async function PATCH(req: Request) {
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;
   if (typeof body.title === "string") set.title = body.title.trim().slice(0, 40) || null;
-  if (typeof body.handle === "string") set.handle = body.handle.replace(/^@/, "").trim().slice(0, 30) || null;
+  if (typeof body.handle === "string") {
+    const h = body.handle.replace(/^@/, "").trim().slice(0, 30);
+    if (h && !/^[A-Za-z0-9_.]{2,30}$/.test(h)) return NextResponse.json({ error: "Handles use letters, numbers, dots and underscores (2 to 30)." }, { status: 400 });
+    // one person per handle: mentions and names would otherwise go to whoever SQLite finds first
+    if (h) { const [taken] = await db.select({ id: schema.users.id }).from(schema.users).where(and(sql`lower(${schema.users.handle}) = ${h.toLowerCase()}`, sql`${schema.users.id} != ${u.id}`)).limit(1); if (taken) return NextResponse.json({ error: `@${h} is taken.` }, { status: 409 }); }
+    set.handle = h || null;
+  }
   if (Object.keys(set).length) await db.update(schema.users).set(set).where(eq(schema.users.id, u.id));
   return NextResponse.json({ ok: true });
 }

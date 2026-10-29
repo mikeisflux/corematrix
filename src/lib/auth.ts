@@ -260,6 +260,9 @@ export async function signOut(): Promise<void> {
   const sid = jar.get(SESSION_COOKIE)?.value;
   if (sid) await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
   jar.delete(SESSION_COOKIE);
+  // the floor identity (and its private messages) belongs to this browser session: the next person on a shared
+  // computer starts fresh instead of reading the last one's DMs
+  jar.delete("fcc_vid");
 }
 
 /** Stable, privacy-preserving visitor id derived from a first-party cookie. */

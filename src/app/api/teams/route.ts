@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { teamsOf, createTeam } from "@/lib/social-graph";
+import { teamsOf, createTeam, teamsImOn } from "@/lib/social-graph";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const u = await currentUser();
   if (!u) return NextResponse.json({ error: "Sign in" }, { status: 401 });
-  return NextResponse.json({ teams: await teamsOf(u.id) });
+  return NextResponse.json({ teams: await teamsOf(u.id), onTeams: await teamsImOn(u.id) });
 }
 
 export async function POST(req: Request) {

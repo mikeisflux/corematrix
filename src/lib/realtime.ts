@@ -10,16 +10,23 @@ export type LiveMessage =
   | { type: "players"; players: Array<{ id: string; n: string; a: unknown; x: number; z: number; h: number; s: number; e?: { n: string; t: number } | null; r?: { k: string; t: number } | null; uid?: string | null; j?: string | null; w?: boolean }> }
   | { type: "notice"; notice: { id: string; type: string; title: string; body: string | null; boothId: number | null; createdAt: number } }
   | { type: "friend"; kind: "request" | "accepted"; from: { id: string; name: string } }
-  | { type: "team"; name: string; from: { id: string; name: string } }
+  | { type: "team"; name: string; from: { id: string; name: string }; quiet?: boolean } // quiet: just refresh which booths I can sit at
   | { type: "chat"; message: { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number; playerId?: string } }
   | { type: "dm"; message: { id: string; from: string; fromName: string; to: string; body: string; createdAt: number } }
   | { type: "stats"; totalSalesCents: number; totalViews: number; claimed: number };
 
 type Listener = (m: LiveMessage) => void;
 
-const g = globalThis as unknown as { __forevercomicconBus?: Set<Listener>; __forevercomicconWho?: Map<Listener, string> };
+const g = globalThis as unknown as { __forevercomicconBus?: Set<Listener>; __forevercomicconWho?: Map<Listener, string>; __forevercomicconUser?: Map<Listener, string> };
 const listeners = (g.__forevercomicconBus ??= new Set<Listener>());
 const who = (g.__forevercomicconWho ??= new Map<Listener, string>()); // listener → visitor id, for private delivery
+const whoUser = (g.__forevercomicconUser ??= new Map<Listener, string>()); // listener → signed-in account, for notices
+
+/** Send to every open tab of a signed-in person, walking the floor or not. */
+export function publishToUser(userId: string | null | undefined, m: LiveMessage) {
+  if (!userId) return;
+  for (const l of listeners) { if (whoUser.get(l) === userId) { try { l(m); } catch { /* ignore */ } } }
+}
 
 /** Send only to the connections of these visitors (a person may have several tabs). */
 export function publishTo(visitorIds: string[], m: LiveMessage) {
@@ -37,13 +44,15 @@ export function publish(m: LiveMessage) {
   }
 }
 
-export function subscribe(l: Listener, visitorId?: string): () => void {
+export function subscribe(l: Listener, visitorId?: string, userId?: string | null): () => void {
   listeners.add(l);
   if (visitorId) who.set(l, visitorId);
+  if (userId) whoUser.set(l, userId);
   broadcastPresence();
   return () => {
     listeners.delete(l);
     who.delete(l);
+    whoUser.delete(l);
     broadcastPresence();
   };
 }

@@ -127,6 +127,13 @@
       "when": 1793290000000,
       "tag": "0017_repair_undelivered",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1793300000000,
+      "tag": "0018_social_integrity",
+      "breakpoints": true
     }
   ]
 }

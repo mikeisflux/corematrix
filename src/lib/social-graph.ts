@@ -7,9 +7,9 @@
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newId, now } from "@/lib/util";
-import { publishTo } from "@/lib/realtime";
-import { visitorsOf } from "@/lib/presence";
+import { publishToUser } from "@/lib/realtime";
 import { notify, notifyMany } from "@/lib/notify";
+import { allow } from "@/lib/throttle";
 
 export interface Person { id: string; name: string; handle: string | null }
 // never fall back to the email: these names reach strangers in requests and notifications
@@ -58,12 +58,14 @@ export async function requestFriend(fromId: string, toId: string): Promise<"pend
     if (r.fromId === fromId) return "pending";
     await db.update(schema.friendships).set({ status: "accepted", acceptedAt: now() }).where(eq(schema.friendships.id, r.id));
     await notify(toId, "friend", `${me.name} accepted your friend request`, "You're friends now. Find them under People → Friends.");
-    publishTo(visitorsOf(toId), { type: "friend", kind: "accepted", from: me });
+    publishToUser(toId, { type: "friend", kind: "accepted", from: me });
     return "accepted";
   }
-  await db.insert(schema.friendships).values({ id: newId(), fromId, toId, status: "pending", createdAt: now() });
+  // one row per pair (unique index): a double click or both people asking at once can't store two
+  const made = await db.insert(schema.friendships).values({ id: newId(), fromId, toId, status: "pending", createdAt: now() }).onConflictDoNothing().returning({ id: schema.friendships.id });
+  if (!made.length) { const again = await pair(fromId, toId); return again?.status === "accepted" ? "accepted" : "pending"; }
   await notify(toId, "friend", `${me.name} sent you a friend request`, "Accept it under People → Friends in the hall.");
-  publishTo(visitorsOf(toId), { type: "friend", kind: "request", from: me });
+  publishToUser(toId, { type: "friend", kind: "request", from: me });
   return "pending";
 }
 
@@ -75,7 +77,7 @@ export async function answerRequest(userId: string, requestId: string, accept: b
   await db.update(schema.friendships).set({ status: "accepted", acceptedAt: now() }).where(eq(schema.friendships.id, r.id));
   const me = (await people([userId])).get(userId)!;
   await notify(r.fromId, "friend", `${me.name} accepted your friend request`, "You're friends now. Find them under People → Friends.");
-  publishTo(visitorsOf(r.fromId), { type: "friend", kind: "accepted", from: me });
+  publishToUser(r.fromId, { type: "friend", kind: "accepted", from: me });
 }
 
 /** Remove a friend or withdraw a request you sent. */
@@ -105,7 +107,11 @@ export async function teamsOf(ownerId: string): Promise<TeamView[]> {
   return ts.map((t) => ({
     id: t.id, name: t.name,
     booths: booths.filter((b) => b.teamId === t.id).map((b) => b.id),
-    members: members.filter((m) => m.teamId === t.id).map((m) => ({ id: m.id, userId: m.userId, email: m.userId ? "" : m.email /* only pending email invites show the address the owner typed */, name: m.userId ? (who.get(m.userId)?.name ?? null) : null })),
+    members: members.filter((m) => m.teamId === t.id).map((m) => (m.via === "email"
+      // an email invite shows the address the owner typed and nothing about the account behind it, so inviting
+      // addresses can't be used to find out who has an account
+      ? { id: m.id, userId: null, email: m.email, name: null }
+      : { id: m.id, userId: m.userId, email: m.userId ? "" : m.email, name: m.userId ? (who.get(m.userId)?.name ?? null) : null })),
   }));
 }
 
@@ -158,6 +164,7 @@ export async function setTeamBooths(ownerId: string, teamId: string, boothIds: n
     const [t] = await db.select({ name: schema.teams.name }).from(schema.teams).where(eq(schema.teams.id, teamId));
     const bs = await db.select({ id: schema.booths.id, name: schema.booths.name, label: schema.booths.label }).from(schema.booths).where(inArray(schema.booths.id, gained));
     const members = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
+    for (const m of members) if (m.userId) publishToUser(m.userId, { type: "team", name: t?.name ?? "", from: { id: ownerId, name: "" }, quiet: true }); // chairs work now, not after the next refresh
     for (const b of bs) await notifyMany(members.map((m) => m.userId), "team", `${t?.name ?? "Your team"} now staffs ${b.name ?? `booth ${b.label}`}`, "Walk up to the chair behind its table and press C to sit.", b.id);
   }
 }
@@ -179,16 +186,19 @@ export async function addMember(ownerId: string, teamId: string, who: { userId?:
     userId = u?.verified ? u.id : null;
   }
   if (userId === ownerId) throw new Error("You're already on all your teams");
+  // adding people sends them a notice: cap it, so a team can't be used to spam someone
+  if (!allow(`teamadd:${ownerId}`, 30, 3600_000) || !allow(`teamadd:${ownerId}:${email}`, 3, 86_400_000)) throw new Error("That's a lot of changes. Try again later.");
   const [{ c }] = await db.select({ c: sql<number>`count(*)` }).from(schema.teamMembers).where(eq(schema.teamMembers.teamId, teamId));
   if (Number(c) >= 50) throw new Error("That team is full (50)");
   const [dup] = await db.select({ id: schema.teamMembers.id }).from(schema.teamMembers).where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.email, email)));
   if (dup) throw new Error("Already on the team");
-  await db.insert(schema.teamMembers).values({ id: newId(), teamId, userId, email, createdAt: now() });
+  const added = await db.insert(schema.teamMembers).values({ id: newId(), teamId, userId, email, via: who.userId ? "friend" : "email", createdAt: now() }).onConflictDoNothing().returning({ id: schema.teamMembers.id });
+  if (!added.length) throw new Error("Already on the team");
   if (userId) {
     const [t] = await db.select({ name: schema.teams.name }).from(schema.teams).where(eq(schema.teams.id, teamId));
     const me = (await people([ownerId])).get(ownerId)!;
-    await notify(userId, "team", `${me.name} added you to ${t?.name ?? "a team"}`, "You can sit at the booths that team staffs. Walk up to the chair and press C.");
-    publishTo(visitorsOf(userId), { type: "team", name: t?.name ?? "a team", from: me });
+    await notify(userId, "team", `${me.name} added you to ${t?.name ?? "a team"}`, "You can sit at the booths that team staffs. Walk up to the chair and press C. Don't know them? Leave under 👥 Teams.");
+    publishToUser(userId, { type: "team", name: t?.name ?? "a team", from: me });
   }
 }
 
@@ -196,6 +206,7 @@ export async function removeMember(ownerId: string, teamId: string, memberId: st
   await ensureMigrated(); const t = await ownTeam(ownerId, teamId);
   const [m] = await db.select({ userId: schema.teamMembers.userId }).from(schema.teamMembers).where(and(eq(schema.teamMembers.id, memberId), eq(schema.teamMembers.teamId, teamId)));
   await db.delete(schema.teamMembers).where(and(eq(schema.teamMembers.id, memberId), eq(schema.teamMembers.teamId, teamId)));
+  if (m?.userId) publishToUser(m.userId, { type: "team", name: t.name, from: { id: ownerId, name: "" }, quiet: true }); // their chair access ends now
   if (m?.userId) { const me = (await people([ownerId])).get(ownerId)!; await notify(m.userId, "team", `${me.name} removed you from ${t.name}`, "You can no longer sit at the booths that team staffs."); }
 }
 
@@ -227,6 +238,25 @@ export async function claimEmailInvites(userId: string, email: string) {
     if (t.ownerId === userId) continue;
     await notify(userId, "team", `You're on ${t.name}`, "You can sit at the booths that team staffs. Walk up to the chair and press C.");
     await notify(t.ownerId, "team", `${me.name} joined ${t.name}`, "They confirmed their email, so the seat you saved is theirs now.");
-    publishTo(visitorsOf(userId), { type: "team", name: t.name, from: (await people([t.ownerId])).get(t.ownerId) ?? me });
+    publishToUser(userId, { type: "team", name: t.name, from: (await people([t.ownerId])).get(t.ownerId) ?? me });
   }
+}
+
+/** Take yourself off a team you were added to. */
+export async function leaveTeam(userId: string, teamId: string) {
+  await ensureMigrated();
+  const [t] = await db.select({ name: schema.teams.name, ownerId: schema.teams.ownerId }).from(schema.teams).where(eq(schema.teams.id, teamId)).limit(1);
+  if (!t) throw new Error("No such team");
+  const gone = await db.delete(schema.teamMembers).where(and(eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, userId))).returning({ id: schema.teamMembers.id });
+  if (!gone.length) throw new Error("You're not on that team");
+  const me = (await people([userId])).get(userId)!;
+  await notify(t.ownerId, "team", `${me.name} left ${t.name}`, "They can no longer sit at the booths that team staffs.").catch(() => {});
+}
+
+/** The teams I'm on (not the ones I own). */
+export async function teamsImOn(userId: string): Promise<Array<{ id: string; name: string; owner: string }>> {
+  await ensureMigrated();
+  const rows = await db.select({ id: schema.teams.id, name: schema.teams.name, ownerId: schema.teams.ownerId }).from(schema.teamMembers).innerJoin(schema.teams, eq(schema.teams.id, schema.teamMembers.teamId)).where(eq(schema.teamMembers.userId, userId));
+  const owners = await people(rows.map((r) => r.ownerId));
+  return rows.map((r) => ({ id: r.id, name: r.name, owner: owners.get(r.ownerId)?.name ?? "someone" }));
 }

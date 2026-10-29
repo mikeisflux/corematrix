@@ -524,6 +524,7 @@ export const teamMembers = sqliteTable(
     teamId: text("team_id").notNull(),
     userId: text("user_id"),
     email: text("email").notNull(),
+    via: text("via").notNull().default("friend"), // friend | email: an email invite shows only the address the owner typed
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("team_members_team_idx").on(t.teamId), index("team_members_user_idx").on(t.userId), index("team_members_email_idx").on(t.email)],
