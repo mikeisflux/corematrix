@@ -264,20 +264,22 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
 
   // inline / corner booth
   const wide = d >= 20;
+  // the vinyl banner hangs right under the drape's top bar
+  const backBannerY = DRAPE.back - 0.3 - ((d - 0.8) / 4 + 0.2) / 2;
   return (
     <group position={[space.x, 0, space.z]} rotation={[0, rotY, 0]} {...common}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
       {/* pipe and drape: back wall 10 ft on uprights, side rails 4 ft */}
       <PipeAndDrape w={w} d={d} drape={drape} />
       {/* vinyl banner across the back wall, on a slim board */}
-      <mesh position={[-w / 2 + 0.52, 7.8, 0]} rotation={[0, Math.PI / 2, 0]} material={FRAME}><boxGeometry args={[d - 0.6, (d - 0.8) / 4 + 0.2, 0.04]} /></mesh>
-      <mesh position={[-w / 2 + 0.55, 7.8, 0]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}>
+      <mesh position={[-w / 2 + 0.52, backBannerY, 0]} rotation={[0, Math.PI / 2, 0]} material={FRAME}><boxGeometry args={[d - 0.6, (d - 0.8) / 4 + 0.2, 0.04]} /></mesh>
+      <mesh position={[-w / 2 + 0.55, backBannerY, 0]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}>
         <planeGeometry args={[d - 0.8, (d - 0.8) / 4]} />
         <meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} />
       </mesh>
       {/* logo board */}
-      <mesh position={[-w / 2 + 0.53, 3.6, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]} material={MAT_WHITE}><boxGeometry args={[3.3, 3.3, 0.04]} /></mesh>
-      <mesh position={[-w / 2 + 0.56, 3.6, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[3, 3]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
+      <mesh position={[-w / 2 + 0.53, 3.9, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]} material={MAT_WHITE}><boxGeometry args={[2.4, 2.4, 0.04]} /></mesh>
+      <mesh position={[-w / 2 + 0.56, 3.9, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[2.2, 2.2]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
       {/* header banner on posts (level 2+) */}
       {sign.level >= 2 && (
         <group position={[-w / 2 + 0.6, 11.6, 0]}>
