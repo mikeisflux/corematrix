@@ -18,12 +18,15 @@ export function useJson<T>(url: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // only the latest request may write: flipping filters or records fast can't leave an older response on screen
+  const seq = useRef(0);
   const reload = useCallback(async () => {
+    const mine = ++seq.current;
     if (!url) { setLoading(false); return; }
     setLoading(true);
-    try { setData(await api<T>(url)); setError(null); }
-    catch (e) { setError(String((e as Error).message || e)); }
-    finally { setLoading(false); }
+    try { const d = await api<T>(url); if (mine === seq.current) { setData(d); setError(null); } }
+    catch (e) { if (mine === seq.current) setError(String((e as Error).message || e)); }
+    finally { if (mine === seq.current) setLoading(false); }
   }, [url]);
   useEffect(() => { reload(); }, [reload]);
   return { data, error, loading, reload, setData };

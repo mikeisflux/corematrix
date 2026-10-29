@@ -40,10 +40,14 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   useEffect(() => {
     if (!sel) return;
     if (sel === initialBooth && detail?.booth.id === sel) return; // already fetched in parallel above
-    api<Detail>(`/api/booth/${sel}`).then(setDetail).catch(() => setDetail(null));
+    // switching booths quickly: only the booth still selected may land
+    let live = true;
+    api<Detail>(`/api/booth/${sel}`).then((d) => { if (live) setDetail(d); }).catch(() => { if (live) setDetail(null); });
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
 
+  useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); }, [msg]);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const series = useMemo(() => (detail ? detail.series.slice(-range) : []), [detail, range]);
   const sums = useMemo(() => series.reduce((a, r) => ({ impressions: a.impressions + r.impressions, views: a.views + r.views, clicks: a.clicks + r.clicks, uniques: a.uniques + r.uniques, conversions: a.conversions + (r.conversions ?? 0), value: a.value + (r.conversionValueCents ?? 0) }), { impressions: 0, views: 0, clicks: 0, uniques: 0, conversions: 0, value: 0 }), [series]);
@@ -189,7 +193,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
               </ul>
             </div>
           )}
-          {msg && <div className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-xl" onAnimationEnd={() => setMsg(null)}>{msg}</div>}
+          {msg && <div className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-xl" onClick={() => setMsg(null)}>{msg}</div>}
         </section>
       ) : (
         <p className="text-slate-400">Loading booth…</p>
@@ -435,9 +439,9 @@ function Emails({ me, onChanged }: { me: Me; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const toggle = async () => {
     setBusy(true);
-    await api("/api/me", { method: "PATCH", body: JSON.stringify({ notifyEmail: !me.notifyEmail }) });
-    onChanged();
-    setBusy(false);
+    try { await api("/api/me", { method: "PATCH", body: JSON.stringify({ notifyEmail: !me.notifyEmail }) }); onChanged(); }
+    catch { /* the checkbox stays as it was; the next load shows the real state */ }
+    finally { setBusy(false); }
   };
   return (
     <div className="rounded-2xl border border-white/10 p-4">
@@ -469,7 +473,7 @@ function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: Return
 function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
   const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p]);
+  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p.id, p.name]); // a logo or art upload mid-edit must not wipe what was typed
   const save = async () => {
     setBusy(true);
     try {

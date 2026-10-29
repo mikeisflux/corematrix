@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/pages/Shell";
 import { getBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
-import { CATEGORIES, formatCount, formatMoney, SITE_NAME, splitTakeover, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, SITE_NAME, SITE_URL, splitTakeover, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID } from "@/lib/config";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
@@ -84,7 +84,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
                 {p.facebook && <a className="btn-ghost" href={p.facebook} target="_blank" rel="noopener">Facebook ↗</a>}
                 {p.globalcomix && <a className="btn-ghost" href={p.globalcomix} target="_blank" rel="noopener">GlobalComix ↗</a>}
                 <Link href={`/app?booth=${boothId}`} className="btn-ghost">See it on the floor</Link>
-                <a className="btn-ghost" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${p.name} is exhibiting at ${SITE_NAME}, booth ${space.label}`)}&url=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL}/app/booth/${boothId}?src=share`)}`}>Share on X</a>
+                <a className="btn-ghost" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${p.name} is exhibiting at ${SITE_NAME}, booth ${space.label}`)}&url=${encodeURIComponent(`${SITE_URL}/app/booth/${boothId}?src=share`)}`}>Share on X</a>
               </div>
             </div>
           </div>
