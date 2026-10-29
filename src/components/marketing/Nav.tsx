@@ -10,7 +10,7 @@ export function Nav() {
           {SITE_NAME}
         </Link>
         <nav className="ml-4 hidden items-center gap-1 text-sm text-slate-300 md:flex">
-          {[["#floor", "The floor"], ["#walk", "Walk it"], ["#pricing", "Booths"], ["#economy", "Economy"], ["#faq", "FAQ"]].map(([h, l]) => <a key={h} href={h} className="rounded-full px-3 py-1.5 hover:bg-white/5 hover:text-white">{l}</a>)}
+          {[["/#floor", "The floor"], ["/#walk", "Walk it"], ["/#pricing", "Booths"], ["/#economy", "Economy"], ["/#faq", "FAQ"]].map(([h, l]) => <a key={h} href={h} className="rounded-full px-3 py-1.5 hover:bg-white/5 hover:text-white">{l}</a>)}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <Link href="/app/directory" className="hidden rounded-full px-3 py-1.5 text-sm text-slate-300 hover:text-white sm:block">Exhibitors</Link>

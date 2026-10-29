@@ -4,8 +4,13 @@ import { claimedBooths } from "@/lib/economy";
 import { trendingScores } from "@/lib/analytics";
 import { CATEGORIES, formatCount, formatMoney } from "@/lib/config";
 import { weekId } from "@/lib/util";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Rankings" };
+export const metadata = pageMeta({
+  title: "Top Booths at the Virtual Comic Con: Rankings",
+  description: "The most valuable and most visited booths on the ForeverComicCon floor, updated live: comic publishers, creators, artists and shops ranked by value and traffic.",
+  path: "/app/rankings",
+});
 export const dynamic = "force-dynamic";
 const sizeRank = (s: string) => ({ "20x20": 4, "20x10": 3, "10x10": 2, "6x10": 1 })[s] ?? 0;
 

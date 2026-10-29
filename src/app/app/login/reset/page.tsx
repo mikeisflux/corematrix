@@ -1,7 +1,8 @@
 import { Shell } from "@/components/pages/Shell";
 import { ResetForm } from "@/components/ui/AuthForms";
+import { PRIVATE } from "@/lib/seo";
 
-export const metadata = { title: "Choose a new password" };
+export const metadata = { title: "Choose a new password", ...PRIVATE };
 export default async function Reset({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const sp = await searchParams;
   return (

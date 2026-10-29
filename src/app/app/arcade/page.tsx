@@ -3,8 +3,14 @@ import { Shell } from "@/components/pages/Shell";
 import { GAMES, leaderboard, COIN_RULES } from "@/lib/arcade";
 import { currentUser } from "@/lib/auth";
 import { formatMoney } from "@/lib/config";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Arcade" };
+export const metadata = pageMeta({
+  title: "Arcade: Retro Browser Games at the Virtual Comic Con",
+  description: "Play snake, block breakers, a formation shooter, falling blocks and more in the ForeverComicCon arcade. Top the leaderboards and win coins on the show floor.",
+  path: "/app/arcade",
+  image: { url: "/marketing/arcade-night.jpg", width: 1600, height: 1000, alt: "The neon arcade in the middle of the ForeverComicCon show floor" },
+});
 export const dynamic = "force-dynamic";
 
 export default async function Arcade() {

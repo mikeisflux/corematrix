@@ -5,25 +5,34 @@ import { Shell } from "@/components/pages/Shell";
 import { allow } from "@/lib/throttle";
 import { getPublicBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
-import { CATEGORIES, formatCount, formatMoney, SITE_NAME, SITE_URL, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID, takeoverSplitFor } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID, takeoverSplitFor } from "@/lib/config";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
 import { currentUser, clientIp } from "@/lib/auth";
 import { visitorId } from "@/lib/auth";
 import { ClientTrack } from "@/components/ui/ClientTrack";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { pageMeta, siteOrigin, graph, breadcrumbLd } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const p = await getPublicBooth(Number(id));
-  if (!p?.ownerId) return { title: `Booth ${boothSpace(Number(id))?.label ?? id} is open` };
-  return {
-    title: `${p.name} · Booth ${p.label}`,
-    description: p.tagline ?? `${p.name} is exhibiting at booth ${p.label} on ${SITE_NAME}.`,
-    openGraph: { title: `${p.name} · Booth ${p.label} on ${SITE_NAME}`, description: p.tagline ?? undefined, images: [`/api/og/${p.id}`] },
-    twitter: { card: "summary_large_image", images: [`/api/og/${p.id}`] },
-  };
+  const space = boothSpace(Number(id));
+  // open spaces are near-identical pages: crawlers may follow them to the floor, but they shouldn't rank
+  if (!p?.ownerId) return pageMeta({ title: `${space?.kind === "artist" ? "Table" : "Booth"} ${space?.label ?? id} is open`, description: `Claim this space on the ForeverComicCon virtual comic con floor.`, path: `/app/booth/${id}`, noindex: true });
+  const cat = CATEGORIES[p.category]?.name ?? "Exhibitor";
+  const where = `${p.kind === "artist" ? "Artists' Alley table" : "booth"} ${p.label}, Hall ${p.hall}`;
+  const blurb = (p.tagline || p.description || "").replace(/\s+/g, " ").trim();
+  const description = clip(`${blurb ? `${blurb} ` : ""}${p.name} (${cat}) is exhibiting at ${where} of ${SITE_NAME}, the virtual comic con open 24/7.`, 158);
+  return pageMeta({
+    title: `${p.name}: ${cat} at the Virtual Comic Con, ${p.kind === "artist" ? "Table" : "Booth"} ${p.label}`,
+    description, path: `/app/booth/${p.id}`, type: "profile",
+    image: { url: `/api/og/${p.id}`, width: 1200, height: 630, alt: `${p.name} at ${where} on ${SITE_NAME}` },
+  });
 }
+
+const clip = (t: string, n: number) => (t.length <= n ? t : `${t.slice(0, n - 1).replace(/\s+\S*$/, "")}…`);
 
 export default async function BoothPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string>> }) {
   const { id } = await params;
@@ -58,8 +67,21 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
   const { price, sellerPayout } = takeoverSplitFor(p.valueCents, p.freeValueCents);
   const isOwner = user?.id === p.ownerId;
   const paid = sp.paid;
+  const origin = await siteOrigin();
+  const catName = CATEGORIES[p.category]?.name ?? "Exhibitors";
+  const sameAs = [p.website, p.artstation, p.deviantart, p.instagram, p.xUrl, p.facebook].filter((u): u is string => !!u && /^https?:\/\//.test(u));
+  const ld = graph(
+    {
+      "@type": "Organization", "@id": `${origin}/app/booth/${boothId}#exhibitor`, name: p.name ?? `Booth ${p.label}`,
+      description: (p.tagline || p.description || undefined)?.slice(0, 500), url: p.website || `${origin}/app/booth/${boothId}`,
+      logo: p.logoUrl ? `${origin}/api/logo/${boothId}` : undefined, sameAs: sameAs.length ? sameAs : undefined,
+    },
+    { "@type": "ProfilePage", "@id": `${origin}/app/booth/${boothId}`, url: `${origin}/app/booth/${boothId}`, name: `${p.name} at ${SITE_NAME}`, mainEntity: { "@id": `${origin}/app/booth/${boothId}#exhibitor` }, isPartOf: { "@id": `${origin}/#website` }, dateCreated: p.claimedAt ? new Date(p.claimedAt).toISOString() : undefined, dateModified: p.updatedAt ? new Date(p.updatedAt).toISOString() : undefined },
+    breadcrumbLd(origin, [["Home", "/"], ["Exhibitors", "/app/directory"], [catName, `/app/directory/${p.category}`], [p.name ?? `Booth ${p.label}`, `/app/booth/${boothId}`]]),
+  );
   return (
     <Shell>
+      <JsonLd data={ld} />
       <ClientTrack boothId={boothId} />
       {paid && (
         <div className="mb-6 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
@@ -73,7 +95,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
       <div className="grid gap-8 md:grid-cols-[1fr_320px]">
         <div>
           <div className="flex items-start gap-4">
-            <img src={`/api/logo/${boothId}`} alt="" className="h-24 w-24 rounded-2xl bg-white/10 object-cover" />
+            <img src={`/api/logo/${boothId}`} alt={`${p.name} logo`} width={96} height={96} className="h-24 w-24 rounded-2xl bg-white/10 object-cover" />
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-300">{describeSpace(space)} · {CATEGORIES[p.category]?.name ?? p.category} · rank #{rank}</div>
               <h1 className="mt-1 text-3xl font-bold">{p.name}</h1>
@@ -87,7 +109,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
                 {p.facebook && <a className="btn-ghost" href={p.facebook} target="_blank" rel="noopener">Facebook ↗</a>}
                 {p.globalcomix && <a className="btn-ghost" href={p.globalcomix} target="_blank" rel="noopener">GlobalComix ↗</a>}
                 <Link href={`/app?booth=${boothId}`} className="btn-ghost">See it on the floor</Link>
-                <a className="btn-ghost" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${p.name} is exhibiting at ${SITE_NAME}, booth ${space.label}`)}&url=${encodeURIComponent(`${SITE_URL}/app/booth/${boothId}?src=share`)}`}>Share on X</a>
+                <a className="btn-ghost" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${p.name} is exhibiting at ${SITE_NAME}, booth ${space.label}`)}&url=${encodeURIComponent(`${origin}/app/booth/${boothId}?src=share`)}`}>Share on X</a>
               </div>
             </div>
           </div>

@@ -3,8 +3,9 @@ import { Shell } from "@/components/pages/Shell";
 import { currentUser } from "@/lib/auth";
 import { SignIn } from "@/components/ui/AuthForms";
 import { safeLocalPath } from "@/lib/util";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Sign in" };
+export const metadata = pageMeta({ title: "Sign in", description: "Sign in to ForeverComicCon to manage your booth, team and avatar.", path: "/app/login", noindex: true });
 /** Only a path on this site: never another host, a protocol-relative URL or javascript:. Old links used /dashboard and /arcade. */
 function safeNext(n: string | undefined): string {
   n = safeLocalPath(n, "");

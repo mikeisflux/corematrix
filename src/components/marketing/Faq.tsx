@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { SITE_NAME } from "@/lib/config";
+import { SITE_NAME, CATEGORIES } from "@/lib/config";
+import { LANDING_LINKS } from "@/lib/landings";
 
-const QA = [
+export const QA: ReadonlyArray<readonly [string, string]> = [
   ["Is this a real convention?", "It's a virtual one that never ends: a 3D exhibit hall in your browser. Real exhibitors, real links, real traffic numbers. No badge lines, no hotel block."],
   ["What do I actually get for the money?", "A permanent numbered booth on the floor plan with your banner, logo, tagline and website link, a public booth page with a share card, an embed badge, and analytics: impressions, unique visitors, clicks, CTR and referrers."],
   ["What happens if someone takes over my booth?", "They pay 1.25× your booth's value. You receive your full value back plus 60% of the premium as credit, instantly, with an email. Spend it on a new space, a takeover of your own, a boost or a banner."],
@@ -42,8 +43,21 @@ export function Cta() {
 export function Footer() {
   return (
     <footer className="relative z-10 border-t border-white/8">
+      <div className="mx-auto grid max-w-7xl gap-8 px-5 pt-10 text-sm text-slate-500 sm:grid-cols-3">
+        <div>
+          <div className="display font-bold text-slate-300">{SITE_NAME}</div>
+          <p className="mt-2 max-w-xs">A 3D virtual comic convention, open 24/7 in your browser.</p>
+        </div>
+        <nav aria-label="Guides">
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Guides</div>
+          <ul className="mt-3 space-y-1.5">{LANDING_LINKS.map(([slug, label]) => <li key={slug}><Link className="hover:text-white" href={`/${slug}`}>{label}</Link></li>)}</ul>
+        </nav>
+        <nav aria-label="Exhibitors by category">
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Exhibitors</div>
+          <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">{Object.entries(CATEGORIES).map(([k, c]) => <li key={k}><Link className="hover:text-white" href={`/app/directory/${k}`}>{c.name}</Link></li>)}</ul>
+        </nav>
+      </div>
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-sm text-slate-500">
-        <div className="display font-bold text-slate-300">{SITE_NAME}</div>
         <nav className="flex flex-wrap gap-5">
           <Link className="hover:text-white" href="/app">The hall</Link><Link className="hover:text-white" href="/app/directory">Exhibitors</Link><Link className="hover:text-white" href="/app/rankings">Rankings</Link><Link className="hover:text-white" href="/app/seasons">Seasons</Link><Link className="hover:text-white" href="/app/arcade">Arcade</Link><Link className="hover:text-white" href="/app/how-it-works">Rules &amp; refunds</Link><Link className="hover:text-white" href="/app/login">Sign in</Link>
         </nav>

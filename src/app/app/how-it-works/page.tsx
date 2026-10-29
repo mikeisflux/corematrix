@@ -1,8 +1,14 @@
 import Link from "next/link";
 import { Shell } from "@/components/pages/Shell";
 import { BILLBOARD_SLOTS, BOOTH_SIZES, formatMoney, SITE_NAME, TAKEOVER_MULTIPLIER, TIERS, SELLER_PREMIUM_SHARE, ZONES } from "@/lib/config";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "How it works" };
+export const metadata = pageMeta({
+  title: "How It Works: Booths, Prices and Rules",
+  description: "How ForeverComicCon works: claim a booth on a 3D comic convention floor, what each size costs, how takeovers pay you, your analytics, and the rules and refunds.",
+  path: "/app/how-it-works",
+  type: "article",
+});
 
 export default function HowItWorks() {
   return (

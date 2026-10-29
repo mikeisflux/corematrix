@@ -3,8 +3,13 @@ import { Shell } from "@/components/pages/Shell";
 import { seasonHistory, SEASON_PRIZES } from "@/lib/seasons";
 import { formatCount, formatMoney } from "@/lib/config";
 import { weekId, weekBounds } from "@/lib/util";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Seasons" };
+export const metadata = pageMeta({
+  title: "Weekly Seasons: Trending Booths and Winners",
+  description: "Every week is a season at ForeverComicCon. The most visited booths win arcade coins and a week on the home page. See this week's race and past winners.",
+  path: "/app/seasons",
+});
 export const dynamic = "force-dynamic";
 
 export default async function Seasons() {

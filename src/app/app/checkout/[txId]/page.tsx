@@ -7,7 +7,7 @@ import { describeTx, startCheckout, paymentsMode } from "@/lib/payments";
 import { formatMoney } from "@/lib/config";
 import { CheckoutClient } from "@/components/pages/CheckoutClient";
 
-export const metadata = { title: "Checkout", robots: { index: false } };
+export const metadata = { title: "Checkout", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage({ params, searchParams }: { params: Promise<{ txId: string }>; searchParams: Promise<Record<string, string>> }) {

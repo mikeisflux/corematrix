@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { SITE_NAME } from "@/lib/config";
+import { SITE_NAME, CATEGORIES } from "@/lib/config";
+import { LANDING_LINKS } from "@/lib/landings";
 import { currentUser } from "@/lib/auth";
 
 export async function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
@@ -31,8 +32,12 @@ export async function Shell({ children, wide }: { children: React.ReactNode; wid
         </div>
       </header>
       <main className={`mx-auto px-4 py-8 ${wide ? "max-w-7xl" : "max-w-5xl"}`}>{children}</main>
-      <footer className="mx-auto max-w-5xl px-4 py-10 text-xs text-slate-500">
-        {SITE_NAME} · a living city for brands and creators · <Link className="hover:text-white" href="/app/how-it-works">rules & refunds</Link>
+      <footer className="mx-auto max-w-5xl space-y-3 px-4 py-10 text-xs text-slate-500">
+        <nav aria-label="Guides" className="flex flex-wrap gap-x-4 gap-y-1">
+          {LANDING_LINKS.map(([slug, label]) => <Link key={slug} className="hover:text-white" href={`/${slug}`}>{label}</Link>)}
+          {Object.entries(CATEGORIES).map(([k, c]) => <Link key={k} className="hover:text-white" href={`/app/directory/${k}`}>{c.name}</Link>)}
+        </nav>
+        <div>{SITE_NAME} · the virtual comic con that never closes · <Link className="hover:text-white" href="/app/how-it-works">rules & refunds</Link></div>
       </footer>
     </div>
   );
