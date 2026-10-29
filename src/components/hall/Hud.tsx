@@ -211,6 +211,8 @@ function Joystick() {
     setKnob({ x, y });
   };
   const end = () => { active.current = false; input.joy.x = 0; input.joy.y = 0; input.run = false; setKnob({ x: 0, y: 0 }); };
+  // leaving walk mode with a thumb still on the stick must not leave the avatar walking on its own next time
+  useEffect(() => () => { input.joy.x = 0; input.joy.y = 0; input.run = false; }, []);
   return (
     <div className="pointer-events-auto absolute bottom-24 left-5 md:hidden" style={{ touchAction: "none" }}>
       <div ref={pad} className="relative h-32 w-32 rounded-full border border-white/20 bg-white/10" onPointerDown={(e) => { active.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>

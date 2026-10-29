@@ -41,6 +41,9 @@ function isDown(k: string): boolean {
 }
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {
+    // these listeners outlive the hall (client-side navigation keeps the module): only act while the hall is on screen,
+    // or arrow keys and space stop scrolling every other page
+    if (document.body.dataset.hall !== "1") return;
     const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.tagName === "SELECT" || t?.isContentEditable) return;
     const k = e.key.toLowerCase();
     if (e.repeat) repeatSeen = true;
@@ -101,14 +104,19 @@ export const CABINET_ROWS = [
 ];
 export function isBlocked(x: number, z: number) { return blocked(x, z); }
 /** The nearest walkable point to (x, z): rings of candidates out to 20 ft, so a bad spawn never leaves someone inside a wall. */
-export function freePoint(x: number, z: number): { x: number; z: number } {
+export function freePoint(x: number, z: number, fallback = true): { x: number; z: number } {
+  // a meet-up link or ?at= from anyone can carry any numbers: keep the point inside the building first
+  x = THREE.MathUtils.clamp(Number.isFinite(x) ? x : 0, X0 + 4, X0 + HALL_LENGTH - 4);
+  z = THREE.MathUtils.clamp(Number.isFinite(z) ? z : 0, Z0 + 4, Z0 + HALL_DEPTH - 4);
   if (!blocked(x, z)) return { x, z };
   for (let r = 1; r <= 20; r += 1) {
     const n = Math.max(8, Math.round(r * 4));
     for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (!blocked(px, pz)) return { x: px, z: pz }; }
   }
-  return { x, z };
+  return fallback ? spawnPoint() : { x, z }; // nowhere free nearby: a spot by the arcade rather than somewhere every step is blocked
 }
+
+const camGoal = new THREE.Vector3(); // reused every frame by the walk camera
 
 /* ---------- the figure ---------- */
 /** An avatar: the rigged GLB from public/models when present (idle/walk/run, recolored by material name), else primitives. */
@@ -186,10 +194,10 @@ export function spawnPoint(): { x: number; z: number; h: number } {
   // somewhere between the plaza's edge and the booths that line it: the cross aisles and the plaza floor itself
   for (let i = 0; i < 40; i++) {
     const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 28;
-    const p = freePoint(ARCADE.x + Math.cos(a) * r, ARCADE.z + Math.sin(a) * r * (ARCADE.d / ARCADE.w));
+    const p = freePoint(ARCADE.x + Math.cos(a) * r, ARCADE.z + Math.sin(a) * r * (ARCADE.d / ARCADE.w), false);
     if (Math.hypot(p.x - ARCADE.x, p.z - ARCADE.z) < 70) return { x: p.x, z: p.z, h: Math.atan2(ARCADE.x - p.x, ARCADE.z - p.z) };
   }
-  const p = freePoint(ARCADE.x, ARCADE.z + ARCADE.d / 2 + 6);
+  const p = freePoint(ARCADE.x, ARCADE.z + ARCADE.d / 2 + 6, false);
   return { x: p.x, z: p.z, h: Math.atan2(ARCADE.x - p.x, ARCADE.z - p.z) };
 }
 
@@ -249,8 +257,12 @@ export function Player() {
     yaw.current = s.booth != null ? s.yaw + Math.PI : s.yaw;
     player.seated = true; useHall.getState().setSeated(s); social.pending.dirty = true;
   };
+  // the sit pose and "Seated" HUD are shared state: leaving the hall mid-sit must not bring them back on return
+  useEffect(() => () => { motion.sit = false; player.seated = false; useHall.getState().setSeated(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const standUp = () => {
-    const s = seat.current; if (!s) return;
+    const s = seat.current;
+    // no chair on record (back from another page with the pose still set): just clear the pose
+    if (!s) { motion.sit = false; player.seated = false; if (useHall.getState().seated) useHall.getState().setSeated(null); return; }
     seat.current = null; motion.sit = false; player.seated = false; useHall.getState().setSeated(null);
     const fp = freePoint(s.x + Math.sin(s.yaw) * 1.6, s.z + Math.cos(s.yaw) * 1.6);
     pos.current.set(fp.x, 0, fp.z); social.pending.dirty = true;
@@ -371,7 +383,7 @@ export function Player() {
     // keep the camera inside the building so it never ends up looking at the back of a wall
     const cx = THREE.MathUtils.clamp(pos.current.x - Math.sin(yaw.current) * back, X0 + 3, X0 + HALL_LENGTH - 3);
     const cz = THREE.MathUtils.clamp(pos.current.z - Math.cos(yaw.current) * back, Z0 + 3, Z0 + HALL_DEPTH - 3);
-    camera.position.lerp(new THREE.Vector3(cx, up, cz), Math.min(1, d * 6));
+    camera.position.lerp(camGoal.set(cx, up, cz), Math.min(1, d * 6));
     camera.lookAt(pos.current.x + Math.sin(yaw.current) * 20, 4.5 + Math.tan(pitch.current) * 20 + (fp.current ? 1.1 : 0), pos.current.z + Math.cos(yaw.current) * 20);
     // nearest claimed booth in front of us (and whether ConBot is in reach), every 0.25s
     if (state.clock.elapsedTime - lastNear.current > 0.25) {
@@ -392,7 +404,9 @@ export function Player() {
     }
   });
 
-  if (mode !== "walk") return null;
+  // the walk light stays mounted (dark, out of the way) in map view: a light coming and going recompiles every material,
+  // which was a long hitch the first time anyone pressed Walk
+  if (mode !== "walk") return <pointLight position={[0, -100, 0]} intensity={0} distance={14} color="#ffffff" />;
   return (
     <group ref={group}>
       {!firstPerson && <AvatarModel config={avatar} motion={motion} />}
@@ -420,12 +434,14 @@ function plazaPoint(r: () => number): [number, number] {
  * wanderers drifting between spots in the arcade. Cosplayers cluster where a
  * real show's do: the plaza and the headliner aisles.
  */
-export function Crowd({ count = 110 }: { count?: number }) {
-  const npcs = useMemo<Npc[]>(() => {
+export function Crowd({ count = 110, cap = count }: { count?: number; cap?: number }) {
+  // one roster for the larger (walk) count, sliced to what's shown: switching between map and walk used to rebuild
+  // it, sending every figure back to its starting spot and re-cloning their rigs
+  const roster = useMemo<Npc[]>(() => {
     const r = rnd(42);
     const corridors = hallLayout().filter((b) => b.facing === 1).map((b) => b.x + b.w / 2 + 5);
     const unique = Array.from(new Set(corridors.map((x) => Math.round(x))));
-    return Array.from({ length: count }, (): Npc => {
+    return Array.from({ length: Math.max(cap, count) }, (): Npc => {
       const roll = r();
       const kind: Npc["kind"] = roll < 0.18 ? "plaza" : roll < 0.32 ? "cross" : "aisle";
       const corridor = unique[Math.floor(r() * unique.length)];
@@ -437,7 +453,8 @@ export function Crowd({ count = 110 }: { count?: number }) {
       if (kind === "cross") { const dir = r() < 0.5 ? 1 : -1; return { ...base, kind, x: X0 + 20 + r() * (HALL_LENGTH - 40), z: CROSS_Z0 + r() * (CROSS_Z1 - CROSS_Z0), vx: dir, vz: 0, tx: 0, tz: 0 }; }
       return { ...base, kind, x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), vx: 0, vz: r() < 0.5 ? 1 : -1, tx: 0, tz: 0 };
     }).map((n) => { const fp = freePoint(n.x, n.z); return { ...n, x: fp.x, z: fp.z }; }); // never start inside a cabinet row, the stage or a booth
-  }, [count]);
+  }, [Math.max(cap, count)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const npcs = useMemo(() => roster.slice(0, count), [roster, count]);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const motions = useMemo<Motion[]>(() => npcs.map(() => ({ speed: 1 })), [npcs]);
   useEffect(() => { perf.npcs = npcs.length; }, [npcs]);

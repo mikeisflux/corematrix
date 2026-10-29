@@ -4,9 +4,19 @@ import * as THREE from "three";
 /** Generated textures, keyed by their content. Bounded: the claim designer's live preview and the mascot's speech bubbles
  *  mint a new key per keystroke or line, so the oldest are evicted and their GPU copies freed. */
 class TexCache extends Map<string, THREE.CanvasTexture> {
+  // textures made while the hall first loads (floor, walls, signs, the booths already on the floor) stay for the
+  // whole visit: evicting one that is still on screen made three re-upload it every frame
+  private pinned = new Set<string>();
+  private born = typeof performance !== "undefined" ? performance.now() : 0;
   constructor(private max: number) { super(); }
   get(k: string) { const v = super.get(k); if (v) { super.delete(k); super.set(k, v); } return v; }
-  set(k: string, v: THREE.CanvasTexture) { super.set(k, v); while (this.size > this.max) { const [old, t] = this.entries().next().value as [string, THREE.CanvasTexture]; super.delete(old); t.dispose(); } return this; }
+  private evictable(): [string, THREE.CanvasTexture] | undefined { for (const e of this.entries()) if (!this.pinned.has(e[0])) return e; return undefined; }
+  set(k: string, v: THREE.CanvasTexture) {
+    super.set(k, v);
+    if (performance.now() - this.born < 30_000) this.pinned.add(k);
+    while (this.size - this.pinned.size > this.max) { const e = this.evictable(); if (!e) break; super.delete(e[0]); e[1].dispose(); }
+    return this;
+  }
 }
 const cache = new TexCache(400);
 

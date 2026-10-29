@@ -351,10 +351,12 @@ function CabinetFaces({ cabinets, cabMats, night }: { cabinets: Cab[]; cabMats: 
     screenMat.color.setScalar(night ? 1.3 : 1.05);
     marqueeMats.forEach((m) => m.color.setScalar(night ? 1.45 : 1.1));
   }, [night, screenMat, marqueeMats]);
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     // attract mode at 4 fps: one atlas redraw feeds every screen in the hall
     const t = clock.elapsedTime;
     if (t - attract.last < 0.25) return;
+    // nobody can see the cabinets from across the hall: skip the canvas redraw and upload
+    if (Math.hypot(camera.position.x - ARCADE.x, camera.position.z - ARCADE.z) > 220) return;
     attract.last = t; attract.frame++;
     drawScreens(atlas, attract.frame);
   });
@@ -563,7 +565,8 @@ function Theater({ night }: { night: boolean }) {
         ))}
         {[-12, 12].map((x) => <mesh key={x} position={[x, -SCREEN_H / 2 - 1.2 - (SCREEN_Y - SCREEN_H / 2 - 1.2 - 2) / 2, -0.3]}><boxGeometry args={[0.5, SCREEN_Y - SCREEN_H / 2 - 1.2 - 2, 0.5]} /><meshStandardMaterial color="#2b3140" metalness={0.6} roughness={0.4} /></mesh>)}
         {/* the screen lights the seats when a film is on */}
-        {playing && <pointLight position={[0, -SCREEN_H / 2, -10]} intensity={night ? 260 : 90} distance={60} decay={2} color="#9fb8ff" />}
+        {/* always mounted, dimmed to 0: adding or removing a light recompiles every material in the hall */}
+        <pointLight position={[0, -SCREEN_H / 2, -10]} intensity={playing ? (night ? 260 : 90) : 0} distance={60} decay={2} color="#9fb8ff" />
       </group>
       {/* benches: two rows, an aisle down the middle, facing the screen */}
       {BENCHES.map((b, i) => (
@@ -616,7 +619,7 @@ export function Arcade({ night }: { night: boolean }) {
       <NeonTube position={[x + w / 2, 15.3, z]} rotation={[Math.PI / 2, 0, 0]} length={d + 0.6} color="#00f5ff" intensity={rail} />
       <Theater night={night} />
       <FlyoverPad night={night} />
-      {night && <pointLight position={[x, 14, z]} intensity={420} distance={95} decay={2} color="#7c4dff" />}
+      <pointLight position={[x, 14, z]} intensity={night ? 420 : 0} distance={95} decay={2} color="#7c4dff" />
     </group>
   );
 }

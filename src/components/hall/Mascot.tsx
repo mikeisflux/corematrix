@@ -85,6 +85,7 @@ function Robot({ url }: { url: string }) {
   const version = useConBot();
   // speech bubble texture follows the current line
   const bubbleTex = useMemo(() => conbot.line ? signTexture(wrap(conbot.line), { bg: "#0b0f1a", fg: "#ffffff", accentBar: "#ff2bd6", w: 768, h: 240, size: 44 }) : null, [version]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lastT = useRef(0);
   const state = useRef({
     x: ARCADE.x + LOOP[0][0], z: ARCADE.z + LOOP[0][1], tx: ARCADE.x + LOOP[1][0], tz: ARCADE.z + LOOP[1][1],
     mode: "walk" as Mode, after: "walk" as Mode, until: 0, current: "", seenCmd: 0, nextGreet: 0, nextNag: 0, arrive: "",
@@ -104,7 +105,7 @@ function Robot({ url }: { url: string }) {
   useEffect(() => {
     const s = state.current;
     if (talking) { if (useHall.getState().mode === "walk") s.mode = "approach"; else { s.mode = "talk"; play("Idle"); } }
-    else if (s.mode === "talk" || s.mode === "approach" || s.mode === "emote") { s.mode = "trick"; s.after = "walk"; s.until = performance.now() / 1000 + clipSeconds("Wave"); play("Wave"); }
+    else if (s.mode === "talk" || s.mode === "approach" || s.mode === "emote") { s.mode = "trick"; s.after = "walk"; s.until = lastT.current + clipSeconds("Wave"); play("Wave"); } // the frame clock, as useFrame compares against
   }, [talking]); // eslint-disable-line react-hooks/exhaustive-deps
   const nextCorner = (s: typeof state.current) => {
     const corners = LOOP;
@@ -123,7 +124,7 @@ function Robot({ url }: { url: string }) {
   const face = (s: typeof state.current, g: THREE.Group, x: number, z: number) => { g.rotation.y = Math.atan2(x - s.x, z - s.z); };
   useFrame(({ clock }, dt) => {
     const s = state.current, g = group.current; if (!g) return;
-    const t = clock.elapsedTime;
+    const t = clock.elapsedTime; lastT.current = t;
     const near = Math.hypot(player.x - s.x, player.z - s.z);
     // a command from the panel
     if (conbot.cmdVersion !== s.seenCmd) {
@@ -152,7 +153,7 @@ function Robot({ url }: { url: string }) {
       }
       case "talk":
         face(s, g, player.x, player.z);
-        if (near > 12) { s.mode = "approach"; }
+        if (near > 12 && useHall.getState().mode === "walk") { s.mode = "approach"; } // in map view there's no avatar to walk to
         break;
       case "lead": {
         // wait for the player when they fall behind, nag them once in a while

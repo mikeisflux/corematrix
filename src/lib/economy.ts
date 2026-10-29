@@ -18,8 +18,15 @@ import { notify } from "@/lib/notify";
 
 export type Booth = typeof schema.booths.$inferSelect;
 
+/** Changes only when what /api/logo serves changes (the logo, or the name and colour its initials fallback uses), not on
+ *  every value bump: each change makes every viewer download the logo again. */
+export function logoStamp(p: Pick<Booth, "logoUrl" | "name" | "color">): number {
+  const s = `${p.logoUrl ?? ""}|${p.name ?? ""}|${p.color ?? ""}`;
+  let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
 export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>) {
-  return { art, artLinks, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: p.updatedAt ?? 0, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+  return { art, artLinks, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: logoStamp(p), id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 

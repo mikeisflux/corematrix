@@ -309,7 +309,7 @@ function HangingSigns({ night }: { night: boolean }) {
       </group>
       <group position={[ARCADE.x, CEILING - 6, ARCADE.z - ARCADE.d / 2 - 2]}>
         <TwoSided w={60} h={15}><meshBasicMaterial map={arcadeSign} toneMapped={false} /></TwoSided>
-        {night && <pointLight position={[0, -4, 6]} intensity={400} distance={90} color="#ff2bd6" />}
+        <pointLight position={[0, -4, 6]} intensity={night ? 400 : 0} distance={90} color="#ff2bd6" />
       </group>
     </group>
   );

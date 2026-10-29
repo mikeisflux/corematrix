@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, PerformanceMonitor } from "@react-three/drei";
@@ -36,6 +36,7 @@ export function Scene() {
   useEffect(() => { setDpr(quality === "high" ? Math.min(1.5, window.devicePixelRatio) : quality === "medium" ? Math.min(1.25, window.devicePixelRatio) : 1); }, [quality, setDpr]);
   const crowdScale = prefs.crowd === "none" ? 0 : prefs.crowd === "light" ? 0.4 : 1;
   const crowd = { high: [110, 140], medium: [60, 80], low: [28, 40] }[quality].map((n) => Math.round(n * crowdScale));
+  const previewId = useHall((s) => s.previewDraft?.boothId ?? null);
   return (
     <>
       {prefs.quality === "auto" && (
@@ -50,12 +51,12 @@ export function Scene() {
       <Lighting night={night} />
       <Hall night={night} />
       <Arcade night={night} />
-      <EmptyBooths claimed={booths} night={night} />
+      <EmptyBooths claimed={booths} night={night} exclude={previewId} />
       {list.map((p) => <Booth key={p.id} booth={p} night={night} hovered={hovered === p.id} selected={selected === p.id} />)}
       <PreviewBooth />
       <AisleBanners billboards={billboards} night={night} />
       <EntranceBanner billboards={billboards} night={night} />
-      <Crowd count={mode === "walk" ? crowd[1] : crowd[0]} />
+      <Crowd count={mode === "walk" ? crowd[1] : crowd[0]} cap={Math.max(crowd[0], crowd[1])} />
       <Mascot />
       <Player />
       <Others />
@@ -148,7 +149,11 @@ function Lighting({ night }: { night: boolean }) {
 
 /** The live claim preview: renders the draft as a real booth on its space. */
 function PreviewBooth() {
-  const draft = useHall((s) => s.previewDraft);
+  const live = useHall((s) => s.previewDraft);
+  // redraw at most every 200 ms: dragging a colour picker fires on every tick, and each redraw paints three large
+  // canvases, which used to flood the texture cache until it evicted textures still on screen
+  const [draft, setDraft] = useState(live);
+  useEffect(() => { if (!live) { setDraft(live); return; } const t = setTimeout(() => setDraft(live), 200); return () => clearTimeout(t); }, [live]);
   const night = useHall((s) => s.night);
   if (!draft) return null;
   const sp = boothSpace(draft.boothId);
@@ -231,12 +236,17 @@ function CameraRig() {
     if (c && c.length === 6 && c.every((n) => Number.isFinite(n))) { pinned.current = true; target.current = { pos: new THREE.Vector3(c[0], c[1], c[2]), look: new THREE.Vector3(c[3], c[4], c[5]) }; }
   }, []);
 
+  const ridePos = useMemo(() => new THREE.Vector3(), []), rideLook = useMemo(() => new THREE.Vector3(), []); // reused every frame
   useFrame((_, dt) => {
     if (ride) {
       rideT.current += dt / 60;
-      if (rideT.current >= 1) { setRide(false); return; }
-      const p = curve.getPointAt(rideT.current);
-      const ahead = curve.getPointAt((rideT.current + 0.004) % 1);
+      if (rideT.current >= 1) {
+        // hand the map controls the spot the ride was looking at, or their first update snaps the view far away
+        if (controls.current) { controls.current.target.set(rideLook.x, rideLook.y - 3, rideLook.z); controls.current.update(); }
+        target.current = null; setRide(false); return;
+      }
+      const p = curve.getPointAt(rideT.current, ridePos);
+      const ahead = curve.getPointAt((rideT.current + 0.004) % 1, rideLook);
       camera.position.lerp(p, 0.4);
       camera.lookAt(ahead.x, ahead.y - 3, ahead.z);
       return;

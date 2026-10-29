@@ -67,12 +67,14 @@ export class ModelBoundary extends Component<{ fallback: ReactNode; children: Re
 function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onClick }: PropProps & { url: string }) {
   const { scene } = useGLTF(url);
   const colorKey = JSON.stringify([colors, emissive]);
+  // keyed on the textures themselves: callers pass a fresh `maps` object every render, which re-cloned the model on every hover
+  const mapKey = maps ? Object.entries(maps).map(([k, t]) => `${k}:${t?.uuid ?? ""}`).join("|") : "";
   const obj = useMemo(() => {
     const c = cloneWithMaterials(scene, colors, emissive);
     if (maps) c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && maps[(m.material as THREE.Material).name]) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.map = maps[(m.material as THREE.Material).name]; mm.color.set("#ffffff"); mm.transparent = true; mm.alphaTest = 0.02; m.material = mm; } });
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene, colorKey, maps]);
+  }, [scene, colorKey, mapKey]);
   return <primitive object={obj} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
 }
 

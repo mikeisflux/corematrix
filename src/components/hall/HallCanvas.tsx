@@ -21,7 +21,12 @@ function friendsOnFloor(players: LivePlayer[]) {
     if (!p.uid || p.uid === me.id || !social.friendIds.has(p.uid)) continue;
     here.add(p.uid);
     const last = friendSeen.get(p.uid) ?? 0;
-    if (Date.now() - last > 10 * 60_000) useHall.getState().setToast(`🤝 ${p.n} is on the floor`, () => useHall.getState().setWalkPoint({ x: p.x + 3, z: p.z + 1, face: { x: p.x, z: p.z } }));
+    if (Date.now() - last > 10 * 60_000) useHall.getState().setToast(`🤝 ${p.n} is on the floor`, () => {
+      // walk to where they are now (they may have moved since the toast), switching to walk mode from the map
+      const at = live.players.get(p.id) ?? p; const st = useHall.getState();
+      if (st.mode !== "walk") st.setMode("walk");
+      st.setWalkPoint({ x: at.x + 3, z: at.z + 1, face: { x: at.x, z: at.z } });
+    });
     friendSeen.set(p.uid, Date.now());
   }
   for (const [uid, t] of friendSeen) if (!here.has(uid) && Date.now() - t > 30_000) friendSeen.set(uid, t); // away: the timestamp ages, so a return after ten minutes toasts again
@@ -39,7 +44,9 @@ export function HallCanvas() {
 
   useEffect(() => {
     let alive = true;
-    api<{ booths: HallBooth[]; stats: HallStats; events: HallEvent[]; billboards: HallBillboard[]; featured: Featured[] }>("/api/hall").then((d) => {
+    // one failed request (a deploy, a blip) used to leave "Opening the hall…" up forever: retry with a growing delay
+    let hallRetry: ReturnType<typeof setTimeout> | null = null;
+    const loadHall = (delay = 1000) => api<{ booths: HallBooth[]; stats: HallStats; events: HallEvent[]; billboards: HallBillboard[]; featured: Featured[] }>("/api/hall").then((d) => {
       if (!alive) return;
       setBooths(d.booths);
       setStats(d.stats);
@@ -49,7 +56,8 @@ export function HallCanvas() {
         .forEach((e) => pushEvent(e));
       setBillboards(d.billboards);
       setFeatured(d.featured);
-    });
+    }).catch(() => { if (alive) hallRetry = setTimeout(() => loadHall(Math.min(15_000, delay * 2)), delay); });
+    void loadHall();
     try { const saved = localStorage.getItem("fcc_avatar"); if (saved) useHall.getState().setAvatar(JSON.parse(saved)); } catch {}
     api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => {
       if (!alive) return;
@@ -63,6 +71,7 @@ export function HallCanvas() {
     // first, private messages would miss this tab, so reconnect once the real id is known from the presence reply.
     // for debugging in the console and in tests: the live roster and social state
     (window as unknown as { __fcc?: unknown }).__fcc = { live, social, hall: useHall, player };
+    document.body.dataset.hall = "1"; // the walk keys only act while this is set (see Avatar.tsx)
     // crews change while people are on the floor: refresh my booths when the tab comes back and every two minutes
     const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => { if (alive) setMe(d.user, d.booths); }).catch(() => {}); };
     document.addEventListener("visibilitychange", refreshMe);
@@ -111,6 +120,8 @@ export function HallCanvas() {
     }, 2000);
     return () => {
       alive = false;
+      if (hallRetry) clearTimeout(hallRetry);
+      delete document.body.dataset.hall;
       clearInterval(check);
       if (retry) clearTimeout(retry);
       clearInterval(refresh);
@@ -158,7 +169,9 @@ export function HallCanvas() {
       dpr={[1, 1.25]}
       camera={{ position: [0, 150, 180], fov: 45, near: 0.5, far: 2200 }}
       gl={{ antialias: false, powerPreference: "high-performance", stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.12 }}
-      onPointerMissed={() => { if (useHall.getState().mode === "map") useHall.getState().select(null); }}
+      // a click on empty floor deselects the booth; it only closes the panel if that panel was the booth's (a chat, the
+      // settings or the claim designer with a half-typed draft stays open)
+      onPointerMissed={() => { const st = useHall.getState(); if (st.mode !== "map" || st.selected == null) return; const keep = st.panel !== "booth" ? st.panel : null; st.select(null); if (keep) st.setPanel(keep); }}
       className="h-full w-full"
     >
       <FrameTicker cap={prefs.fpsCap} />

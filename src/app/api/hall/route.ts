@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { HOUSE_BOOTH_ID } from "@/lib/config";
 import { artFlags, artLinks } from "@/lib/art";
-import { activeBillboards, claimedBooths, recentEvents, siteStats } from "@/lib/economy";
+import { activeBillboards, claimedBooths, recentEvents, siteStats, logoStamp } from "@/lib/economy";
 import { onlineCount } from "@/lib/realtime";
 import { TOTAL_BOOTHS } from "@/lib/economy";
 import { trendingScores } from "@/lib/analytics";
@@ -19,7 +19,7 @@ export async function GET() {
         tagline: p.tagline,
         website: p.website,
         hasLogo: !!p.logoUrl,
-        logoVersion: p.updatedAt ?? 0,
+        logoVersion: logoStamp(p),
         color: p.color,
         accent: p.accent,
         style: p.style,

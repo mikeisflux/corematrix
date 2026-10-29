@@ -11,11 +11,12 @@ const tmp = new THREE.Object3D();
 const SIZES = Object.keys(BOOTH_SIZES) as BoothSize[];
 
 /** Every unclaimed space, instanced per size: taped outline on the floor, grey pipe-and-drape, a skirted table, a roll-up and an "available" card. */
-export function EmptyBooths({ claimed, night }: { claimed: Map<number, unknown>; night: boolean }) {
+export function EmptyBooths({ claimed, night, exclude = null }: { claimed: Map<number, unknown>; night: boolean; exclude?: number | null }) {
   const groups = useMemo(() => {
-    const all = hallLayout().filter((b) => !claimed.has(b.id));
+    // `exclude`: the space the claim preview is drawn on, so the grey booth doesn't z-fight with it
+    const all = hallLayout().filter((b) => !claimed.has(b.id) && b.id !== exclude);
     return SIZES.map((size) => ({ size, spaces: all.filter((b) => b.size === size) }));
-  }, [claimed]);
+  }, [claimed, exclude]);
   return <>{groups.map((g) => g.spaces.length > 0 && <SizeGroup key={g.size} size={g.size} spaces={g.spaces} night={night} />)}</>;
 }
 
@@ -84,9 +85,10 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
       // card stands at the open side facing the aisle; islands face whichever concourse they border
       if (island) {
         const dir = Math.abs(s.z - ARCADE.z) < d * 2 ? Math.sign(ARCADE.z - s.z) : -1;
-        tmp.position.set(s.x, 2.4, s.z + dir * (d / 2 - 0.6)); tmp.rotation.set(0, dir > 0 ? 0 : Math.PI, 0);
+        tmp.position.set(s.x, 3.45, s.z + dir * (d / 2 - 1.6)); tmp.rotation.set(0, dir > 0 ? 0 : Math.PI, 0);
       } else {
-        tmp.position.set(s.x + f * (w / 2 - 1.2), 2.4, s.z); tmp.rotation.set(0, f === 1 ? Math.PI / 2 : -Math.PI / 2, 0);
+        // standing on the table top (top at ~2.6 ft), over the table's centre line, instead of half inside the table
+        tmp.position.set(s.x + f * (w / 2 - 1.6), 3.45, s.z); tmp.rotation.set(0, f === 1 ? Math.PI / 2 : -Math.PI / 2, 0);
       }
       tmp.updateMatrix(); card.current!.setMatrixAt(i, tmp.matrix);
       // furniture: skirted table 1.6 ft in from each open edge, roll-up banner 4.6 ft in behind it

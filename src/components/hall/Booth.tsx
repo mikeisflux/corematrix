@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Html } from "@react-three/drei";
-import { bannerTexture, drapeTexture, framedLogoTexture, logoTexture, signTexture, luminance } from "./textures";
+import { bannerTexture, drapeTexture, dropLogo, framedLogoTexture, logoTexture, signTexture, luminance } from "./textures";
 import { useHall, track, dragged, type HallBooth } from "@/lib/hall/store";
 import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
 import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
@@ -108,11 +108,22 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   // an island's four roll-ups each take their own art (rollup:N), else the single portrait slot, else the generated banner
   const rollupKey = [0, 1, 2, 3].map((i) => booth.art?.[`rollup:${i}`] ?? 0).join("|");
   const rollups = useMemo(() => rollupKey.split("|").map((v, i) => (Number(v) ? logoTexture(`/api/art/${booth.id}/rollup:${i}?v=${v}`) : portrait)), [rollupKey, booth.id, portrait]);
-  const hang = useMemo(() => wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [wideUrl, booth.name, booth.accent, booth.color]);
+  // the 1024×256 hanging sign only shows on islands and higher-level booths: don't paint it for every booth at load
+  const showsHang = booth.size === "20x20" || sign.level >= 2;
+  const hang = useMemo(() => !showsHang ? (null as unknown as THREE.Texture) : wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [showsHang, wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
   const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
   // the spinning logo box is the house booth's alone: building its 1024×1536 canvas for every booth cost ~6 MB each at load
   const cubeLogo = useMemo(() => (booth.house ? framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a", 1.5) : null), [booth.house, booth.id, booth.logoVersion, booth.cloth]); // 5 wide × 7.5 tall faces
+  // logo and art textures are cached by URL (the version is in it): free the ones this booth no longer uses, or every
+  // logo change or art upload left the old copy on the GPU for the rest of the visit
+  const usedUrls = [`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, wideUrl, portraitUrl, floorUrl, towerUrl, ...bookKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return `/api/art/${booth.id}/${k}?v=${v}`; }), ...rollupKey.split("|").map((v, i) => (Number(v) ? `/api/art/${booth.id}/rollup:${i}?v=${v}` : null))].filter(Boolean).join(" ");
+  const prevUrls = useRef(usedUrls);
+  useEffect(() => {
+    const now = new Set(usedUrls.split(" "));
+    for (const u of prevUrls.current.split(" ")) if (u && !now.has(u)) dropLogo(u);
+    prevUrls.current = usedUrls;
+  }, [usedUrls]);
   if (!space) return null;
   const facing = space.facing;
   const rotY = facing === -1 ? Math.PI : 0;
@@ -163,10 +174,10 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     const cd = Math.min(5.6, Math.max(4.3, rd + 1.25));
     return (
       <group position={[space.x, 0, space.z]} {...common}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial map={floorArt ?? undefined} color={floorArt && !hovered && !selected ? "#ffffff" : floorColor} roughness={1} transparent opacity={preview ? 0.6 : floorArt ? 1 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial key={floorArt ? "art" : "plain"} /* a map appearing or going away needs a new shader */ map={floorArt ?? undefined} color={floorArt && !hovered && !selected ? "#ffffff" : floorColor} roughness={1} transparent opacity={preview ? 0.6 : floorArt ? 1 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
         {/* thin fabric-wrapped tower (3 ft square) on a plinth, aluminium corner trims, a cap, a banner and logo board on each face (or the owner's wrap on all four faces) */}
         <mesh position={[0, 0.25, 0]} material={FRAME}><boxGeometry args={[TOWER_W + 0.8, 0.5, TOWER_W + 0.8]} /></mesh>
-        <mesh position={[0, th / 2, 0]} castShadow onClick={bannerClick}><boxGeometry args={[TOWER_W, th, TOWER_W]} /><meshStandardMaterial map={towerArt ?? drape} color="#ffffff" roughness={towerArt ? 0.6 : 0.9} emissiveMap={towerArt ?? undefined} emissive={towerArt ? "#ffffff" : "#000000"} emissiveIntensity={towerArt ? glow : 0} /></mesh>
+        <mesh position={[0, th / 2, 0]} castShadow onClick={bannerClick}><boxGeometry args={[TOWER_W, th, TOWER_W]} /><meshStandardMaterial key={towerArt ? "art" : "plain"} map={towerArt ?? drape} color="#ffffff" roughness={towerArt ? 0.6 : 0.9} emissiveMap={towerArt ?? undefined} emissive={towerArt ? "#ffffff" : "#000000"} emissiveIntensity={towerArt ? glow : 0} /></mesh>
         {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z], i) => <mesh key={i} position={[x * TOWER_W / 2, th / 2, z * TOWER_W / 2]} material={ALU_DARK}><boxGeometry args={[0.2, th, 0.2]} /></mesh>)}
         <mesh position={[0, th + 0.25, 0]} material={FRAME}><boxGeometry args={[TOWER_W + 0.6, 0.5, TOWER_W + 0.6]} /></mesh>
         {/* banner band with the logo board above it, stacked in the part of the face that shows above the roll-ups */}
