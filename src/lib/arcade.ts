@@ -205,7 +205,8 @@ export async function convertCoinsToValue(userId: string, boothId: number, coins
   if ((await spendCoins(userId, spend, "boost_convert", `booth:${boothId}`)) === null) throw new Error("Not enough coins");
   const [np] = await db
     .update(schema.booths)
-    .set({ valueCents: sql`${schema.booths.valueCents} + ${cents}`, updatedAt: now() })
+    // coins are mostly given away (daily visits, prizes): value made from them never pays out in a takeover
+    .set({ valueCents: sql`${schema.booths.valueCents} + ${cents}`, freeValueCents: sql`${schema.booths.freeValueCents} + ${cents}`, updatedAt: now() })
     .where(eq(schema.booths.id, boothId))
     .returning();
   await addEvent("boost", boothId, `${np.name} grew taller with arcade coins`, `+$${(cents / 100).toFixed(0)} in value`, cents);

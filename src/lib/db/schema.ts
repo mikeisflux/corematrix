@@ -86,6 +86,9 @@ export const booths = sqliteTable(
     featuredUntil: integer("featured_until"), // season winners get a week on the home page
     lastTakeoverNudgeAt: integer("last_takeover_nudge_at"),
     valueCents: integer("value_cents").notNull().default(0),
+    // how much of valueCents the owner got without paying: a booth code, an admin comp, referral credit, converted
+    // coins. A takeover pays the seller only for the part they paid for; the free part goes to the show.
+    freeValueCents: integer("free_value_cents").notNull().default(0),
     claimedAt: integer("claimed_at"),
     updatedAt: integer("updated_at"),
     lastSoldAt: integer("last_sold_at"),

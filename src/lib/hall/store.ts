@@ -16,6 +16,7 @@ export interface HallBooth {
   globalcomix?: string | null;
   hasLogo: boolean;
   logoVersion?: number; // bumps when the logo changes so the floor reloads it
+  freeValueCents?: number; // value the owner got free: a takeover doesn't pay it out
   color: string;
   accent: string;
   style: string;

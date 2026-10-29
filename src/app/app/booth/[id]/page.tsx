@@ -5,7 +5,7 @@ import { Shell } from "@/components/pages/Shell";
 import { allow } from "@/lib/throttle";
 import { getPublicBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
-import { CATEGORIES, formatCount, formatMoney, SITE_NAME, SITE_URL, splitTakeover, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, SITE_NAME, SITE_URL, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID, takeoverSplitFor } from "@/lib/config";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
@@ -55,7 +55,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
   const [series, history, all] = await Promise.all([boothSeries(boothId, 30), boothHistory(boothId), claimedBooths()]);
   const totals = sumSeries(series.slice(-7));
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
-  const { price, sellerPayout } = splitTakeover(p.valueCents);
+  const { price, sellerPayout } = takeoverSplitFor(p.valueCents, p.freeValueCents);
   const isOwner = user?.id === p.ownerId;
   const paid = sp.paid;
   return (
@@ -126,7 +126,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
             ) : (
               <>
                 <div className="mono mt-1 text-3xl font-bold">{formatMoney(price)}</div>
-                <p className="text-xs text-slate-300">1.25× the current value. The owner gets {formatMoney(sellerPayout)} back ({formatMoney(sellerPayout - p.valueCents)} profit). Nobody loses money on a takeover.</p>
+                <p className="text-xs text-slate-300">1.25× the current value. {(p.freeValueCents ?? 0) > 0 ? <>The owner gets {formatMoney(sellerPayout)} for the part of the booth they paid for.</> : <>The owner gets {formatMoney(sellerPayout)} back ({formatMoney(sellerPayout - p.valueCents)} profit). Nobody loses money on a takeover.</>}</p>
                 <Link href={`/app?booth=${boothId}&takeover=1`} className="btn-primary mt-3 w-full">Take over →</Link>
               </>
             )}

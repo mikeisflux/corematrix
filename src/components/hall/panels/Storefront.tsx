@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { track, useHall, type HallBooth } from "@/lib/hall/store";
-import { CATEGORIES, formatCount, formatMoney, splitTakeover, BOOTH_SIZES, ZONES } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, BOOTH_SIZES, ZONES, takeoverSplitFor } from "@/lib/config";
 import { boothSpace } from "@/lib/hall/layout";
 import { live } from "@/lib/hall/live";
 import { openSite } from "../Booth";
@@ -55,7 +55,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const iAmOwner = !!me && me.id === ownerId;
   // people standing around the booth right now (within 30 ft of its centre), me included
   const browsing = space ? players.filter((p) => Math.hypot(p.x - space.x, p.z - space.z) < 30).length : 0;
-  const { price, sellerPayout } = splitTakeover(booth.valueCents);
+  const { price, sellerPayout } = takeoverSplitFor(booth.valueCents, booth.freeValueCents);
   const open = (href: string, key: string) => { if (key === "website") openSite(id, href, mode === "walk" ? "walk" : "panel"); else { track({ kind: "clicks", boothId: id, source: key }); window.open(href, "_blank", "noopener"); } };
   const tierName = booth.tier === "landmark" ? "Headliner" : booth.tier === "pro" ? "Pro" : null;
   return (

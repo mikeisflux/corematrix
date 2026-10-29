@@ -25,7 +25,7 @@ async function clawbackSeller(tx: Tx, why: string) {
 
 /** Called once, when a transaction becomes fully refunded. */
 export async function reverseGrant(tx: Tx) {
-  const meta = (tx.meta ? JSON.parse(tx.meta) : {}) as { creditUsed?: number; codeId?: string; coins?: number; previousName?: string; renewal?: boolean };
+  const meta = (tx.meta ? JSON.parse(tx.meta) : {}) as { creditUsed?: number; codeId?: string; coins?: number; previousName?: string; renewal?: boolean; freeBefore?: number };
   const t = now();
   const done: string[] = [];
   const booth = tx.boothId ? await getBooth(tx.boothId) : null;
@@ -37,7 +37,7 @@ export async function reverseGrant(tx: Tx) {
     case "takeover":
       await clawbackSeller(tx, "refunded"); done.push("seller payout taken back");
       if (stillTheirs && tx.sellerId) {
-        await db.update(schema.booths).set({ ownerId: tx.sellerId, valueCents: tx.valueBefore, teamId: null, ...(meta.previousName ? { name: meta.previousName } : {}), updatedAt: t })
+        await db.update(schema.booths).set({ ownerId: tx.sellerId, valueCents: tx.valueBefore, freeValueCents: meta.freeBefore ?? 0, teamId: null, ...(meta.previousName ? { name: meta.previousName } : {}), updatedAt: t })
           .where(and(eq(schema.booths.id, tx.boothId), eq(schema.booths.ownerId, tx.buyerId!)));
         done.push("booth returned to the seller");
         await notify(tx.sellerId, "booth", "Your booth is back", "The takeover was refunded, so the booth is yours again. Check its design in the dashboard.", tx.boothId).catch(() => {});

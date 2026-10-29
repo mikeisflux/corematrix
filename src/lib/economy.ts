@@ -5,7 +5,7 @@
  */
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
-import { MIN_BOOST_CENTS, TIERS, type Tier, splitTakeover, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, BOOK_PRICE_CENTS, bookCapacity } from "@/lib/config";
+import { MIN_BOOST_CENTS, TIERS, type Tier, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, BOOK_PRICE_CENTS, bookCapacity, takeoverSplitFor } from "@/lib/config";
 import { clampStr, isHexColor, newId, normalizeUrl, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
@@ -26,7 +26,7 @@ export function logoStamp(p: Pick<Booth, "logoUrl" | "name" | "color">): number 
   return h >>> 0;
 }
 export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>) {
-  return { art, artLinks, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: logoStamp(p), id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+  return { art, artLinks, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -213,7 +213,8 @@ export async function startTakeover(boothId: number, buyerId: string, draft: Boo
   if (p.ownerId === buyerId) throw new Error("You already own this booth. Boost it instead.");
   if (boothId === HOUSE_BOOTH_ID) throw new Error("This is the show's own booth. It is never for sale.");
   if (p.notForSaleUntil && p.notForSaleUntil > now()) throw new Error("This Headliner booth is shielded for a few more days.");
-  const { price, sellerPayout, platform } = splitTakeover(p.valueCents);
+  // the seller is paid only for the part of the booth they paid for: value they got free stays with the show
+  const { price, sellerPayout, platform } = takeoverSplitFor(p.valueCents, p.freeValueCents);
   const credit = Math.min(creditCents, Math.max(0, price - sellerPayout));
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
@@ -227,7 +228,7 @@ export async function startTakeover(boothId: number, buyerId: string, draft: Boo
     valueBefore: p.valueCents,
     valueAfter: price,
     status: "pending",
-    meta: JSON.stringify({ draft, creditUsed: credit, previousName: p.name }),
+    meta: JSON.stringify({ draft, creditUsed: credit, previousName: p.name, freeBefore: p.freeValueCents }),
     createdAt: now(),
   };
   await db.insert(schema.transactions).values(tx);
@@ -454,6 +455,10 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
   // payment stays recorded as paid, nothing is applied, and it is flagged for a refund.
   const conflict = await claimInputs(tx, meta);
   if (conflict) return flagForRefund(updated[0], conflict);
+  // the part of this purchase that wasn't paid for: a booth code or an admin comp covers it all; referral credit covers
+  // what it paid. A later takeover pays the owner only for the rest.
+  const promoUsed = Number((await db.select({ m: schema.transactions.meta }).from(schema.transactions).where(eq(schema.transactions.id, tx.id)).limit(1)).map((r) => (r.m ? JSON.parse(r.m).promoUsed : 0))[0] ?? 0) || 0;
+  const freeValue = meta.codeId || provider === "comp" ? tx.valueAfter : Math.min(promoUsed, tx.valueAfter);
 
   if (tx.kind === "claim" && meta.draft) {
     const d = sanitizeDraft(meta.draft);
@@ -465,6 +470,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
         ownerId: tx.buyerId,
         ...d,
         valueCents: tx.valueAfter,
+        freeValueCents: freeValue,
         claimedAt: t,
         updatedAt: t,
         lastSoldAt: t,
@@ -472,7 +478,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
       })
       .onConflictDoUpdate({
         target: schema.booths.id,
-        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false, teamId: null },
+        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, freeValueCents: freeValue, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false, teamId: null },
         setWhere: isNull(schema.booths.ownerId), // never over someone who claimed it in the meantime
       })
       .returning({ id: schema.booths.id })
@@ -506,6 +512,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
         featuredUntil: null,
         notForSaleUntil: null,
         teamId: null, // the old owner's crew doesn't come with the booth
+        freeValueCents: freeValue, // the new owner paid for it (less any referral credit they used)
         salesCount: sql`${schema.booths.salesCount} + 1`,
       })
       .where(and(eq(schema.booths.id, tx.boothId), tx.sellerId ? eq(schema.booths.ownerId, tx.sellerId) : sql`1`, eq(schema.booths.valueCents, tx.valueBefore)))
@@ -516,8 +523,11 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
         .update(schema.users)
         .set({ creditCents: sql`${schema.users.creditCents} + ${tx.sellerPayoutCents}` })
         .where(eq(schema.users.id, tx.sellerId));
-      await notify(tx.sellerId, "sold", `${prev?.name ?? "Your booth"} was bought out`, `Booth ${prev?.label ?? tx.boothId} sold for ${formatMoney(tx.valueAfter)}. ${formatMoney(tx.sellerPayoutCents)} was added to your balance (${formatMoney(tx.sellerPayoutCents - tx.valueBefore)} profit).`, tx.boothId);
-      await sendSold(tx.sellerId, tx.boothId, prev?.name ?? "Your booth", tx.valueAfter, tx.sellerPayoutCents, tx.valueBefore);
+      const freeBefore = Number((meta as { freeBefore?: number }).freeBefore ?? 0) || 0;
+      await notify(tx.sellerId, "sold", `${prev?.name ?? "Your booth"} was bought out`, tx.sellerPayoutCents <= 0
+        ? `Booth ${prev?.label ?? tx.boothId} sold for ${formatMoney(tx.valueAfter)}. It came to you free (a booth code or a gift from the show), so the sale goes to the show; nothing is added to your balance.`
+        : `Booth ${prev?.label ?? tx.boothId} sold for ${formatMoney(tx.valueAfter)}. ${formatMoney(tx.sellerPayoutCents)} was added to your balance${freeBefore > 0 ? ` (paid on the part of the booth you paid for; the part you got free stays with the show)` : ` (${formatMoney(tx.sellerPayoutCents - tx.valueBefore)} profit)`}.`, tx.boothId);
+      if (tx.sellerPayoutCents > 0) await sendSold(tx.sellerId, tx.boothId, prev?.name ?? "Your booth", tx.valueAfter, tx.sellerPayoutCents, tx.valueBefore);
     }
     await addEvent("takeover", tx.boothId, `${d.name} took over booth ${prev?.label ?? tx.boothId}`, `Bought ${meta.previousName ?? "the space"} for ${formatMoney(tx.valueAfter)}`, tx.valueAfter);
     await notify(tx.buyerId, "takeover", `Booth ${prev?.label ?? tx.boothId} is yours`, `You took over ${meta.previousName ?? "the space"} for ${formatMoney(tx.valueAfter)}. Set up your banner and comics from the dashboard.`, tx.boothId);
@@ -525,7 +535,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
   } else if (tx.kind === "boost") {
     const [p] = await db
       .update(schema.booths)
-      .set({ valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .set({ valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, ...(provider === "comp" ? { freeValueCents: sql`${schema.booths.freeValueCents} + ${tx.amountCents}` } : {}), updatedAt: t })
       .where(eq(schema.booths.id, tx.boothId))
       .returning();
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} upgraded its signage`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
@@ -535,7 +545,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
     const height = Number((meta as { height?: number }).height) || BANNER.defaultHeight;
     const [p] = await db
       .update(schema.booths)
-      .set({ bannerHeight: height, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .set({ bannerHeight: height, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, ...(provider === "comp" ? { freeValueCents: sql`${schema.booths.freeValueCents} + ${tx.amountCents}` } : {}), updatedAt: t })
       .where(and(eq(schema.booths.id, tx.boothId), sql`${schema.booths.bannerHeight} < ${height}`)) // two upgrades settling out of order can't shrink it
       .returning();
     if (!p) { await releaseInputs(tx, meta); throw new SettleConflict("The banner is already this tall or taller (another upgrade landed first)."); }
@@ -548,7 +558,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
     const cap = cur ? bookCapacity(cur.size, cur.kind) : 3;
     const [p] = await db
       .update(schema.booths)
-      .set({ bookSlots: sql`${schema.booths.bookSlots} + ${qty}`, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .set({ bookSlots: sql`${schema.booths.bookSlots} + ${qty}`, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, ...(provider === "comp" ? { freeValueCents: sql`${schema.booths.freeValueCents} + ${tx.amountCents}` } : {}), updatedAt: t })
       .where(and(eq(schema.booths.id, tx.boothId), sql`${schema.booths.bookSlots} + ${qty} <= ${cap}`)) // never charge for stands the table can't hold
       .returning();
     if (!p) { await releaseInputs(tx, meta); throw new SettleConflict("The table is already full of comic stands (another purchase landed first)."); }

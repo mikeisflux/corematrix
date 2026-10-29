@@ -3,14 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot } from "@/lib/config";
+import { REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot, takeoverSplitFor } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; emailVerified?: boolean; promoCents?: number; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
-  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -82,7 +82,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   }
 
   const p = detail?.booth;
-  const takeover = p ? splitTakeover(p.valueCents) : null;
+  const takeover = p ? takeoverSplitFor(p.valueCents, p.freeValueCents) : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -459,13 +459,15 @@ function Emails({ me, onChanged }: { me: Me; onChanged: () => void }) {
   );
 }
 
-function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: ReturnType<typeof splitTakeover>; setMsg: (s: string) => void }) {
+function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: ReturnType<typeof takeoverSplitFor>; setMsg: (s: string) => void }) {
   void setMsg;
   return (
     <div className="rounded-2xl border border-white/10 p-4">
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Takeover exposure</div>
       <div className="mono mt-1 text-3xl font-bold">{formatMoney(takeover.price)}</div>
-      <p className="text-xs text-slate-300">is what someone pays to take Booth #{p.id}. You would receive <b className="text-white">{formatMoney(takeover.sellerPayout)}</b> as credit, a {formatMoney(takeover.sellerPayout - p.valueCents)} profit on your {formatMoney(p.valueCents)}.</p>
+      <p className="text-xs text-slate-300">is what someone pays to take Booth #{p.id}. You would receive <b className="text-white">{formatMoney(takeover.sellerPayout)}</b> as credit{takeover.freeValueCents > 0
+        ? <>. {formatMoney(takeover.freeValueCents)} of this booth&apos;s value came to you free (a booth code, a gift, referral credit or coins), and a takeover pays out only the part you paid for; the rest goes to the show.</>
+        : <>, a {formatMoney(takeover.sellerPayout - p.valueCents)} profit on your {formatMoney(p.valueCents)}.</>}</p>
       <ul className="mt-3 space-y-1 text-xs text-slate-400">
         <li>• You get an email the moment it happens, with your payout.</li>
         <li>• Boosting raises the price buyers pay and your payout.</li>

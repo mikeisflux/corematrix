@@ -20,6 +20,7 @@ export async function GET() {
         website: p.website,
         hasLogo: !!p.logoUrl,
         logoVersion: logoStamp(p),
+        freeValueCents: p.freeValueCents,
         color: p.color,
         accent: p.accent,
         style: p.style,

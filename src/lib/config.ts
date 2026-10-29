@@ -172,6 +172,18 @@ export function splitTakeover(valueCents: number) {
   return { price, premium, sellerPayout, platform };
 }
 
+/**
+ * The takeover split when part of the booth's value was given to the owner for free: the seller is paid only for the
+ * share they paid for (a booth from a free code with nothing added pays out nothing), and the rest stays with the show.
+ */
+export function takeoverSplitFor(valueCents: number, freeValueCents = 0) {
+  const s = splitTakeover(valueCents);
+  const free = Math.min(Math.max(0, freeValueCents), valueCents);
+  const paidShare = valueCents > 0 ? (valueCents - free) / valueCents : 1;
+  const sellerPayout = Math.floor(s.sellerPayout * paidShare);
+  return { ...s, sellerPayout, platform: s.price - sellerPayout, paidShare, freeValueCents: free };
+}
+
 export function formatMoney(cents: number): string {
   const dollars = cents / 100;
   return dollars >= 1000
