@@ -14,6 +14,14 @@ export const GAMES = {
   snake: { name: "Serpent Ave.", blurb: "Classic snake. Eat, grow, don't crash.", cost: 2, prizeAt: 400, prize: 25 },
   breakout: { name: "Block Party", blurb: "Smash the longboxes brick by brick.", cost: 2, prizeAt: 800, prize: 30 },
   runner: { name: "Rooftop Run", blurb: "Jump the gaps. One button. Endless.", cost: 3, prizeAt: 1500, prize: 40 },
+  swarm: { name: "Star Swarm", blurb: "The classic formation shooter. They dive, you don't blink.", cost: 3, prizeAt: 5000, prize: 60 },
+  rocks: { name: "Rock Field", blurb: "Thrust, turn, shoot. Big rocks make little rocks.", cost: 3, prizeAt: 3000, prize: 45 },
+  paddle: { name: "Paddle Duel", blurb: "Pong against the house. It gets mean.", cost: 2, prizeAt: 800, prize: 30 },
+  stack: { name: "Longbox Stack", blurb: "Falling blocks. Clear lines, don't top out.", cost: 3, prizeAt: 2500, prize: 45 },
+  flap: { name: "Cape Flap", blurb: "One button. Through the gaps. Keep the cape on.", cost: 2, prizeAt: 300, prize: 30 },
+  cross: { name: "Aisle Crosser", blurb: "Hop across the hand carts to the far side of the hall.", cost: 2, prizeAt: 1000, prize: 35 },
+  whack: { name: "Whack-a-Villain", blurb: "45 seconds. Purple villains, teal fans. Don't whack the fans.", cost: 1, prizeAt: 400, prize: 20 },
+  match: { name: "Cover Match", blurb: "Eight pairs, sixty seconds, a good memory.", cost: 1, prizeAt: 1100, prize: 25 },
 } as const;
 export type GameId = keyof typeof GAMES;
 
@@ -94,7 +102,8 @@ export async function finishPlay(userId: string, playId: string, score: number, 
   const g = GAMES[p.gameId as GameId];
   const elapsed = now() - p.startedAt;
   // Sanity: scores accrue over time. Reject the impossible.
-  const maxPerSecond = p.gameId === "runner" ? 60 : p.gameId === "breakout" ? 120 : 40;
+  const caps: Record<string, number> = { runner: 60, breakout: 120, snake: 40, swarm: 260, rocks: 150, paddle: 80, stack: 120, flap: 30, cross: 70, whack: 60, match: 200 };
+  const maxPerSecond = caps[p.gameId] ?? 40;
   const s = Math.max(0, Math.min(Math.floor(score), Math.floor((elapsed / 1000 + 2) * maxPerSecond)));
   await db.update(schema.gamePlays).set({ finishedAt: now() }).where(eq(schema.gamePlays.id, playId));
   await db.insert(schema.gameScores).values({ id: newId(), gameId: p.gameId, userId, playerName, boothId, score: s, day: dayKey(), createdAt: now() });

@@ -5,9 +5,18 @@ import { api } from "@/lib/hall/store";
 import { runSnake } from "./games/snake";
 import { runBreakout } from "./games/breakout";
 import { runRunner } from "./games/runner";
+import { runSwarm } from "./games/swarm";
+import { runRocks } from "./games/rocks";
+import { runPaddle } from "./games/paddle";
+import { runStack } from "./games/stack";
+import { runFlap } from "./games/flap";
+import { runCross } from "./games/cross";
+import { runWhack } from "./games/whack";
+import { runMatch } from "./games/match";
 
 export type GameRunner = (canvas: HTMLCanvasElement, onScore: (s: number) => void, onEnd: (s: number) => void) => () => void;
-const RUNNERS: Record<string, GameRunner> = { snake: runSnake, breakout: runBreakout, runner: runRunner };
+const RUNNERS: Record<string, GameRunner> = { snake: runSnake, breakout: runBreakout, runner: runRunner, swarm: runSwarm, rocks: runRocks, paddle: runPaddle, stack: runStack, flap: runFlap, cross: runCross, whack: runWhack, match: runMatch };
+const HINTS: Record<string, string> = { snake: "Arrows / WASD to steer", breakout: "Mouse or arrows to move", runner: "Space / click / tap to jump", swarm: "Arrows or mouse to move · Space or click to fire", rocks: "Left/right turn · Up thrusts · Space fires", paddle: "Mouse or arrows · first to let 5 past loses", stack: "Arrows move · Up rotates · Space drops", flap: "Space / click / tap to flap", cross: "Arrows / WASD or tap a direction", whack: "Click/tap the villains, or keys 1-9", match: "Click/tap two cards to flip them" };
 
 interface Row { rank: number; userId: string; playerName: string; boothId: number | null; score: number }
 
@@ -55,7 +64,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
   useEffect(() => () => stop.current?.(), []);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-6 pt-6 lg:grid-cols-[1fr_320px]">
       <div>
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div><Link href="/app/arcade" className="text-xs text-slate-400 hover:text-white">← Arcade</Link><h1 className="text-2xl font-bold">{name}</h1><p className="text-sm text-slate-400">{blurb}</p></div>
@@ -68,7 +77,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
               {result && <div><div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Final score</div><div className="mono text-5xl font-bold">{result.score.toLocaleString()}</div>{result.prize > 0 ? <div className="mt-1 text-emerald-400">+{result.prize} coins prize!</div> : <div className="mt-1 text-xs text-slate-400">{prizeAt.toLocaleString()}+ wins {prize} coins</div>}</div>}
               <button className="btn-primary" onClick={start} disabled={coins == null}>{state === "over" ? `Play again · ${cost} coins` : `Insert ${cost} coins`}</button>
               {err && <p className="text-xs text-rose-400">{err}</p>}
-              <p className="text-[11px] text-slate-500">{gameId === "snake" ? "Arrows / WASD to steer" : gameId === "breakout" ? "Mouse or arrows to move" : "Space / click / tap to jump"}</p>
+              <p className="text-[11px] text-slate-500">{HINTS[gameId] ?? "Keyboard or mouse"}</p>
             </div>
           )}
           <div className="absolute left-3 top-3 mono text-sm text-white/80">{score.toLocaleString()}</div>

@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { api, useHall } from "@/lib/hall/store";
 import { formatMoney } from "@/lib/config";
 import { PanelHeader, SignIn } from "./common";
@@ -61,7 +60,7 @@ export function ArcadePanel() {
           {GAMES.map((g) => (
             <li key={g.id} className="flex items-center justify-between rounded-xl bg-white/[0.04] p-3">
               <div><div className="font-semibold">{g.name}</div><div className="text-xs text-slate-400">{g.blurb} · {g.at.toLocaleString()}+ pts wins {g.prize} coins</div></div>
-              <Link href={`/app/arcade/${g.id}`} className="btn-ghost text-xs">{g.cost} coins</Link>
+              <a href={`/app/arcade/${g.id}`} className="btn-ghost text-xs">{g.cost} coins</a>
             </li>
           ))}
         </ul>
@@ -82,7 +81,7 @@ export function ArcadePanel() {
                 </button>
               ))}
             </div>
-            {myBooths.length > 0 && <Link href="/app/dashboard#coins" className="btn-ghost w-full text-xs">Convert coins into booth value →</Link>}
+            {myBooths.length > 0 && <a href="/app/dashboard#coins" className="btn-ghost w-full text-xs">Convert coins into booth value →</a>}
           </>
         ) : (
           <SignIn note="Sign in to play. New players start with free coins." />
