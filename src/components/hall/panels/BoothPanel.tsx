@@ -62,7 +62,7 @@ export function BoothPanel() {
   const rank = Array.from(booths.values()).filter((p) => p.valueCents > booth.valueCents).length + 1;
   const { price, sellerPayout } = splitTakeover(booth.valueCents);
   const isOwner = me && detail?.booth.isOwner;
-  if (view === "takeover") return (<><PanelHeader title={`Take over booth ${space.label}`} sub={booth.name ?? ""} onBack={() => setView("view")} /><Designer boothId={id} mode="takeover" /></>);
+  if (view === "takeover" && !booth.house) return (<><PanelHeader title={`Take over booth ${space.label}`} sub={booth.name ?? ""} onBack={() => setView("view")} /><Designer boothId={id} mode="takeover" /></>);
   const ctr = detail && detail.totals.views ? ((detail.totals.clicks / detail.totals.views) * 100).toFixed(1) : "0.0";
 
   return (

@@ -122,6 +122,8 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         </div>
         {isOwner ? (
           <Link href={`/app/dashboard?booth=${id}`} className="btn-ghost block w-full text-center text-xs">Manage this booth · covers, links, boosts →</Link>
+        ) : booth.house ? (
+          <p className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-400">This is the show's own booth. It is never up for takeover.</p>
         ) : (
           <button onClick={() => { track({ kind: "takeover_view", boothId: id }); onTakeover(); }} className="w-full rounded-xl border border-white/10 px-3 py-2 text-left text-xs text-slate-300 hover:border-amber-300/40">
             <b className="text-white">Take over this booth</b> for {formatMoney(price)} <span className="text-slate-500">· the owner gets {formatMoney(sellerPayout)}</span>

@@ -177,6 +177,7 @@ export async function startTakeover(boothId: number, buyerId: string, draft: Boo
   const p = await getBooth(boothId);
   if (!p?.ownerId) throw new Error("That booth is unclaimed. Claim it instead.");
   if (p.ownerId === buyerId) throw new Error("You already own this booth. Boost it instead.");
+  if (boothId === HOUSE_BOOTH_ID) throw new Error("This is the show's own booth. It is never for sale.");
   if (p.notForSaleUntil && p.notForSaleUntil > now()) throw new Error("This Headliner booth is shielded for a few more days.");
   const { price, sellerPayout, platform } = splitTakeover(p.valueCents);
   const credit = Math.min(creditCents, Math.max(0, price - sellerPayout));
