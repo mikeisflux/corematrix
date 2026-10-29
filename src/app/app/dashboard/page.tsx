@@ -7,7 +7,7 @@ export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const user = await currentUser();
-  if (!user) redirect("/app/login?next=/dashboard");
+  if (!user) redirect("/app/login?next=/app/dashboard");
   const sp = await searchParams;
   return (
     <Shell wide>

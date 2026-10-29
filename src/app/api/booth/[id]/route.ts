@@ -23,7 +23,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const all = await claimedBooths();
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
   const prevRank = await lastWeekRank(boothId);
-  return NextResponse.json({ booth: { ...p, isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history, referrers, rank, prevRank });
+  // a visitor sees the shop window, not the books: no payment, customer or subscription details
+  const { subscriptionId: _sub, lastTakeoverNudgeAt: _n, ...pub } = p as typeof p & { lastTakeoverNudgeAt?: number | null };
+  const historyOut = history.map((h) => ({ id: h.id, kind: h.kind, amountCents: h.amountCents, valueBefore: h.valueBefore, valueAfter: h.valueAfter, createdAt: h.createdAt, ...(isOwner ? { sellerPayoutCents: h.sellerPayoutCents } : {}) }));
+  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank });
 }
 
 const Patch = z.object({

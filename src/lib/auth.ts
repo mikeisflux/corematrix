@@ -1,7 +1,7 @@
 import { parsePermissions } from "@/lib/permissions";
 import { notify } from "@/lib/notify";
 import { cookies, headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull, gt, ne, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newCode, newId, newToken, now } from "@/lib/util";
 import { sendTemplate } from "@/lib/sendgrid";
@@ -119,12 +119,13 @@ export async function requestPasswordReset(emailRaw: string): Promise<void> {
 export async function resetPassword(token: string, password: string): Promise<User | null> {
   await ensureMigrated();
   if (password.length < MIN_PASSWORD) throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
-  const [t] = await db.select().from(schema.loginTokens).where(eq(schema.loginTokens.token, token)).limit(1);
-  if (!t || t.usedAt || t.expiresAt < now()) return null;
-  await db.update(schema.loginTokens).set({ usedAt: now() }).where(eq(schema.loginTokens.token, token));
+  // claim the token atomically: two requests racing with the same link can't both use it
+  const [t] = await db.update(schema.loginTokens).set({ usedAt: now() }).where(and(eq(schema.loginTokens.token, token), isNull(schema.loginTokens.usedAt), gt(schema.loginTokens.expiresAt, now()))).returning();
+  if (!t) return null;
   const [u] = await db.select().from(schema.users).where(eq(schema.users.email, t.email)).limit(1);
   if (!u) return null;
   await db.update(schema.users).set({ passwordHash: hashPassword(password) }).where(eq(schema.users.id, u.id));
+  await db.delete(schema.sessions).where(eq(schema.sessions.userId, u.id)); // a reset signs every other device out
   await createSession(u.id);
   return u;
 }
@@ -134,6 +135,9 @@ export async function changePassword(userId: string, current: string, next: stri
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
   if (!u || !verifyPassword(current, u.passwordHash)) throw new Error("Current password is wrong");
   await setPassword(userId, next);
+  // sign out every other session, keep this one
+  const jar = await cookies(); const mine = jar.get(SESSION_COOKIE)?.value;
+  await db.delete(schema.sessions).where(mine ? and(eq(schema.sessions.userId, userId), ne(schema.sessions.id, mine)) : eq(schema.sessions.userId, userId));
 }
 
 export async function findOrCreateUser(email: string, ref?: string): Promise<User> {
@@ -160,7 +164,7 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
   if (referredBy) {
     await db
       .update(schema.users)
-      .set({ creditCents: (await creditOf(referredBy)) + REFERRAL_CREDIT_CENTS })
+      .set({ creditCents: sql`${schema.users.creditCents} + ${REFERRAL_CREDIT_CENTS}` })
       .where(eq(schema.users.id, referredBy));
     await notify(referredBy, "referral", "Someone joined with your link", `You both earned $${(REFERRAL_CREDIT_CENTS / 100).toFixed(2)} in booth credit.`);
   }

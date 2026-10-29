@@ -56,7 +56,8 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
   if (!name) throw new Error("Give your booth a name");
   const website = normalizeUrl(d.website);
   // logos: a local path, an uploaded data URL (what /api/upload returns), or a remote http(s) URL
-  const logo = d.logoUrl ? (d.logoUrl.startsWith("/") ? d.logoUrl : /^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(d.logoUrl) && d.logoUrl.length < 1_500_000 ? d.logoUrl : normalizeUrl(d.logoUrl)) : null;
+  // SVG is refused here: an SVG served from our own origin can run script. Uploads go through /api/upload, which rasterises.
+  const logo = d.logoUrl ? (/^\/(?![/\\])/.test(d.logoUrl) ? d.logoUrl : /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(d.logoUrl) && d.logoUrl.length < 1_500_000 ? d.logoUrl : d.logoUrl.startsWith("data:") ? null : normalizeUrl(d.logoUrl)) : null;
   return {
     name,
     tagline: clampStr(d.tagline, 90),

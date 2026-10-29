@@ -6,6 +6,9 @@ import { getBooth } from "@/lib/economy";
  * storage needed); if none is set we render initials on the booth color.
  * Same-origin, so Three.js can use it as a texture without CORS games.
  */
+/** Whatever the bytes are (older rows may hold an SVG), the browser must treat them as an inert image. */
+const SAFE = { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox", "X-Content-Type-Options": "nosniff" };
+
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const p = await getBooth(Number(id));
@@ -14,11 +17,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     const m = /^data:([^;]+);base64,(.*)$/.exec(p.logoUrl);
     if (m) {
       return new NextResponse(Buffer.from(m[2], "base64"), {
-        headers: { "Content-Type": m[1], "Cache-Control": "public, max-age=300" },
+        headers: { ...SAFE, "Content-Type": m[1] === "image/svg+xml" ? "image/svg+xml" : m[1], "Cache-Control": "public, max-age=300" },
       });
     }
   }
-  if (p.logoUrl?.startsWith("/")) return NextResponse.redirect(new URL(p.logoUrl, _req.url), 307);
+  if (p.logoUrl && /^\/(?![/\\])/.test(p.logoUrl)) return NextResponse.redirect(new URL(p.logoUrl, _req.url), 307);
   if (p.logoUrl?.startsWith("http")) {
     // Proxy remote logos so textures stay same-origin. Small timeout, cached.
     try {
@@ -26,7 +29,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       if (r.ok && (r.headers.get("content-type") ?? "").startsWith("image/")) {
         const buf = Buffer.from(await r.arrayBuffer());
         if (buf.length < 2_000_000) {
-          return new NextResponse(buf, { headers: { "Content-Type": r.headers.get("content-type")!, "Cache-Control": "public, max-age=3600" } });
+          return new NextResponse(buf, { headers: { ...SAFE, "Content-Type": r.headers.get("content-type")!, "Cache-Control": "public, max-age=3600" } });
         }
       }
     } catch {

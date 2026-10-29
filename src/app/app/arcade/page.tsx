@@ -19,7 +19,7 @@ export default async function Arcade() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/app?mode=walk&arcade=1" className="btn-primary">← Back to the show floor</Link>
-          {!user && <Link href="/app/login?next=/arcade" className="btn-ghost">Sign in to play (free coins)</Link>}
+          {!user && <Link href="/app/login?next=/app/arcade" className="btn-ghost">Sign in to play (free coins)</Link>}
         </div>
       </div>
       <div className="mt-6 grid gap-4 md:grid-cols-3">

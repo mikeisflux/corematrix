@@ -12,7 +12,8 @@ export function SignIn({ next, note, start = "signin" }: { next?: string; note?:
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const dest = next ?? (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/app");
+  const want = next ?? (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/app");
+  const dest = /^\/(?![/\\])/.test(want) ? want : "/app";
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setErr(null); setMsg(null);
     try {
