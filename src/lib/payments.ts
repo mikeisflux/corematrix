@@ -3,7 +3,7 @@
    hosted checkout on /checkout/<txId>, settled by the webhook or the frame's
    confirm call. "comp" settles without a charge (zero-amount after credit, or
    an admin action). */
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { divinitycoin, cleanOrigin, type CustomerOrigin } from "@/lib/divinitycoin";
 import { settle, type Tx, getBooth } from "@/lib/economy";
@@ -106,7 +106,8 @@ export async function confirmCheckoutSession(txId: string, sessionId: string): P
     return confirmPlanSetup(tx, sessionId);
   }
   if (sessionId.startsWith("cs_test_")) return tx.status === "paid" ? { ok: true, status: "complete" } : { ok: false, status: "pending", message: "Waiting for the simulated webhook." };
-  if (!sessionId.startsWith("cs_") || (tx.sessionId && tx.sessionId !== sessionId)) return { ok: false, status: "unknown", message: "That checkout session doesn’t belong to this transaction." };
+  // an older tab's session is fine as long as DivinityCoin says it was for this transaction (checked just below)
+  if (!sessionId.startsWith("cs_")) return { ok: false, status: "unknown", message: "That checkout session doesn’t belong to this transaction." };
   const sess = await divinitycoin.getCheckoutSession(sessionId);
   if (!sess || sess.pledgeId !== tx.id) return { ok: false, status: "unknown", message: "DivinityCoin has no checkout for this transaction." };
   if (sess.status === "pending") return { ok: false, status: "pending", message: "Checkout is still in progress." };
@@ -115,13 +116,31 @@ export async function confirmCheckoutSession(txId: string, sessionId: string): P
   if (sess.status === "canceled") return { ok: false, status: "canceled", message: "Checkout was cancelled. Nothing was charged." };
   if (sess.amount !== null && sess.amount < tx.amountCents) return { ok: false, status: "unknown", message: "The amount paid doesn’t match. Contact support." };
   await settleCheckoutPayment(tx.id, sess.paymentIntentId ?? undefined);
+  // say "complete" only if it really applied; a payment that couldn't be applied has been flagged for a refund
+  const [after] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, tx.id)).limit(1);
+  if (after?.status !== "paid") return { ok: false, status: "unknown", message: "Your payment went through but we couldn't apply it. You'll be refunded; nothing else to do." };
+  if ((after.notes ?? "").includes("NOT APPLIED")) return { ok: false, status: "failed", message: "Your payment went through but this purchase was no longer available. You'll be refunded in full." };
   return { ok: true, status: "complete" };
 }
 
 /** A hosted-checkout charge lands on DivinityCoin as credits held under our tx id. Capture so it settles to us, then settle. Idempotent. */
 export async function settleCheckoutPayment(txId: string, paymentIntentId?: string) {
-  const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
+  let [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
   if (!tx) return;
+  // money arrived for a checkout we had given up on (expired or failed earlier): take it up again, so settle either applies
+  // it or flags it for a refund, instead of keeping the money and doing nothing
+  if (tx.status === "failed") {
+    await db.update(schema.transactions).set({ status: "pending", notes: [tx.notes, `Payment arrived after it was marked failed (${new Date().toISOString()}).`].filter(Boolean).join("\n") }).where(and(eq(schema.transactions.id, tx.id), eq(schema.transactions.status, "failed")));
+    [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
+  }
+  // paid twice (two tabs, two sessions): the first payment applied; the second must not be kept silently
+  if (tx.status === "paid" && paymentIntentId && tx.providerRef && !tx.providerRef.includes(paymentIntentId) && !(tx.notes ?? "").includes(paymentIntentId)) {
+    const line = `SECOND PAYMENT ${paymentIntentId} received for an already-paid transaction: refund it.`;
+    await db.update(schema.transactions).set({ notes: [tx.notes, line].filter(Boolean).join("\n") }).where(eq(schema.transactions.id, tx.id));
+    const { recordError } = await import("@/lib/sentinel");
+    await recordError({ kind: "server", where: "checkout", message: `Transaction ${tx.id} was paid twice (${paymentIntentId}); refund the extra payment.`, url: `/admin/transactions/${tx.id}` }).catch(() => {});
+    return;
+  }
   if (tx.status === "pending") {
     try {
       const cap = await divinitycoin.captureHold(tx.id);
@@ -144,27 +163,34 @@ export async function refundTx(txId: string, amountCents: number | undefined, re
   if (tx.status !== "paid") throw new Error("Only paid transactions can be refunded.");
   const amt = Number.isFinite(amountCents) && Number(amountCents) > 0 ? Math.min(Number(amountCents), tx.amountCents - tx.refundedCents) : tx.amountCents - tx.refundedCents;
   if (amt <= 0) throw new Error("Nothing left to refund.");
+  // reserve the amount first, in one conditional statement: a double-click or two admins can't refund it twice
+  const claimed = await db.update(schema.transactions).set({ refundedCents: sql`${schema.transactions.refundedCents} + ${amt}` })
+    .where(and(eq(schema.transactions.id, tx.id), eq(schema.transactions.refundedCents, tx.refundedCents), eq(schema.transactions.status, "paid"))).returning({ id: schema.transactions.id });
+  if (!claimed.length) throw new Error("This transaction changed while you were refunding it. Reload and check before trying again.");
+  const unclaim = () => db.update(schema.transactions).set({ refundedCents: sql`max(0, ${schema.transactions.refundedCents} - ${amt})` }).where(eq(schema.transactions.id, tx.id));
+  let refundId = "";
   if (tx.provider === "divinitycoin" && tx.amountCents > 0) {
     // plan charges store "<period ref>|<payment intent>"; checkout payments store the intent (or a cs_ session id)
     let pi = (tx.providerRef || "").includes("|") ? (tx.providerRef || "").split("|").pop() || "" : tx.providerRef || "";
     if (!pi || pi.startsWith("cs_")) {
       const sess = tx.sessionId ? await divinitycoin.getCheckoutSession(tx.sessionId).catch(() => null) : null;
-      if (!sess?.paymentIntentId) throw new Error("DivinityCoin has no completed payment for this transaction. Mark it refunded manually if you refunded another way.");
+      if (!sess?.paymentIntentId) { await unclaim(); throw new Error("DivinityCoin has no completed payment for this transaction. Mark it refunded manually if you refunded another way."); }
       pi = sess.paymentIntentId;
     }
     const partial = amt < tx.amountCents;
     const r = await divinitycoin.refund(pi, partial ? amt : undefined, reason || "Admin refund", tx.id, partial);
-    if (!r.success) throw new Error(`DivinityCoin refund failed: ${r.error || "unknown error"}`);
+    if (!r.success) { await unclaim(); throw new Error(`DivinityCoin refund failed: ${r.error || "unknown error"}`); }
+    refundId = r.refundId ?? "";
   }
   const full = tx.refundedCents + amt >= tx.amountCents;
   await db.update(schema.transactions).set({
-    refundedCents: tx.refundedCents + amt, status: full ? "refunded" : "paid",
-    notes: [tx.notes, `Refunded $${(amt / 100).toFixed(2)} by ${adminName} on ${new Date().toISOString()}${reason ? ` — ${reason}` : ""}`].filter(Boolean).join("\n"),
+    status: full ? "refunded" : "paid",
+    // the refund id lets the matching refund.completed webhook recognise this refund and not count it again
+    notes: [tx.notes, `Refunded $${(amt / 100).toFixed(2)} by ${adminName} on ${new Date().toISOString()}${refundId ? ` (${refundId})` : ""}${reason ? ` — ${reason}` : ""}`].filter(Boolean).join("\n"),
   }).where(eq(schema.transactions.id, tx.id));
-  if (full) { const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id); }
-  if (full && tx.kind === "claim") {
-    const p = await getBooth(tx.boothId);
-    if (p && p.ownerId === tx.buyerId) await db.update(schema.booths).set({ ownerId: null, hidden: true, updatedAt: now() }).where(eq(schema.booths.id, tx.boothId));
+  if (full) {
+    const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id);
+    const { reverseGrant } = await import("@/lib/reversals"); await reverseGrant(tx);
   }
   return { refundedCents: amt };
 }

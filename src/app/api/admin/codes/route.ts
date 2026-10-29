@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto"; // codes pay for booths: they must not be predictable from a batch
 import { NextResponse } from "next/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
@@ -8,7 +9,7 @@ import { audit } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
-const part = (n: number) => Array.from({ length: n }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
+const part = (n: number) => Array.from({ length: n }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
 const makeCode = () => `FCC${part(4)}${part(4)}`; // shown as FCC-XXXX-XXXX, stored without dashes
 
 /** GET ?q=&size=&status=open|used|revoked|all&page=  (&export=csv) */

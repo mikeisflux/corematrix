@@ -152,6 +152,7 @@ async function heldByOther(boothId: number, buyerId: string): Promise<boolean> {
 
 export async function startClaim(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number, code?: string | null) {
   await ensureMigrated();
+  sanitizeDraft(draft); // a draft settle would refuse (blank name...) is refused now, before anything is charged or used up
   if (!boothSpace(boothId)) throw new Error("No such booth");
   const p = await getBooth(boothId);
   if (p?.ownerId) throw new Error("That booth is already claimed. Try a takeover instead.");
@@ -159,6 +160,10 @@ export async function startClaim(boothId: number, buyerId: string, draft: BoothD
   const price = claimPriceCents(boothId);
   // a booth code covers the whole price; it is counted as used when the claim settles
   const codeRow = code ? await checkBoothCode(code, boothId) : null;
+  if (codeRow) {
+    const [mine] = await db.select({ id: schema.codeRedemptions.id }).from(schema.codeRedemptions).where(and(eq(schema.codeRedemptions.codeId, codeRow.id), eq(schema.codeRedemptions.userId, buyerId))).limit(1);
+    if (mine) throw new Error("You've already used this booth code. Each code is one booth per person.");
+  }
   const credit = codeRow ? 0 : Math.min(creditCents, price);
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
@@ -180,6 +185,8 @@ export async function startClaim(boothId: number, buyerId: string, draft: BoothD
 
 export async function startTakeover(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number) {
   await ensureMigrated();
+  sanitizeDraft(draft); // refuse an unusable draft before charging, not after
+
   const p = await getBooth(boothId);
   if (!p?.ownerId) throw new Error("That booth is unclaimed. Claim it instead.");
   if (p.ownerId === buyerId) throw new Error("You already own this booth. Boost it instead.");
@@ -382,9 +389,16 @@ export type PayProvider = "divinitycoin" | "comp" | "sandbox";
 export async function settle(txId: string, provider: PayProvider, providerRef?: string): Promise<Tx | null> {
   try { return await settleInner(txId, provider, providerRef); }
   catch (e) {
-    if (!(e instanceof SettleConflict)) throw e;
     const [tx] = await db.select().from(schema.transactions).where(eq(schema.transactions.id, txId)).limit(1);
-    return tx ? flagForRefund(tx, e.message) : null;
+    if (e instanceof SettleConflict) return tx ? flagForRefund(tx, e.message) : null;
+    // anything else after the payment was recorded: keep a trail an admin will see, rather than a paid order with no outcome
+    if (tx?.status === "paid") {
+      const note = `SETTLE ERROR, check whether it applied: ${(e as Error).message}`.slice(0, 500);
+      await db.update(schema.transactions).set({ notes: tx.notes ? `${tx.notes}\n${note}` : note }).where(eq(schema.transactions.id, tx.id)).catch(() => {});
+      const { recordError } = await import("@/lib/sentinel");
+      await recordError({ kind: "server", where: "settle", message: `Transaction ${tx.id} (${tx.kind}) paid but settle threw: ${(e as Error).message}`, url: `/admin/transactions/${tx.id}` }).catch(() => {});
+    }
+    throw e;
   }
 }
 async function settleInner(txId: string, provider: PayProvider, providerRef?: string): Promise<Tx | null> {
@@ -437,7 +451,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
       })
       .onConflictDoUpdate({
         target: schema.booths.id,
-        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false },
+        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false, teamId: null },
         setWhere: isNull(schema.booths.ownerId), // never over someone who claimed it in the meantime
       })
       .returning({ id: schema.booths.id })
@@ -470,6 +484,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
         subscriptionStatus: null,
         featuredUntil: null,
         notForSaleUntil: null,
+        teamId: null, // the old owner's crew doesn't come with the booth
         salesCount: sql`${schema.booths.salesCount} + 1`,
       })
       .where(and(eq(schema.booths.id, tx.boothId), tx.sellerId ? eq(schema.booths.ownerId, tx.sellerId) : sql`1`, eq(schema.booths.valueCents, tx.valueBefore)))
@@ -500,8 +515,9 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
     const [p] = await db
       .update(schema.booths)
       .set({ bannerHeight: height, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
-      .where(eq(schema.booths.id, tx.boothId))
+      .where(and(eq(schema.booths.id, tx.boothId), sql`${schema.booths.bannerHeight} < ${height}`)) // two upgrades settling out of order can't shrink it
       .returning();
+    if (!p) { await releaseInputs(tx, meta); throw new SettleConflict("The banner is already this tall or taller (another upgrade landed first)."); }
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} raised its banner to ${height} ft`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await notify(tx.buyerId, "boost", `Your banner is now ${height} ft tall`, `${p?.name ?? "Your booth"}: +${formatMoney(tx.amountCents)} in value · now worth ${formatMoney(p?.valueCents ?? 0)}.`, tx.boothId);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
@@ -511,15 +527,17 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
     const cap = cur ? bookCapacity(cur.size, cur.kind) : 3;
     const [p] = await db
       .update(schema.booths)
-      .set({ bookSlots: sql`min(${cap}, ${schema.booths.bookSlots} + ${qty})`, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
-      .where(eq(schema.booths.id, tx.boothId))
+      .set({ bookSlots: sql`${schema.booths.bookSlots} + ${qty}`, valueCents: sql`${schema.booths.valueCents} + ${tx.amountCents}`, updatedAt: t })
+      .where(and(eq(schema.booths.id, tx.boothId), sql`${schema.booths.bookSlots} + ${qty} <= ${cap}`)) // never charge for stands the table can't hold
       .returning();
+    if (!p) { await releaseInputs(tx, meta); throw new SettleConflict("The table is already full of comic stands (another purchase landed first)."); }
     await addEvent("boost", tx.boothId, `${p?.name ?? "A booth"} put ${qty} ${qty === 1 ? "book" : "books"} on display`, `+${formatMoney(tx.amountCents)} in value · now ${formatMoney(p?.valueCents ?? 0)}`, tx.amountCents);
     await notify(tx.buyerId, "boost", `${qty} more comic ${qty === 1 ? "stand" : "stands"} on your table`, `${p?.name ?? "Your booth"} now shows ${p?.bookSlots ?? qty} covers. Upload them from the dashboard.`, tx.boothId);
     await bumpSiteDaily({ boosts: 1, revenueCents: tx.amountCents });
   } else if (tx.kind === "tier" && meta.tier) {
     const pm = (meta as { paymentMethodId?: string }).paymentMethodId ?? null;
-    const p = await activatePlan(tx.boothId, meta.tier, provider === "comp" ? null : pm);
+    // only an admin comp is free; a card payment never becomes a comp, even if the card id is missing here
+    const p = await activatePlan(tx.boothId, meta.tier, provider === "comp" ? null : pm, provider === "comp");
     await addEvent("tier", tx.boothId, `${p?.name ?? "A booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall, takeover shield on" : "Unlocked full analytics", tx.amountCents);
     await bumpSiteDaily({ revenueCents: tx.amountCents });
     await notify(tx.buyerId, "plan", `${p?.name ?? "Your booth"} is now a ${TIERS[meta.tier].name}`, meta.tier === "landmark" ? "Featured in the hall with the takeover shield on. Renews every 30 days." : "Full analytics unlocked. Renews every 30 days.", tx.boothId);
@@ -543,8 +561,9 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
       .where(and(eq(schema.billboards.slot, b.slot), sql`${schema.billboards.status} IN ('pending','active')`));
     const startsAt = Math.max(t, Number(last?.endsAt ?? 0));
     const endsAt = startsAt + (b.endsAt - b.startsAt);
+    // keyed by its purchase, so a refund can take it down
     await db.insert(schema.billboards).values({
-      id: newId(), slot: b.slot, ownerId: tx.buyerId, boothId: b.boothId ?? null, headline: b.headline, body: b.body ?? null, website: b.website ?? null,
+      id: tx.id, slot: b.slot, ownerId: tx.buyerId, boothId: b.boothId ?? null, headline: b.headline, body: b.body ?? null, website: b.website ?? null,
       imageUrl: b.imageUrl ?? null, color: b.color, startsAt, endsAt, amountCents: tx.amountCents, status: "active", createdAt: t,
     });
     await addEvent("billboard", b.boothId ?? null, `${b.headline} is now on a billboard`, b.slot === "airship" ? "Airship banner over the hall" : "Billboard over the aisles", tx.amountCents);
@@ -692,8 +711,19 @@ async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string 
   if (tx.kind === "takeover") {
     const b = await getBooth(tx.boothId);
     if (!b || b.ownerId !== tx.sellerId || b.valueCents !== tx.valueBefore) return "The booth changed hands or value before this payment landed.";
+    if (b.notForSaleUntil && b.notForSaleUntil > now()) return "The booth became protected from takeovers before this payment landed.";
+  }
+  // upgrades are for the buyer's own booth: if it changed hands meanwhile, the money must not lift someone else's booth
+  if (tx.kind === "boost" || tx.kind === "banner" || tx.kind === "book" || tx.kind === "tier") {
+    const b = await getBooth(tx.boothId);
+    if (!b || b.ownerId !== tx.buyerId) return "This booth changed hands before the payment landed.";
   }
   let codeTaken = false;
+  if (meta.codeId && tx.buyerId) {
+    // a multi-use code is still one booth per person
+    const [mine] = await db.select({ id: schema.codeRedemptions.id }).from(schema.codeRedemptions).where(and(eq(schema.codeRedemptions.codeId, meta.codeId), eq(schema.codeRedemptions.userId, tx.buyerId))).limit(1);
+    if (mine) return "You've already used this booth code.";
+  }
   if (meta.codeId) {
     const r = await db.update(schema.boothCodes).set({ uses: sql`${schema.boothCodes.uses} + 1` })
       .where(and(eq(schema.boothCodes.id, meta.codeId), sql`${schema.boothCodes.uses} < ${schema.boothCodes.maxUses}`, isNull(schema.boothCodes.revokedAt))).returning({ id: schema.boothCodes.id });
@@ -711,7 +741,7 @@ async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string 
   return null;
 }
 /** Give back what claimInputs took, when applying fails at the last step. */
-async function releaseInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string }) {
+export async function releaseInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string }) {
   if (meta.codeId) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId));
   if (meta.creditUsed && tx.buyerId) await db.update(schema.users).set({ creditCents: sql`${schema.users.creditCents} + ${meta.creditUsed}` }).where(eq(schema.users.id, tx.buyerId));
 }

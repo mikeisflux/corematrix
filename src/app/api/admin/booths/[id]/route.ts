@@ -35,7 +35,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     case "release": {
       if (!booth.ownerId) return bad("Booth is not claimed.");
       if (booth.tier !== "free") await cancelPlan(booth.id, null).catch(() => null);
-      await db.update(schema.booths).set({ ownerId: null, hidden: true, tier: "free", tierUntil: null, subscriptionId: null, subscriptionStatus: null, featuredUntil: null, notForSaleUntil: null, updatedAt: now() }).where(eq(schema.booths.id, booth.id));
+      await db.update(schema.booths).set({ ownerId: null, hidden: true, teamId: null, tier: "free", tierUntil: null, subscriptionId: null, subscriptionStatus: null, featuredUntil: null, notForSaleUntil: null, updatedAt: now() }).where(eq(schema.booths.id, booth.id));
       await addEvent("admin", booth.id, `Booth #${booth.id} was released`, optStr(b.reason, 200), null);
       await audit(g.id, "booth.release", "booth", String(booth.id), before, { reason: optStr(b.reason, 200) }, g.email);
       return NextResponse.json({ ok: true });
@@ -44,7 +44,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const email = String(b.email || "").trim().toLowerCase();
       const [to] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email));
       if (!to) return bad("No user with that email.");
-      await db.update(schema.booths).set({ ownerId: to.id, updatedAt: now() }).where(eq(schema.booths.id, booth.id));
+      // the new owner keeps the paid-up period but not the old owner's card (it would renew on their card) or crew
+      await db.update(schema.booths).set({ ownerId: to.id, teamId: null, subscriptionId: null, ...(booth.tier !== "free" ? { subscriptionStatus: "canceling" } : {}), updatedAt: now() }).where(eq(schema.booths.id, booth.id));
       await audit(g.id, "booth.transfer", "booth", String(booth.id), before, { ownerId: to.id, email }, g.email);
       return NextResponse.json({ ok: true });
     }

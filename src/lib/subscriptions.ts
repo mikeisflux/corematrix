@@ -32,11 +32,14 @@ async function ownerOf(boothId: number) {
 }
 
 /** Called when a tier purchase settles (first charge paid). Marks the booth as subscribed. */
-export async function activatePlan(boothId: number, tier: Tier, paymentMethodId: string | null) {
+export async function activatePlan(boothId: number, tier: Tier, paymentMethodId: string | null, comp = !paymentMethodId) {
   const t = now();
+  const cur = await getBooth(boothId);
+  // switching plans keeps the time already paid for: the new period starts where the current one ends
+  const base = cur && cur.tier !== "free" && (cur.tierUntil ?? 0) > t ? cur.tierUntil! : t;
   const [p] = await db
     .update(schema.booths)
-    .set({ tier, tierUntil: t + PERIOD, subscriptionId: paymentMethodId ? `pm:${paymentMethodId}` : `comp:${newId()}`, subscriptionStatus: "active", notForSaleUntil: tier === "landmark" ? t + 7 * 86_400_000 : null, updatedAt: t })
+    .set({ tier, tierUntil: base + PERIOD, subscriptionId: paymentMethodId ? `pm:${paymentMethodId}` : comp ? `comp:${newId()}` : `dc:${newId()}` /* paid without a card id on hand: renewals use the saved card */, subscriptionStatus: "active", notForSaleUntil: tier === "landmark" ? t + 7 * 86_400_000 : null, updatedAt: t })
     .where(eq(schema.booths.id, boothId))
     .returning();
   return p;
@@ -78,17 +81,21 @@ async function chargeFirstPeriod(tx: Tx, paymentMethodId: string): Promise<{ ok:
   const [buyer] = tx.buyerId ? await db.select().from(schema.users).where(eq(schema.users.id, tx.buyerId)).limit(1) : [];
   if (!buyer) return { ok: false, error: "buyer missing" };
   const ref = periodReference(tx.boothId, now());
+  // written before the charge: the payment.succeeded webhook can arrive before this call returns, and must find this
+  // purchase (by its reference) with the card on it, or the plan would start as a free comp
+  await db.update(schema.transactions).set({ meta: JSON.stringify({ ...meta, paymentMethodId, chargeRef: ref }) }).where(eq(schema.transactions.id, tx.id));
   const s = await getSettings(["SITE_NAME"]);
   const charge = await divinitycoin.chargeSavedCard({
     customerId: buyer.id, paymentMethodId, amountCents: tx.amountCents, reference: ref, description: `${s.SITE_NAME || "ForeverComicCon"} — ${TIERS[tier].name} plan, #${tx.boothId}`, idempotencyKey: `${ref}:${tx.id}`,
     origin: { ip: buyer.cardIp, userAgent: buyer.cardUserAgent },
   });
   if (!charge.success) {
-    await db.update(schema.transactions).set({ status: "failed", notes: `first charge failed: ${charge.error || charge.status}` }).where(eq(schema.transactions.id, tx.id));
+    // a timeout or server error may still have charged the card: leave it pending so the webhook can settle it
+    const definite = typeof charge.httpStatus === "number" && charge.httpStatus < 500;
+    await db.update(schema.transactions).set({ ...(definite ? { status: "failed" } : {}), notes: `first charge ${definite ? "failed" : "unconfirmed"}: ${charge.error || charge.status}` }).where(eq(schema.transactions.id, tx.id));
     return { ok: false, error: charge.error || charge.status || "declined" };
   }
   try { await divinitycoin.captureHold(ref); } catch (err) { console.error(`[divinitycoin] capture failed for ${ref}:`, err); }
-  await db.update(schema.transactions).set({ meta: JSON.stringify({ ...meta, paymentMethodId }) }).where(eq(schema.transactions.id, tx.id));
   // same "<period ref>|<payment intent>" shape as renewals, so the payment.succeeded webhook for this period finds it
   // instead of booking it a second time as a renewal
   await settle(tx.id, "divinitycoin", `${ref}|${charge.paymentIntentId ?? ""}`);
@@ -143,9 +150,14 @@ export async function renewPlan(boothId: number, amountCents: number, provider: 
   const o = await ownerOf(boothId);
   if (!o || o.booth.tier === "free") return;
   const tierName = TIERS[o.booth.tier as Tier].name;
+  // one period, one extension: our charge, its webhook and a second renewal run can all arrive for the same period, and
+  // only the one that records it first extends the plan
+  const periodKey = (ref ?? "").split("|")[0];
+  const rowId = periodKey ? `renew:${periodKey}` : newId();
   const base = Math.max(now(), o.booth.tierUntil ?? 0);
+  const won = await db.insert(schema.transactions).values({ id: rowId, boothId, kind: "tier", buyerId: o.user.id, amountCents, platformCents: amountCents, valueBefore: o.booth.valueCents, valueAfter: o.booth.valueCents, status: "paid", provider, providerRef: ref ?? null, meta: JSON.stringify({ tier: o.booth.tier, renewal: true }), createdAt: now(), paidAt: now() }).onConflictDoNothing().returning({ id: schema.transactions.id });
+  if (!won.length) return;
   await db.update(schema.booths).set({ tierUntil: base + PERIOD, subscriptionStatus: "active", updatedAt: now() }).where(eq(schema.booths.id, boothId));
-  await db.insert(schema.transactions).values({ id: newId(), boothId, kind: "tier", buyerId: o.user.id, amountCents, platformCents: amountCents, valueBefore: o.booth.valueCents, valueAfter: o.booth.valueCents, status: "paid", provider, providerRef: ref ?? null, meta: JSON.stringify({ tier: o.booth.tier, renewal: true }), createdAt: now(), paidAt: now() });
   await bumpSiteDaily({ revenueCents: amountCents });
   await notify(o.user.id, "renewal", `${tierName} renewed on ${o.booth.name}`, `${formatMoney(amountCents)} · runs through ${new Date(base + PERIOD).toLocaleDateString("en-US", { dateStyle: "medium" })}.`, boothId);
   await sendTemplate("plan_renewed", o.user.email, {
@@ -162,8 +174,15 @@ export async function onPlanChargeEvent(type: string, ref: string, d: DivinityWe
   if (type === "payment.succeeded") {
     const [paid] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
     if (paid) return { status: "ignored", note: "period already recorded" };
-    const [pendingFirst] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "pending"))).orderBy(desc(schema.transactions.createdAt)).limit(1);
-    if (pendingFirst) { await settle(pendingFirst.id, "divinitycoin", d.paymentIntentId ?? ref); return { status: "processed", note: "plan started (webhook)" }; }
+    // the first-period purchase that made this exact charge (its reference is recorded before charging), if any; a renewal
+    // must never settle some other pending plan purchase on the same booth
+    const [pendingFirst] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.kind, "tier"), sql`${schema.transactions.status} IN ('pending','failed')`, sql`json_extract(${schema.transactions.meta}, '$.chargeRef') = ${ref}`)).orderBy(desc(schema.transactions.createdAt)).limit(1);
+    if (pendingFirst) {
+      if (pendingFirst.status === "failed") await db.update(schema.transactions).set({ status: "pending" }).where(and(eq(schema.transactions.id, pendingFirst.id), eq(schema.transactions.status, "failed"))); // it went through after all
+      try { await divinitycoin.captureHold(ref); } catch { /* retry from Admin → Webhooks */ }
+      await settle(pendingFirst.id, "divinitycoin", `${ref}|${d.paymentIntentId ?? ""}`);
+      return { status: "processed", note: "plan started (webhook)" };
+    }
     try { await divinitycoin.captureHold(ref); } catch { /* retry from Admin → Webhooks */ }
     await renewPlan(parsed.boothId, typeof d.amount === "number" ? Math.round(d.amount) : 0, "divinitycoin", `${ref}|${d.paymentIntentId ?? ""}`);
     return { status: "processed", note: "plan period paid (webhook)" };
@@ -203,7 +222,7 @@ export async function runRenewals(): Promise<{ charged: number; failed: number; 
   return out;
 }
 
-async function dropPlan(boothId: number, why: string) {
+export async function dropPlan(boothId: number, why: string) {
   const o = await ownerOf(boothId);
   await db.update(schema.booths).set({ tier: "free", tierUntil: null, subscriptionId: null, subscriptionStatus: null, updatedAt: now() }).where(eq(schema.booths.id, boothId));
   await addEvent("tier", boothId, `${o?.booth.name ?? "A booth"} is back on the free plan`, null, null);

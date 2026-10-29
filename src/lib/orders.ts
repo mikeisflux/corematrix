@@ -30,6 +30,11 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
       if (d.mode === "setup") return onPlanSetupComplete(d);
       const tx = await findTx();
       if (!tx) return { status: "ignored", note: ref ? "unknown transaction" : "no pledgeId" };
+      // same amount guard as payment.succeeded: a short payment never settles through the other event
+      if (amountCents !== undefined && amountCents < tx.amountCents) {
+        await db.update(schema.transactions).set({ notes: [tx.notes, `DivinityCoin checkout completed for ${amountCents}¢ but the amount due is ${tx.amountCents}¢ — check before honouring.`].filter(Boolean).join("\n") }).where(eq(schema.transactions.id, tx.id));
+        return { status: "ignored", note: "amount mismatch" };
+      }
       await settleCheckoutPayment(tx.id, d.paymentIntentId);
       return { status: "processed", note: `tx ${tx.id} checkout complete` };
     }
@@ -45,7 +50,12 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
       return { status: "processed", note: `tx ${tx.id} paid` };
     }
 
-    case "payment.failed":
+    case "payment.failed": {
+      // one declined card is not the end: the buyer can try another card in the same checkout, so only note it
+      const ftx = ref ? await findTx() : undefined;
+      if (ftx && ftx.status === "pending") await db.update(schema.transactions).set({ notes: [ftx.notes, `Card declined ${new Date().toISOString().slice(0, 16)}: ${String(d.error || d.declineCode || d.code || "declined")}`].filter(Boolean).join("\n").slice(-2000) }).where(eq(schema.transactions.id, ftx.id));
+      return { status: "processed", note: "decline noted" };
+    }
     case "checkout.failed":
     case "checkout.expired":
     case "checkout.canceled": {
@@ -62,11 +72,15 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
     case "refund.completed": {
       const tx = ref ? await findTx() : d.paymentIntentId ? (await db.select().from(schema.transactions).where(eq(schema.transactions.providerRef, String(d.paymentIntentId))).limit(1))[0] : undefined;
       if (!tx) return { status: "ignored", note: "unknown transaction" };
+      if (d.refundId && (tx.notes ?? "").includes(String(d.refundId))) return { status: "ignored", note: "refund already recorded" }; // our own admin refund
       const amt = amountCents ?? tx.amountCents;
       const refunded = Math.min(tx.amountCents, tx.refundedCents + amt);
       const full = !d.partial && refunded >= tx.amountCents;
       await db.update(schema.transactions).set({ refundedCents: refunded, status: full ? "refunded" : tx.status, notes: [tx.notes, `${d.partial ? "Partial refund" : "Refunded"} ${formatMoney(amt)} via DivinityCoin (${d.refundId ?? "?"})`].filter(Boolean).join("\n") }).where(eq(schema.transactions.id, tx.id));
-      if (full) { const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id); }
+      if (full && tx.status !== "refunded") {
+        const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id);
+        const { reverseGrant } = await import("@/lib/reversals"); await reverseGrant(tx);
+      }
       return { status: "processed", note: full ? "refunded" : "partial refund noted" };
     }
 
@@ -80,6 +94,7 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
       const to = s.MAIL_BCC_ADMIN || s.SUPPORT_EMAIL;
       if (to) await sendTemplate("admin_dispute", to, { subject: `Chargeback on transaction ${tx.id}`, fallbackText: `${note}\n/admin/transactions/${tx.id}`, txId: tx.id, reason: String(d.reason ?? ""), amount: formatMoney(amountCents ?? tx.amountCents) }, { txId: tx.id, channel: "system" }).catch(() => {});
       { const { revokeReferral } = await import("@/lib/referrals"); await revokeReferral(tx.id); } // a chargeback doesn't keep the referral it earned
+      if (tx.status !== "disputed") { const { onDispute } = await import("@/lib/reversals"); await onDispute(tx); }
       return { status: "processed", note: `tx ${tx.id} disputed` };
     }
 

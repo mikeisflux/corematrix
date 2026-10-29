@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSettings, flag } from "@/lib/settings";
 import { signWebhookPayload, DC_PROJECT_ID } from "@/lib/divinitycoin";
+import { currentUser } from "@/lib/auth";
+import { db, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
 
 /* Test mode only: builds a DivinityCoin-shaped event, signs it with the
    configured webhook secret and POSTs it to our own /api/webhooks/divinitycoin
@@ -11,6 +14,10 @@ export async function POST(req: Request) {
   if (!flag(s.DIVINITYCOIN_TEST_MODE)) return NextResponse.json({ error: "Test mode is off." }, { status: 403 });
   const { reference, amount, kind, outcome } = await req.json();
   if (!reference) return NextResponse.json({ error: "reference required" }, { status: 400 });
+  // only the buyer can simulate paying for their own checkout
+  const u = await currentUser();
+  const [tx] = await db.select({ buyerId: schema.transactions.buyerId }).from(schema.transactions).where(eq(schema.transactions.id, String(reference))).limit(1);
+  if (!u || !tx || tx.buyerId !== u.id) return NextResponse.json({ error: "Sign in as the buyer to complete this test checkout." }, { status: 403 });
   if (!s.DIVINITYCOIN_WEBHOOK_SECRET) return NextResponse.json({ error: "Set DIVINITYCOIN_WEBHOOK_SECRET in Admin → Settings first (any long random string works in test mode)." }, { status: 400 });
   const amountCents = Math.round(Number(amount) * 100);
   const isSetup = kind === "setup";

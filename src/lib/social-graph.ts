@@ -207,7 +207,7 @@ export async function staffedBooths(userId: string, email: string): Promise<Arra
   if (ms.length === 0) return [];
   const teamIds = Array.from(new Set(ms.map((m) => m.teamId)));
   const rows = await db.select({ id: schema.booths.id, name: schema.booths.name, valueCents: schema.booths.valueCents, tier: schema.booths.tier, color: schema.booths.color, team: schema.teams.name })
-    .from(schema.booths).innerJoin(schema.teams, eq(schema.teams.id, schema.booths.teamId))
+    .from(schema.booths).innerJoin(schema.teams, and(eq(schema.teams.id, schema.booths.teamId), eq(schema.teams.ownerId, schema.booths.ownerId))) // a team only staffs booths its owner still owns
     .where(and(inArray(schema.booths.teamId, teamIds), eq(schema.booths.hidden, false)));
   return rows;
 }

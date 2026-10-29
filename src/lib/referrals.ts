@@ -43,12 +43,13 @@ export async function payReferral(tx: PaidTx) {
   }, { channel: "system", userId: referrer.id }).catch(() => {});
 }
 
-/** That payment was refunded in full or disputed: take both credits back (never below zero) so a later real payment can earn it again. */
+/** That payment was refunded in full or disputed: take both credits back (even below zero, which blocks cash-outs until covered) so a later real payment can earn it again. */
 export async function revokeReferral(txId: string): Promise<boolean> {
   await ensureMigrated();
   const [buyer] = await db.update(schema.users).set({ referralPaidAt: null, referralTxId: null }).where(eq(schema.users.referralTxId, txId)).returning();
   if (!buyer) return false;
-  const back = sql`max(0, ${schema.users.creditCents} - ${REFERRAL_CREDIT_CENTS})`;
+  // may go below zero: if the credit was already cashed out, the balance owes it back and blocks further cash-outs
+  const back = sql`${schema.users.creditCents} - ${REFERRAL_CREDIT_CENTS}`;
   await db.update(schema.users).set({ creditCents: back }).where(eq(schema.users.id, buyer.id));
   if (buyer.referredBy) await db.update(schema.users).set({ creditCents: back }).where(eq(schema.users.id, buyer.referredBy));
   return true;

@@ -26,6 +26,9 @@ export async function requestPayout(userId: string, input: { amountCents: number
   if (!EMAIL.test(paypalEmail)) throw new Error("Enter the email on your PayPal account");
   if (legalName.length < 3) throw new Error("Enter your legal name (needed for tax forms)");
   if (address.length < 8) throw new Error("Enter your mailing address (needed for tax forms)");
+  // test mode settles simulated payments, so credit earned meanwhile isn't real money: no cash-outs until it's off
+  const { getSetting, flag } = await import("@/lib/settings");
+  if (flag(await getSetting("DIVINITYCOIN_TEST_MODE"))) throw new Error("Cash-outs are paused while payments are in test mode.");
   const [open] = await db.select({ n: sql<number>`count(*)` }).from(schema.payouts).where(and(eq(schema.payouts.userId, userId), eq(schema.payouts.status, "pending")));
   if (Number(open.n) > 0) throw new Error("You already have a payout waiting. We'll send it before taking another request.");
   // deduct atomically: only succeeds when the balance covers it
