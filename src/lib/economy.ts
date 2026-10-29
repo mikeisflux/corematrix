@@ -19,7 +19,7 @@ import { notify } from "@/lib/notify";
 export type Booth = typeof schema.booths.$inferSelect;
 
 export function liveBooth(p: Booth, art?: Record<string, number>) {
-  return { art, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: p.updatedAt ?? 0, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+  return { art, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: p.updatedAt ?? 0, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -28,12 +28,25 @@ export interface BoothDraft {
   tagline?: string;
   description?: string;
   website?: string;
+  artstation?: string;
+  deviantart?: string;
+  instagram?: string;
+  xUrl?: string;
   logoUrl?: string;
   color?: string;
   accent?: string;
   style?: string; // banner style
   cloth?: string; // table cloth / drape color
   category?: string;
+}
+
+/** A full URL or a bare handle ("@mike", "mike") for a profile site; empty stays empty. */
+function profileUrl(v: string | undefined, base: string): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return normalizeUrl(s) ?? null;
+  const handle = s.replace(/^@/, "").replace(/[^a-z0-9_.\-]/gi, "").slice(0, 60);
+  return handle ? base + handle : null;
 }
 
 export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
@@ -47,6 +60,10 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
     tagline: clampStr(d.tagline, 90),
     description: clampStr(d.description, 600),
     website: website ?? undefined,
+    artstation: profileUrl(d.artstation, "https://www.artstation.com/") ?? undefined,
+    deviantart: profileUrl(d.deviantart, "https://www.deviantart.com/") ?? undefined,
+    instagram: profileUrl(d.instagram, "https://www.instagram.com/") ?? undefined,
+    xUrl: profileUrl(d.xUrl, "https://x.com/") ?? undefined,
     logoUrl: logo ?? undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#5b8def",
     accent: d.accent && isHexColor(d.accent) ? d.accent : "#ffffff",
@@ -127,25 +144,27 @@ async function heldByOther(boothId: number, buyerId: string): Promise<boolean> {
   return !!h;
 }
 
-export async function startClaim(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number) {
+export async function startClaim(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number, code?: string | null) {
   await ensureMigrated();
   if (!boothSpace(boothId)) throw new Error("No such booth");
   const p = await getBooth(boothId);
   if (p?.ownerId) throw new Error("That booth is already claimed. Try a takeover instead.");
   if (await heldByOther(boothId, buyerId)) throw new Error("Someone is checking out this booth right now. Try again in a few minutes or pick another.");
   const price = claimPriceCents(boothId);
-  const credit = Math.min(creditCents, price);
+  // a booth code covers the whole price; it is counted as used when the claim settles
+  const codeRow = code ? await checkBoothCode(code, boothId) : null;
+  const credit = codeRow ? 0 : Math.min(creditCents, price);
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
     boothId,
     kind: "claim",
     buyerId,
-    amountCents: price - credit,
-    platformCents: price - credit,
+    amountCents: codeRow ? 0 : price - credit,
+    platformCents: codeRow ? 0 : price - credit,
     valueBefore: 0,
     valueAfter: price,
     status: "pending",
-    meta: JSON.stringify({ draft, creditUsed: credit }),
+    meta: JSON.stringify({ draft, creditUsed: credit, codeId: codeRow?.id, code: codeRow?.code }),
     createdAt: now(),
   };
   await db.insert(schema.transactions).values(tx);
@@ -360,6 +379,7 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
     ? (JSON.parse(tx.meta) as {
         draft?: BoothDraft;
         creditUsed?: number;
+        codeId?: string;
         tier?: Tier;
         previousName?: string;
         coins?: number;
@@ -404,6 +424,10 @@ export async function settle(txId: string, provider: PayProvider, providerRef?: 
       });
     await addEvent("claim", tx.boothId, `${d.name} is on the show floor`, `${describeSpace(boothSpace(tx.boothId)!)} · ${CATEGORIES[d.category ?? "comics"].name}`, tx.valueAfter);
     await bumpSiteDaily({ claims: 1, revenueCents: tx.amountCents });
+    if (meta.codeId && tx.buyerId) {
+      await db.update(schema.boothCodes).set({ uses: sql`${schema.boothCodes.uses} + 1` }).where(eq(schema.boothCodes.id, meta.codeId));
+      await db.insert(schema.codeRedemptions).values({ id: newId(), codeId: meta.codeId, userId: tx.buyerId, boothId: tx.boothId, txId: tx.id, createdAt: t });
+    }
     if (tx.buyerId) {
       await db.update(schema.users).set({ coins: sql`${schema.users.coins} + 50` }).where(eq(schema.users.id, tx.buyerId));
       await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: 50, reason: "claim", ref: `booth:${tx.boothId}`, createdAt: t });
@@ -589,4 +613,23 @@ export async function trackBillboard(id: string, metric: "seen" | "opens" | "cli
         ? { opens: sql`${schema.billboards.opens} + 1` }
         : { clicks: sql`${schema.billboards.clicks} + 1` };
   await db.update(schema.billboards).set(set).where(eq(schema.billboards.id, id));
+}
+
+/* ---------- booth codes ---------- */
+
+export const normalizeCode = (s: string) => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** A code that can pay for this booth right now, or an error explaining why not. */
+export async function checkBoothCode(raw: string, boothId: number) {
+  await ensureMigrated();
+  const code = normalizeCode(raw);
+  if (!code) throw new Error("Enter a code");
+  const [c] = await db.select().from(schema.boothCodes).where(eq(schema.boothCodes.code, code)).limit(1);
+  if (!c || c.revokedAt) throw new Error("That code isn't valid");
+  if (c.expiresAt && c.expiresAt < now()) throw new Error("That code has expired");
+  if (c.uses >= c.maxUses) throw new Error("That code has already been used");
+  const space = boothSpace(boothId);
+  if (!space) throw new Error("No such booth");
+  if (c.size !== "any" && c.size !== space.size) throw new Error(`That code is for a ${BOOTH_SIZES[c.size as keyof typeof BOOTH_SIZES]?.name ?? c.size}, not this ${BOOTH_SIZES[space.size].name.toLowerCase()}`);
+  return c;
 }

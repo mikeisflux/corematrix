@@ -60,6 +60,10 @@ export const booths = sqliteTable(
     tagline: text("tagline"),
     description: text("description"),
     website: text("website"),
+    artstation: text("artstation"), // portfolio links shown in the storefront
+    deviantart: text("deviantart"),
+    instagram: text("instagram"),
+    xUrl: text("x_url"),
     logoUrl: text("logo_url"),
     color: text("color").notNull().default("#5b8def"),
     accent: text("accent").notNull().default("#ffffff"),
@@ -552,4 +556,34 @@ export const sentinelErrors = sqliteTable(
     resolvedAt: integer("resolved_at"),
   },
   (t) => [index("sentinel_last_idx").on(t.lastAt), index("sentinel_resolved_idx").on(t.resolvedAt)],
+);
+
+/** Booth codes: handed out by the organisers, redeemed in the claim flow for a free booth of a given size. */
+export const boothCodes = sqliteTable(
+  "booth_codes",
+  {
+    id: text("id").primaryKey(),
+    code: text("code").notNull().unique(), // what people type: FCC-XXXX-XXXX
+    size: text("size").notNull(), // 6x10 | 10x10 | 20x10 | 20x20 | any
+    label: text("label"), // who it is for / the campaign
+    maxUses: integer("max_uses").notNull().default(1),
+    uses: integer("uses").notNull().default(0),
+    expiresAt: integer("expires_at"),
+    createdBy: text("created_by"),
+    createdAt: integer("created_at").notNull(),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [index("booth_codes_label_idx").on(t.label)],
+);
+export const codeRedemptions = sqliteTable(
+  "code_redemptions",
+  {
+    id: text("id").primaryKey(),
+    codeId: text("code_id").notNull(),
+    userId: text("user_id").notNull(),
+    boothId: integer("booth_id").notNull(),
+    txId: text("tx_id"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("code_redemptions_code_idx").on(t.codeId)],
 );

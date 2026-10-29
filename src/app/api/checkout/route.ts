@@ -10,6 +10,10 @@ const Draft = z.object({
   tagline: z.string().max(120).optional(),
   description: z.string().max(800).optional(),
   website: z.string().max(300).optional(),
+  artstation: z.string().max(300).optional(),
+  deviantart: z.string().max(300).optional(),
+  instagram: z.string().max(300).optional(),
+  xUrl: z.string().max(300).optional(),
   logoUrl: z.string().max(1_500_000).optional(),
   color: z.string().max(9).optional(),
   accent: z.string().max(9).optional(),
@@ -19,7 +23,7 @@ const Draft = z.object({
 });
 
 const Body = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("claim"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
+  z.object({ kind: z.literal("claim"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional(), code: z.string().max(40).optional() }),
   z.object({ kind: z.literal("takeover"), boothId: z.number().int().positive(), draft: Draft, useCredit: z.boolean().optional() }),
   z.object({ kind: z.literal("boost"), boothId: z.number().int().positive(), amountCents: z.number().int().positive() }),
   z.object({ kind: z.literal("banner"), boothId: z.number().int().positive(), height: z.number().int().min(6).max(16) }),
@@ -48,7 +52,7 @@ export async function POST(req: Request) {
   const b = parsed.data;
   try {
     if (b.kind === "claim") {
-      const tx = await startClaim(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : u.creditCents);
+      const tx = await startClaim(b.boothId, u.id, b.draft as BoothDraft, b.useCredit === false ? 0 : u.creditCents, b.code);
       return NextResponse.json({ url: await nextStepUrl(tx), txId: tx.id });
     }
     if (b.kind === "takeover") {

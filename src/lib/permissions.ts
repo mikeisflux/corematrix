@@ -8,6 +8,7 @@ export const ADMIN_AREAS = [
   { id: "booths", label: "Booths", blurb: "Every booth: edit, hide, release, transfer" },
   { id: "users", label: "Users", blurb: "Accounts, credit, coins, passwords (permissions stay with superadmins)" },
   { id: "plans", label: "Plans", blurb: "Subscriptions and tiers" },
+  { id: "codes", label: "Booth codes", blurb: "Generate and track codes that pay for a booth" },
   { id: "payouts", label: "Payouts", blurb: "Money owed to sellers" },
   { id: "billboards", label: "Billboards", blurb: "Hall advertising" },
   { id: "theater", label: "Theater", blurb: "Films, uploads and the playlist" },

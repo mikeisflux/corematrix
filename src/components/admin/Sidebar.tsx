@@ -10,6 +10,7 @@ const NAV: { href: string; label: string; area?: AdminArea; sub?: { href: string
   { href: "/admin/booths", label: "Booths", area: "booths" },
   { href: "/admin/users", label: "Users", area: "users" },
   { href: "/admin/plans", label: "Plans", area: "plans" },
+  { href: "/admin/codes", label: "Booth codes", area: "codes" },
   { href: "/admin/payouts", label: "Payouts", area: "payouts" },
   { href: "/admin/billboards", label: "Billboards", area: "billboards" },
   { href: "/admin/theater", label: "Theater", area: "theater" },

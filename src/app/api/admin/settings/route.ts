@@ -36,6 +36,7 @@ export async function PUT(req: Request) {
   const b = await readJson<{ key?: string; value?: string }>(req);
   const key = String(b.key || "").trim().slice(0, 100);
   if (!/^[A-Z0-9_]+$/.test(key) || PROTECTED.has(key) || typeof b.value !== "string") return bad("invalid key/value");
+  if (b.value.startsWith("•")) return bad("That is the masked placeholder, not a value. Reveal the field, paste the real value and save again.");
   const def = SETTING_KEYS.find((d) => d.key === key);
   if (def?.readonly) return bad("read-only setting");
   const before = await getSetting(key);

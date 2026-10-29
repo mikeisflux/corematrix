@@ -9,7 +9,8 @@ export default function Settings() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [custom, setCustom] = useState({ key: "", value: "" });
-  const [testing, setTesting] = useState<"" | "email" | "divinity">("");
+  const [testing, setTesting] = useState<"" | "email" | "divinity" | "check">("");
+  const [check, setCheck] = useState<{ ok: boolean; steps: Array<{ name: string; ok: boolean | null; detail: string }> } | null>(null);
   const toast = useToast();
   async function save(key: string) {
     const value = edits[key];
@@ -31,10 +32,24 @@ export default function Settings() {
     <>
       {toast.node}
       <PageHead title="Settings" sub="Every API key and switch the site needs. Values are stored in the database and override .env; secrets are masked until you reveal them.">
-        <button className="admBtn" disabled={testing !== ""} onClick={() => test("email")}>{testing === "email" ? "Sending…" : "Test SendGrid"}</button>
+        <button className="admBtn admBtn--primary" disabled={testing !== ""} onClick={async () => { setTesting("check"); setCheck(null); try { setCheck(await api("/api/admin/settings/email-check", { method: "POST" })); } catch (e) { toast.err(e); } finally { setTesting(""); } }}>{testing === "check" ? "Checking…" : "Check email setup"}</button>
+        <button className="admBtn" disabled={testing !== ""} onClick={() => test("email")}>{testing === "email" ? "Sending…" : "Send test email"}</button>
         <button className="admBtn" disabled={testing !== ""} onClick={() => test("divinity")}>{testing === "divinity" ? "Checking…" : "Test DivinityCoin"}</button>
       </PageHead>
       {data.error && <div className="admNote admNote--err">{data.error}</div>}
+      {check && (
+        <div className={`admCard`} style={{ marginBottom: 16, borderColor: check.ok ? "var(--highlight)" : "var(--heat-6)" }}>
+          <div className="admCard__hd"><h2 className="admH2">Email setup {check.ok ? "✓ all good" : "✗ needs attention"}</h2><button className="admBtn admBtn--sm" onClick={() => setCheck(null)}>Close</button></div>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {check.steps.map((s) => (
+              <li key={s.name} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--rule)" }}>
+                <span style={{ width: 20, fontWeight: 700, color: s.ok === true ? "var(--highlight)" : s.ok === false ? "var(--heat-6)" : "var(--muted)" }}>{s.ok === true ? "✓" : s.ok === false ? "✗" : "•"}</span>
+                <div><div style={{ fontWeight: 600 }}>{s.name}</div><div className="admMuted" style={{ wordBreak: "break-word" }}>{s.detail}</div></div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="admTabs" style={{ marginBottom: 16 }}>
         {data.data?.groups.map((x) => <button key={x.name} className={group === x.name ? "on" : ""} onClick={() => setGroup(x.name)}>{x.name} <span className="admMuted">{x.keys.filter((k) => k.set).length}/{x.keys.length}</span></button>)}
         <button className={group === "Custom" ? "on" : ""} onClick={() => setGroup("Custom")}>Custom</button>

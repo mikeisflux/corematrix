@@ -8,6 +8,10 @@ export interface HallBooth {
   name: string | null;
   tagline: string | null;
   website: string | null;
+  artstation?: string | null;
+  deviantart?: string | null;
+  instagram?: string | null;
+  xUrl?: string | null;
   hasLogo: boolean;
   logoVersion?: number; // bumps when the logo changes so the floor reloads it
   color: string;

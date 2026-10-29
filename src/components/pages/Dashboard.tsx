@@ -10,7 +10,7 @@ import { timeAgo } from "@/lib/util";
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
-  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -463,9 +463,9 @@ function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: Return
 }
 
 function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
-  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
+  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p]);
+  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p]);
   const save = async () => {
     setBusy(true);
     try {
@@ -494,6 +494,10 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div><label className="label">Name</label><input className="input" maxLength={40} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></div>
         <div><label className="label">Website</label><input className="input" value={d.website} onChange={(e) => setD({ ...d, website: e.target.value })} /></div>
+        <div><label className="label">ArtStation</label><input className="input" placeholder="username or link" value={d.artstation} onChange={(e) => setD({ ...d, artstation: e.target.value })} /></div>
+        <div><label className="label">DeviantArt</label><input className="input" placeholder="username or link" value={d.deviantart} onChange={(e) => setD({ ...d, deviantart: e.target.value })} /></div>
+        <div><label className="label">Instagram</label><input className="input" placeholder="@handle" value={d.instagram} onChange={(e) => setD({ ...d, instagram: e.target.value })} /></div>
+        <div><label className="label">X</label><input className="input" placeholder="@handle" value={d.xUrl} onChange={(e) => setD({ ...d, xUrl: e.target.value })} /></div>
         <div className="md:col-span-2"><label className="label">Tagline</label><input className="input" maxLength={90} value={d.tagline} onChange={(e) => setD({ ...d, tagline: e.target.value })} /></div>
         <div className="md:col-span-2"><label className="label">Description</label><textarea className="input" rows={3} maxLength={600} value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></div>
         <div>

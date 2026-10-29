@@ -10,7 +10,7 @@ const CLOTHS = ["#111827", "#7f1d1d", "#1e3a8a", "#065f46", "#4c1d95", "#9a3412"
 const STYLE_LABEL: Record<string, string> = { classic: "Classic", neon: "Neon", comic: "Comic", minimal: "Minimal", retro: "Retro" };
 
 interface Props { boothId: number; mode: "claim" | "takeover"; initial?: Partial<Draft> }
-interface Draft { name: string; tagline: string; description: string; website: string; logoUrl: string; color: string; accent: string; style: string; cloth: string; category: string }
+interface Draft { name: string; tagline: string; description: string; website: string; artstation: string; deviantart: string; instagram: string; xUrl: string; logoUrl: string; color: string; accent: string; style: string; cloth: string; category: string }
 
 export function Designer({ boothId, mode, initial }: Props) {
   const me = useHall((s) => s.me);
@@ -19,10 +19,15 @@ export function Designer({ boothId, mode, initial }: Props) {
   const setFlyTo = useHall((s) => s.setFlyTo);
   const space = boothSpace(boothId)!;
   const target = booths.get(boothId);
-  const [d, setD] = useState<Draft>({ name: "", tagline: "", description: "", website: "", logoUrl: "", color: PALETTE[0], accent: "#ffffff", style: "classic", cloth: "#111827", category: space.kind === "artist" ? "art" : "comics", ...initial });
+  const [d, setD] = useState<Draft>({ name: "", tagline: "", description: "", website: "", artstation: "", deviantart: "", instagram: "", xUrl: "", logoUrl: "", color: PALETTE[0], accent: "#ffffff", style: "classic", cloth: "#111827", category: space.kind === "artist" ? "art" : "comics", ...initial });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [useCredit, setUseCredit] = useState(true);
+  // a booth code from the organisers pays the whole price
+  const [code, setCode] = useState("");
+  const [codeState, setCodeState] = useState<{ ok: true; covers: string } | { ok: false; error: string } | null>(null);
+  const [showCode, setShowCode] = useState(false);
+  const checkCode = async () => { if (!code.trim()) { setCodeState(null); return; } try { const r = await api<{ ok: boolean; covers?: string; error?: string }>(`/api/codes?code=${encodeURIComponent(code)}&booth=${boothId}`); setCodeState(r.ok ? { ok: true, covers: r.covers ?? "this booth" } : { ok: false, error: r.error ?? "Not valid" }); } catch (e) { setCodeState({ ok: false, error: (e as Error).message }); } };
 
   const price = mode === "claim" ? space.priceCents : splitTakeover(target?.valueCents ?? 0).price;
   const credit = useCredit ? Math.min(me?.creditCents ?? 0, price) : 0;
@@ -45,7 +50,7 @@ export function Designer({ boothId, mode, initial }: Props) {
   const submit = async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: mode, boothId, draft: d, useCredit }) });
+      const r = await api<{ url: string }>("/api/checkout", { method: "POST", body: JSON.stringify({ kind: mode, boothId, draft: d, useCredit, code: mode === "claim" && codeState?.ok ? code : undefined }) });
       window.location.href = r.url;
     } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
@@ -99,15 +104,37 @@ export function Designer({ boothId, mode, initial }: Props) {
           {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.name} — {v.blurb}</option>)}
         </select>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div><label className="label">ArtStation</label><input className="input" placeholder="username or link" value={d.artstation} onChange={(e) => setD({ ...d, artstation: e.target.value })} /></div>
+        <div><label className="label">DeviantArt</label><input className="input" placeholder="username or link" value={d.deviantart} onChange={(e) => setD({ ...d, deviantart: e.target.value })} /></div>
+        <div><label className="label">Instagram</label><input className="input" placeholder="@handle" value={d.instagram} onChange={(e) => setD({ ...d, instagram: e.target.value })} /></div>
+        <div><label className="label">X</label><input className="input" placeholder="@handle" value={d.xUrl} onChange={(e) => setD({ ...d, xUrl: e.target.value })} /></div>
+      </div>
       <div><label className="label">About (optional)</label><textarea className="input" rows={3} maxLength={600} placeholder="Tell visitors what they'll find at your table." value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></div>
       <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
         <div className="flex items-center justify-between text-sm"><span className="text-slate-300">{mode === "claim" ? `${sizeDef.short} · ${ZONES[space.zone].name}` : "Takeover price"}</span><span className="mono font-bold">{formatMoney(price)}</span></div>
         {me && me.creditCents > 0 && (
           <label className="mt-2 flex items-center justify-between text-xs text-slate-300"><span className="flex items-center gap-2"><input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} />Use my {formatMoney(me.creditCents)} credit</span><span className="mono">−{formatMoney(credit)}</span></label>
         )}
-        <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2"><span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total</span><span className="mono text-xl font-bold text-amber-300">{formatMoney(price - credit)}</span></div>
+        {mode === "claim" && (
+          <div className="mt-2 border-t border-white/10 pt-2">
+            {!showCode && !codeState?.ok && <button type="button" onClick={() => setShowCode(true)} className="text-xs text-amber-300 underline">Have a booth code?</button>}
+            {(showCode || codeState?.ok) && (
+              <div>
+                <label className="label">Booth code from the organisers</label>
+                <div className="flex gap-1.5">
+                  <input className="input mono flex-1 uppercase" placeholder="FCC-XXXX-XXXX" value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setCodeState(null); }} onBlur={() => void checkCode()} />
+                  <button type="button" className="btn-ghost text-xs" onClick={() => void checkCode()}>Check</button>
+                </div>
+                {codeState?.ok && <p className="mt-1 text-xs text-emerald-300">✓ Valid: covers {codeState.covers}. Total is $0.</p>}
+                {codeState && !codeState.ok && <p className="mt-1 text-xs text-rose-300">{codeState.error}</p>}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2"><span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total</span><span className="mono text-lg font-bold text-amber-300">{mode === "claim" && codeState?.ok ? "$0.00 · code" : formatMoney(price - credit)}</span></div>
       </div>
-      {me ? <button className="btn-primary w-full" disabled={busy || !d.name.trim()} onClick={submit}>{busy ? "Opening checkout…" : mode === "claim" ? "Continue to payment →" : "Take over this booth →"}</button> : <SignIn note="Sign in to finish. Your setup is kept on this page." />}
+      {me ? <button className="btn-primary w-full" disabled={busy || !d.name.trim()} onClick={submit}>{busy ? "Opening checkout…" : mode === "claim" ? (codeState?.ok ? "Claim with code →" : "Continue to payment →") : "Take over this booth →"}</button> : <SignIn note="Sign in to finish. Your setup is kept on this page." />}
       {err && <p className="text-xs text-rose-400">{err}</p>}
       <p className="text-[11px] text-slate-500">Edit your name, banner, logo, link and colors any time for free. Value only grows: boost it later, or let takeovers pay you. Full refund within 24 hours if nobody has interacted with your booth.</p>
     </div>
