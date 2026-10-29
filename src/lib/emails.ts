@@ -2,7 +2,7 @@
    (src/lib/email-templates.ts defaults, editable in /admin/emails/templates). */
 import { eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
-import { sendTemplate } from "@/lib/sendgrid";
+import { sendTemplate, escapeHtml } from "@/lib/sendgrid";
 import { formatMoney, splitTakeover } from "@/lib/config";
 import { boothSeries, sumSeries, boothReferrerRows } from "@/lib/analytics";
 import { lastWeekRank } from "@/lib/seasons";
@@ -70,7 +70,7 @@ export async function sendWeeklyDigests(): Promise<number> {
       const move = last ? (last > rank ? `up ${last - rank} from #${last}` : last < rank ? `down ${rank - last} from #${last}` : "unchanged") : "";
       const refs = p.tier !== "free" ? await boothReferrerRows(p.id) : [];
       const conv = series.slice(-7).reduce((a, r) => a + r.conversions, 0);
-      sections.push(`<h3 style="margin:18px 0 6px;color:#fff;font-size:16px">${p.name} · #${p.id} · rank #${rank}${move ? ` (${move})` : ""}</h3>
+      sections.push(`<h3 style="margin:18px 0 6px;color:#fff;font-size:16px">${escapeHtml(p.name ?? "")} · #${p.id} · rank #${rank}${move ? ` (${move})` : ""}</h3>
 <table cellpadding="6" style="border-collapse:collapse;color:#c9cfe6;font-size:14px">
 <tr><td>Impressions</td><td><b>${cur.impressions.toLocaleString()}</b></td><td>${d(cur.impressions, prev.impressions)}</td></tr>
 <tr><td>Unique visitors</td><td><b>${cur.uniques.toLocaleString()}</b></td><td>${d(cur.uniques, prev.uniques)}</td></tr>

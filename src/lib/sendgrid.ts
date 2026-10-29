@@ -88,15 +88,17 @@ export async function sendMail(input: MailInput): Promise<MailResult> {
 /* ───────── Templates ───────── */
 
 /* {{var}} substitution; {{#if var}}…{{else}}…{{/if}}; {{#each items}}…{{/each}} with {{this.key}}; {{{raw}}}. */
-export function renderTemplate(src: string, vars: Record<string, unknown>): string {
+/** `escape: false` for subjects and plain-text bodies: HTML entities there show up literally ("Tom &amp; Jerry"). */
+export function renderTemplate(src: string, vars: Record<string, unknown>, opts: { escape?: boolean } = {}): string {
+  const esc = opts.escape === false ? (v: string) => v : escapeHtml;
   let out = src.replace(/\{\{#each\s+([\w.]+)\}\}([\s\S]*?)\{\{\/each\}\}/g, (_m, key, inner) => {
     const arr = getPath(vars, key);
     if (!Array.isArray(arr)) return "";
-    return arr.map((item) => renderTemplate(inner, { ...vars, this: item })).join("");
+    return arr.map((item) => renderTemplate(inner, { ...vars, this: item }, opts)).join("");
   });
   out = out.replace(/\{\{#if\s+([\w.]+)\}\}([\s\S]*?)(?:\{\{else\}\}([\s\S]*?))?\{\{\/if\}\}/g, (_m, key, a, b) => (getPath(vars, key) ? a : (b ?? "")));
   out = out.replace(/\{\{\{\s*([\w.]+)\s*\}\}\}/g, (_m, key) => String(getPath(vars, key) ?? ""));
-  out = out.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key) => escapeHtml(String(getPath(vars, key) ?? "")));
+  out = out.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key) => esc(String(getPath(vars, key) ?? "")));
   return out;
 }
 
@@ -135,8 +137,8 @@ export async function sendTemplate(slug: string, to: string, vars: Record<string
     const html = vars.fallbackHtml ? String(vars.fallbackHtml) : undefined;
     return sendMail({ to, subject, text, html, templateSlug: slug, ...extra });
   }
-  const subject = renderTemplate(t.subject, all);
+  const subject = renderTemplate(t.subject, all, { escape: false });
   const html = renderTemplate(t.html, all);
-  const text = t.text ? renderTemplate(t.text, all) : htmlToText(html);
+  const text = t.text ? renderTemplate(t.text, all, { escape: false }) : htmlToText(html);
   return sendMail({ to, subject, text, html, templateSlug: slug, ...extra });
 }

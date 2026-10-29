@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const a = schema.adminAuditLog;
   const q = (url.searchParams.get("q") || "").trim(), resource = url.searchParams.get("resource") || "";
-  const where = and(resource ? eq(a.resource, resource) : undefined, q ? or(sql`${a.action} LIKE ${like(q)}`, sql`${a.adminEmail} LIKE ${like(q)}`, sql`${a.resourceId} LIKE ${like(q)}`, sql`${a.after} LIKE ${like(q)}`) : undefined);
+  const where = and(resource ? eq(a.resource, resource) : undefined, q ? or(sql`${a.action} LIKE ${like(q)} ESCAPE '\\'`, sql`${a.adminEmail} LIKE ${like(q)} ESCAPE '\\'`, sql`${a.resourceId} LIKE ${like(q)} ESCAPE '\\'`, sql`${a.after} LIKE ${like(q)} ESCAPE '\\'`) : undefined);
   const { page, size, skip, take } = pageParams(url);
   const [[{ total }], rows, resources] = await Promise.all([
     db.select({ total: sql<number>`count(*)` }).from(a).where(where),

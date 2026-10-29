@@ -5,7 +5,7 @@ import RichEditor from "./RichEditor";
 import { invalidEmails, kb, parseEmails, quoteToHtml, stripHtml, type AttachmentRow, type ComposePrefill } from "./inbox/types";
 
 interface Tpl { id: string; slug: string; name: string; subject: string; html: string; isActive: boolean }
-interface DraftRow { id: string; toEmail: string | null; cc: string | null; subject: string; html: string | null; threadId: string | null; headers: { bcc?: string } | null; attachments: AttachmentRow[] }
+interface DraftRow { id: string; status?: string; toEmail: string | null; cc: string | null; subject: string; html: string | null; threadId: string | null; headers: { bcc?: string } | null; attachments: AttachmentRow[] }
 interface Form { to: string; cc: string; bcc: string; subject: string; html: string }
 const LIMIT = 10 * 1024 * 1024;
 const AUTOSAVE_MS = 3000;
@@ -53,6 +53,8 @@ export default function Compose({ prefill, onClose, onSent, toast }: { prefill: 
       api<{ row: DraftRow }>(`/api/admin/emails/${prefill.draftId}`).then((d) => {
         if (!alive) return;
         const r = d.row;
+        // only real drafts open here: a received message loaded as a draft would put its HTML into the live editor
+        if (r.status !== "draft") { setError("That message isn't a draft. Reply to it or forward it instead."); setDraftId(null); setReady(true); return; }
         setFormState({ to: r.toEmail || "", cc: r.cc || "", bcc: r.headers?.bcc || "", subject: r.subject || "", html: r.html || "" });
         setShowCc(!!r.cc); setShowBcc(!!r.headers?.bcc); setAttachments(r.attachments || []); setReady(true);
       }).catch((e) => { if (alive) { setError(String((e as Error).message || e)); setReady(true); } });

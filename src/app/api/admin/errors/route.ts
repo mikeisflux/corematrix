@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const conds = [];
   if (status === "open") conds.push(sql`${t.resolvedAt} IS NULL`); else if (status === "resolved") conds.push(sql`${t.resolvedAt} IS NOT NULL`);
   if (kind) conds.push(eq(t.kind, kind));
-  if (q) conds.push(sql`(${t.message} LIKE ${like(q)} OR ${t.where} LIKE ${like(q)} OR ${t.url} LIKE ${like(q)} OR ${t.ua} LIKE ${like(q)})`);
+  if (q) conds.push(sql`(${t.message} LIKE ${like(q)} ESCAPE '\\' OR ${t.where} LIKE ${like(q)} ESCAPE '\\' OR ${t.url} LIKE ${like(q)} ESCAPE '\\' OR ${t.ua} LIKE ${like(q)} ESCAPE '\\')`);
   const where = conds.length ? and(...conds) : undefined;
   const { page, size, skip, take } = pageParams(url, 50);
   const [[{ total }], rows, [open24]] = await Promise.all([

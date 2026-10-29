@@ -2,11 +2,13 @@ import { redirect } from "next/navigation";
 import { Shell } from "@/components/pages/Shell";
 import { currentUser } from "@/lib/auth";
 import { SignIn } from "@/components/ui/AuthForms";
+import { safeLocalPath } from "@/lib/util";
 
 export const metadata = { title: "Sign in" };
 /** Only a path on this site: never another host, a protocol-relative URL or javascript:. Old links used /dashboard and /arcade. */
 function safeNext(n: string | undefined): string {
-  if (!n || !/^\/(?![/\\])/.test(n)) return "/app/dashboard";
+  n = safeLocalPath(n, "");
+  if (!n) return "/app/dashboard";
   return /^\/(dashboard|arcade)(\/|$|\?)/.test(n) ? `/app${n}` : n;
 }
 

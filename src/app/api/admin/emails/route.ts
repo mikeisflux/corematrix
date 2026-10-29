@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     FOLDERS[folder] ?? FOLDERS.inbox,
     status ? eq(m.status, status) : undefined,
     channel ? eq(m.channel, channel) : undefined,
-    q ? or(sql`${m.subject} LIKE ${like(q)}`, sql`${m.fromEmail} LIKE ${like(q)}`, sql`${m.toEmail} LIKE ${like(q)}`, sql`${m.fromName} LIKE ${like(q)}`, sql`${m.cc} LIKE ${like(q)}`, sql`${m.text} LIKE ${like(q)}`) : undefined,
+    q ? or(sql`${m.subject} LIKE ${like(q)} ESCAPE '\\'`, sql`${m.fromEmail} LIKE ${like(q)} ESCAPE '\\'`, sql`${m.toEmail} LIKE ${like(q)} ESCAPE '\\'`, sql`${m.fromName} LIKE ${like(q)} ESCAPE '\\'`, sql`${m.cc} LIKE ${like(q)} ESCAPE '\\'`, sql`${m.text} LIKE ${like(q)} ESCAPE '\\'`) : undefined,
   );
   const { page, size, skip, take } = pageParams(url);
   const countWhere: Record<string, SQL> = { ...FOLDERS, inbox: and(FOLDERS.inbox, eq(m.read, false))! };

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/hall/store";
+import { safeLocalPath } from "@/lib/util";
 
 type Mode = "signin" | "signup" | "forgot";
 /** Email + password sign-in / sign-up / forgot. Used inline in hall panels and on /app/login. */
@@ -13,7 +14,7 @@ export function SignIn({ next, note, start = "signin" }: { next?: string; note?:
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const want = next ?? (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/app");
-  const dest = /^\/(?![/\\])/.test(want) ? want : "/app";
+  const dest = safeLocalPath(want, "/app");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setErr(null); setMsg(null);
     try {

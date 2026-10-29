@@ -27,3 +27,33 @@ export function frameDoc(html: string, opts: { dark?: boolean } = {}): string {
   }
   return `<!doctype html><html><head>${head}</head><body>${clean}</body></html>`;
 }
+
+/**
+ * Browser-only, allow-list cleaner for HTML that goes into the live (non-sandboxed) editor. Parses with
+ * DOMParser, which builds an inert document (nothing runs or loads), then keeps only formatting tags and
+ * safe attributes. The regex cleaner above can be fooled (`<img/src=x/onerror=...>`, split tags); this can't.
+ */
+const KEEP = new Set(["A", "B", "STRONG", "I", "EM", "U", "S", "P", "BR", "HR", "DIV", "SPAN", "UL", "OL", "LI", "BLOCKQUOTE", "PRE", "CODE", "H1", "H2", "H3", "H4", "H5", "H6", "TABLE", "THEAD", "TBODY", "TR", "TD", "TH", "IMG", "FONT", "CENTER", "SMALL", "SUB", "SUP"]);
+const ATTRS = new Set(["href", "src", "alt", "title", "width", "height", "style", "align", "colspan", "rowspan", "color", "target", "border", "cellpadding", "cellspacing", "bgcolor"]);
+export function sanitizeForEditor(input: string): string {
+  if (typeof DOMParser === "undefined") return sanitizeHtml(input);
+  const doc = new DOMParser().parseFromString(`<body>${input || ""}</body>`, "text/html");
+  const walk = (el: Element) => {
+    for (const child of Array.from(el.children)) {
+      if (!KEEP.has(child.tagName)) {
+        // drop dangerous elements whole; unwrap harmless unknown ones so their text survives
+        if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|FRAME|FRAMESET|META|LINK|BASE|FORM|INPUT|BUTTON|TEXTAREA|SELECT|SVG|MATH|TEMPLATE|NOSCRIPT)$/.test(child.tagName)) { child.remove(); continue; }
+        walk(child); child.replaceWith(...Array.from(child.childNodes)); continue;
+      }
+      for (const a of Array.from(child.attributes)) {
+        const name = a.name.toLowerCase(), val = a.value.trim().toLowerCase();
+        if (!ATTRS.has(name)) child.removeAttribute(a.name);
+        else if ((name === "href" || name === "src") && !/^(https?:|mailto:|cid:|#|\/)/.test(val) && !(name === "src" && /^data:image\/(png|jpe?g|gif|webp);/.test(val))) child.removeAttribute(a.name);
+        else if (name === "style" && /expression|javascript:|url\s*\(/.test(val)) child.removeAttribute(a.name);
+      }
+      walk(child);
+    }
+  };
+  walk(doc.body);
+  return doc.body.innerHTML;
+}

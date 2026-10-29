@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const t = schema.transactions, u = schema.users;
   const status = url.searchParams.get("status") || "", kind = url.searchParams.get("kind") || "", provider = url.searchParams.get("provider") || "", q = (url.searchParams.get("q") || "").trim();
   const where = and(status ? eq(t.status, status) : undefined, kind ? eq(t.kind, kind) : undefined, provider ? eq(t.provider, provider) : undefined,
-    q ? or(eq(t.id, q), sql`${t.providerRef} LIKE ${like(q)}`, sql`${t.sessionId} LIKE ${like(q)}`, sql`${u.email} LIKE ${like(q)}`, /^\d+$/.test(q) ? eq(t.boothId, Number(q)) : undefined) : undefined);
+    q ? or(eq(t.id, q), sql`${t.providerRef} LIKE ${like(q)} ESCAPE '\\'`, sql`${t.sessionId} LIKE ${like(q)} ESCAPE '\\'`, sql`${u.email} LIKE ${like(q)} ESCAPE '\\'`, /^\d+$/.test(q) ? eq(t.boothId, Number(q)) : undefined) : undefined);
   const cols = { id: t.id, boothId: t.boothId, kind: t.kind, status: t.status, provider: t.provider, amountCents: t.amountCents, refundedCents: t.refundedCents, sellerPayoutCents: t.sellerPayoutCents, platformCents: t.platformCents, createdAt: t.createdAt, paidAt: t.paidAt, providerRef: t.providerRef, buyerEmail: u.email, buyerId: t.buyerId };
   const base = () => db.select(cols).from(t).leftJoin(u, eq(u.id, t.buyerId)).where(where).orderBy(desc(t.createdAt));
   if (url.searchParams.get("export") === "csv") {

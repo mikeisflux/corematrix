@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { sanitizeHtml } from "./sanitize";
+import { sanitizeForEditor } from "./sanitize";
 const VARS = ["name", "email", "boothName", "boothId", "amount", "price", "payout", "profit", "planName", "periodEnd", "link", "siteName", "siteUrl", "supportEmail", "currentYear"];
 /* contentEditable HTML editor with a raw-HTML toggle. `value` is HTML. */
 export default function RichEditor({ value, onChange, minHeight = 260, allowRaw = true }: { value: string; onChange: (html: string) => void; minHeight?: number; allowRaw?: boolean }) {
@@ -9,11 +9,11 @@ export default function RichEditor({ value, onChange, minHeight = 260, allowRaw 
   const last = useRef(value);
   useEffect(() => {
     if (raw || !ref.current) return;
-    if (value !== last.current || ref.current.innerHTML === "") { ref.current.innerHTML = sanitizeHtml(value || ""); last.current = value; }
+    if (value !== last.current || ref.current.innerHTML === "") { ref.current.innerHTML = sanitizeForEditor(value || ""); last.current = value; }
   }, [value, raw]);
   const emit = () => { if (!ref.current) return; last.current = ref.current.innerHTML; onChange(last.current); };
   const cmd = (name: string, arg?: string) => { ref.current?.focus(); document.execCommand(name, false, arg); emit(); };
-  const insertHtml = (html: string) => { ref.current?.focus(); document.execCommand("insertHTML", false, sanitizeHtml(html)); emit(); };
+  const insertHtml = (html: string) => { ref.current?.focus(); document.execCommand("insertHTML", false, sanitizeForEditor(html)); emit(); };
   return (
     <div className="admEditor">
       <div className="admEditor__bar" onMouseDown={(e) => e.preventDefault()}>

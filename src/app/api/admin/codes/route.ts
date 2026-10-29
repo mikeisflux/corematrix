@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get("q") || "").trim(), size = url.searchParams.get("size") || "", status = url.searchParams.get("status") || "all";
   const t = schema.boothCodes;
   const conds = [];
-  if (q) conds.push(sql`(${t.code} LIKE ${like(q.toUpperCase().replace(/[^A-Z0-9]/g, ""))} OR ${t.label} LIKE ${like(q)})`);
+  if (q) conds.push(sql`(${t.code} LIKE ${like(q.toUpperCase().replace(/[^A-Z0-9]/g, ""))} OR ${t.label} LIKE ${like(q)} ESCAPE '\\')`);
   if (size) conds.push(eq(t.size, size));
   if (status === "open") conds.push(sql`${t.revokedAt} IS NULL AND ${t.uses} < ${t.maxUses} AND (${t.expiresAt} IS NULL OR ${t.expiresAt} > ${now()})`);
   else if (status === "used") conds.push(sql`${t.uses} >= ${t.maxUses}`);

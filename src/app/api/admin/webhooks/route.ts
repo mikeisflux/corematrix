@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status") || "";
   const q = (url.searchParams.get("q") || "").trim();
   const w = schema.webhookEvents;
-  const where = and(provider ? eq(w.provider, provider) : undefined, status ? eq(w.status, status) : undefined, q ? or(sql`${w.eventId} LIKE ${like(q)}`, sql`${w.type} LIKE ${like(q)}`, sql`${w.error} LIKE ${like(q)}`) : undefined);
+  const where = and(provider ? eq(w.provider, provider) : undefined, status ? eq(w.status, status) : undefined, q ? or(sql`${w.eventId} LIKE ${like(q)} ESCAPE '\\'`, sql`${w.type} LIKE ${like(q)} ESCAPE '\\'`, sql`${w.error} LIKE ${like(q)} ESCAPE '\\'`) : undefined);
   const { page, size, skip, take } = pageParams(url);
   const [[{ total }], rows, base] = await Promise.all([
     db.select({ total: sql<number>`count(*)` }).from(w).where(where),

@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") || "").trim();
   const u = schema.users;
-  const where = q ? or(sql`${u.email} LIKE ${like(q)}`, sql`${u.displayName} LIKE ${like(q)}`, sql`${u.handle} LIKE ${like(q)}`, eq(u.id, q)) : undefined;
+  const where = q ? or(sql`${u.email} LIKE ${like(q)} ESCAPE '\\'`, sql`${u.displayName} LIKE ${like(q)} ESCAPE '\\'`, sql`${u.handle} LIKE ${like(q)} ESCAPE '\\'`, eq(u.id, q)) : undefined;
   const cols = { id: u.id, email: u.email, displayName: u.displayName, handle: u.handle, creditCents: u.creditCents, coins: u.coins, isAdmin: u.isAdmin, permissions: u.permissions, createdAt: u.createdAt, lastSeenAt: u.lastSeenAt, referredBy: u.referredBy, booths: sql<number>`(select count(*) from booths p where p.owner_id = ${u.id})`, spentCents: sql<number>`(select coalesce(sum(amount_cents),0) from transactions t where t.buyer_id = ${u.id} and t.status = 'paid')` };
   if (url.searchParams.get("export") === "csv") {
     const rows = await db.select(cols).from(u).where(where).orderBy(desc(u.createdAt)).limit(10000);

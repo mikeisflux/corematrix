@@ -138,7 +138,7 @@ export async function resetPassword(token: string, password: string): Promise<Us
 /** Signed-in user changes their own password. */
 export async function changePassword(userId: string, current: string, next: string): Promise<void> {
   const [u] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
-  if (!u || !verifyPassword(current, u.passwordHash)) throw new Error("Current password is wrong");
+  if (!u || !(await verifyPassword(current, u.passwordHash))) throw new Error("Current password is wrong");
   await setPassword(userId, next);
   // sign out every other session, keep this one
   const jar = await cookies(); const mine = jar.get(SESSION_COOKIE)?.value;
@@ -214,16 +214,18 @@ export async function markVerified(userId: string) {
 }
 
 /* ---------- optional password sign-in (scrypt, no extra deps) ---------- */
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
   return `scrypt$${salt}$${scryptSync(password, salt, 64).toString("hex")}`;
 }
-export function verifyPassword(password: string, stored: string | null | undefined): boolean {
+/** Async: the synchronous scrypt blocked the whole server for every sign-in attempt. */
+export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
   if (!stored) return false;
   const [algo, salt, hash] = stored.split("$");
   if (algo !== "scrypt" || !salt || !hash) return false;
-  const a = Buffer.from(hash, "hex"), b = scryptSync(password, salt, 64);
+  const a = Buffer.from(hash, "hex");
+  const b = await new Promise<Buffer>((res, rej) => scrypt(password, salt, 64, (err, key) => (err ? rej(err) : res(key))));
   return a.length === b.length && timingSafeEqual(a, b);
 }
 export async function setPassword(userId: string, password: string | null): Promise<void> {
@@ -235,7 +237,7 @@ export async function signInWithPassword(emailRaw: string, password: string): Pr
   await ensureMigrated();
   const email = emailRaw.trim().toLowerCase();
   const [u] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
-  if (!u || !verifyPassword(password, u.passwordHash)) return null;
+  if (!u || !(await verifyPassword(password, u.passwordHash))) return null;
   await createSession(u.id);
   return u;
 }

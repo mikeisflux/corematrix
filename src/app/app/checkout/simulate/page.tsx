@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { safeLocalPath } from "@/lib/util";
 import { Simulator } from "@/components/pages/Simulator";
 
 export const metadata = { title: "Test checkout", robots: { index: false } };
@@ -10,14 +11,10 @@ export default async function SimulatePage({ searchParams }: { searchParams: Pro
   return <Simulator reference={sp.reference ?? ""} amount={sp.amount ?? "0"} kind={sp.kind === "setup" ? "setup" : "payment"} success={safeReturn(sp.success, (await headers()).get("host"))} />;
 }
 
-/** Only a path on this site: a crafted link must not send the buyer elsewhere or run a javascript: URL. */
+/** Only a path on this site (an absolute URL on this host is cut down to its path): never another host, a javascript: URL, or "/.//evil.com". */
 function safeReturn(v: string | undefined, host: string | null): string {
-  if (!v) return "/";
-  try {
-    const u = new URL(v, "http://x.invalid");
-    if (u.origin !== "http://x.invalid") {
-      return (u.protocol === "https:" || u.protocol === "http:") && host && u.host === host ? `${u.pathname}${u.search}${u.hash}` : "/";
-    }
-    return `${u.pathname}${u.search}${u.hash}`;
-  } catch { return "/"; }
+  if (v && host) {
+    try { const u = new URL(v); if ((u.protocol === "https:" || u.protocol === "http:") && u.host === host) v = `${u.pathname}${u.search}${u.hash}`; } catch { /* relative: checked below */ }
+  }
+  return safeLocalPath(v, "/");
 }

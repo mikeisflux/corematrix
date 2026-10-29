@@ -80,3 +80,18 @@ export function seeded(seed: number): () => number {
     return ((s >>> 0) % 100000) / 100000;
   };
 }
+
+/**
+ * A path on this site, or the fallback. Browsers strip tabs and newlines from URLs, so "/\t/evil.com" would
+ * pass a simple "starts with one slash" test and still land on evil.com; this resolves the value the way the
+ * browser will and keeps it only if it stays on this origin and can't be read as protocol-relative.
+ */
+export function safeLocalPath(v: string | null | undefined, fallback = "/"): string {
+  if (!v || /[\u0000-\u001f\u007f\\]/.test(v)) return fallback;
+  try {
+    const u = new URL(v, "http://local.invalid");
+    if (u.origin !== "http://local.invalid") return fallback;
+    const out = `${u.pathname}${u.search}${u.hash}`;
+    return out.startsWith("//") ? fallback : out;
+  } catch { return fallback; }
+}
