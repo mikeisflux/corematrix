@@ -151,7 +151,8 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
   const user: typeof schema.users.$inferInsert = {
     id: newId(),
     email,
-    displayName: email.split("@")[0],
+    // shown to everyone on the floor, in chat and on leaderboards: never derived from the email, which is often a real name
+    displayName: `Fan ${1000 + Math.floor(Math.random() * 9000)}`,
     referralCode: newCode(),
     referredBy,
     creditCents: referredBy ? REFERRAL_CREDIT_CENTS : 0,

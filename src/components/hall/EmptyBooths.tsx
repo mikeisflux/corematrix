@@ -107,7 +107,8 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
         tmp.position.set(tx, 2.37, tz); tmp.updateMatrix(); hems.current?.setMatrixAt(j, tmp.matrix);
         tmp.position.set(tx, 2.55, tz); tmp.updateMatrix(); tops.current?.setMatrixAt(j, tmp.matrix);
         // banner centred behind the table, back against the drape so it's visible over the table
-        const back = island ? w / 2 - 1.2 : w - 1.0; // islands: just inside each edge; booths: in front of the back wall
+        // islands: round the middle like a claimed island's roll-ups, far enough out that the four never cross at the corners; booths: in front of the back wall
+        const back = island ? w / 2 - (bannerW / 2 + 0.4) : w - 1.0;
         const bx = q.x - q.nx * back, bz = q.z - q.nz * back;
         tmp.rotation.set(0, q.rot, 0);
         tmp.position.set(bx, bannerH / 2 + 0.3, bz); tmp.updateMatrix(); banners.current?.setMatrixAt(j, tmp.matrix);
