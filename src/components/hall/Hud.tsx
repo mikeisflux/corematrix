@@ -46,6 +46,7 @@ export function Hud() {
   const near = useHall((s) => s.near);
   const nearBot = useHall((s) => s.nearBot);
   const nearSeat = useHall((s) => s.nearSeat);
+  const nearSeatOk = useHall((s) => s.nearSeatOk);
   const toastAction = useHall((s) => s.toastAction);
   const seated = useHall((s) => s.seated);
   const th = useTheater();
@@ -175,8 +176,8 @@ export function Hud() {
       {mode === "walk" && panel === "none" && (seated || nearSeat) && (
         <button onClick={() => requestSit(seated ? "stand" : nearSeat!)} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up" style={{ marginBottom: nearBooth || nearBot ? 52 : 0 }}>
           <span className="text-lg">🪑</span>
-          <span>{seated ? <><b>Seated</b> · tap or move to stand up</> : <><b>{nearSeat!.booth != null ? "Sit at your table" : "Take a seat"}</b>{nearSeat!.booth == null ? " · theater bench" : ""}</>}</span>
-          <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">C</span>
+          <span>{seated ? <><b>Seated</b> · tap or move to stand up</> : nearSeatOk ? <><b>{nearSeat!.booth != null ? "Sit at your table" : "Take a seat"}</b>{nearSeat!.booth == null ? " · theater bench" : ""}</> : <><b>Crew only</b> · {me ? "ask the exhibitor to add you to their team" : "sign in if you're on the crew"}</>}</span>
+          {(seated || nearSeatOk) && <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">C</span>}
         </button>
       )}
       {mode === "walk" && !nearBooth && nearBot && panel === "none" && (

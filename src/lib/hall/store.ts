@@ -112,7 +112,8 @@ interface HallState {
   walkPoint: { x: number; z: number; face?: { x: number; z: number } } | null; // teleport beside a person
   near: number | null;
   nearBot: boolean;
-  nearSeat: Seat | null;       // a seat the player may take within reach
+  nearSeat: Seat | null;       // the seat within reach (a chair or a bench spot)
+  nearSeatOk: boolean;         // whether the player may take it (booth chairs are for the owner and their crew)
   seated: Seat | null;         // the seat the player is on
   quality: Quality;
   previewDraft: { boothId: number; color: string; style: string; cloth: string; name: string } | null;
@@ -137,7 +138,7 @@ interface HallState {
   setWalkPoint: (p: HallState["walkPoint"]) => void;
   setNear: (id: number | null) => void;
   setNearBot: (v: boolean) => void;
-  setNearSeat: (s: Seat | null) => void;
+  setNearSeat: (s: Seat | null, ok?: boolean) => void;
   setSeated: (s: Seat | null) => void;
   setQuality: (q: Quality) => void;
 }
@@ -186,6 +187,7 @@ export const useHall = create<HallState>((set) => ({
   near: null,
   nearBot: false,
   nearSeat: null,
+  nearSeatOk: false,
   seated: null,
   quality: "medium",
   previewDraft: null,
@@ -216,7 +218,7 @@ export const useHall = create<HallState>((set) => ({
   setWalkPoint: (walkPoint) => set({ walkPoint }),
   setNear: (near) => set({ near }),
   setNearBot: (nearBot) => set({ nearBot }),
-  setNearSeat: (nearSeat) => set({ nearSeat }),
+  setNearSeat: (nearSeat, ok = true) => set({ nearSeat, nearSeatOk: !!nearSeat && ok }),
   setSeated: (seated) => set({ seated }),
   setQuality: (quality) => set({ quality }),
 }));

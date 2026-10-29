@@ -63,6 +63,10 @@ export function HallCanvas() {
     // first, private messages would miss this tab, so reconnect once the real id is known from the presence reply.
     // for debugging in the console and in tests: the live roster and social state
     (window as unknown as { __fcc?: unknown }).__fcc = { live, social, hall: useHall };
+    // crews change while people are on the floor: refresh my booths when the tab comes back and every two minutes
+    const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => { if (alive) setMe(d.user, d.booths); }).catch(() => {}); };
+    document.addEventListener("visibilitychange", refreshMe);
+    const refresh = setInterval(refreshMe, 120_000);
     let es = new EventSource("/api/live");
     let sseId = "";
     const onMessage = (ev: MessageEvent) => {
@@ -98,6 +102,8 @@ export function HallCanvas() {
     return () => {
       alive = false;
       clearInterval(check);
+      clearInterval(refresh);
+      document.removeEventListener("visibilitychange", refreshMe);
       es.close();
     };
   }, [setBooths, upsertBooth, pushEvent, setStats, setMe, setBillboards, setFeatured, setToast]);

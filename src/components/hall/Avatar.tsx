@@ -209,7 +209,7 @@ export function Player() {
   const seat = useRef<Seat | null>(null);
   const mayUse = (s: Seat) => s.booth == null || useHall.getState().myBooths.some((b) => b.id === s.booth);
   const sitDown = (s: Seat) => {
-    if (!mayUse(s)) { useHall.getState().setToast("That chair is the exhibitor's. Benches in the theater are open to everyone."); return; }
+    if (!mayUse(s)) { useHall.getState().setToast(useHall.getState().me ? "That chair is for the exhibitor and their crew. Ask them to add you to their team (🎟️ Teams)." : "That chair is for the exhibitor's crew. Sign in if you're on it; theater benches are open to everyone."); return; }
     seat.current = s; motion.sit = true; motion.speed = 0; motion.emote = null;
     pos.current.set(s.x, 0, s.z); heading.current = s.yaw;
     // the view: behind you on a bench (watching the screen); from the aisle at your table, since the roll-up and tower are right behind the chair
@@ -224,7 +224,7 @@ export function Player() {
   };
   const toggleSit = () => {
     if (seat.current) { standUp(); return; }
-    const s = nearestSeat(pos.current.x, pos.current.z, mayUse);
+    const s = nearestSeat(pos.current.x, pos.current.z, mayUse) ?? nearestSeat(pos.current.x, pos.current.z);
     if (s) sitDown(s); else useHall.getState().setToast("Walk up to your chair or a theater bench to sit.");
   };
   const report = (leave = false, away = false) => {
@@ -347,8 +347,10 @@ export function Player() {
         if (dist < bd) { bd = dist; best = b.id; }
       }
       if (best !== near.current) { near.current = best; useHall.getState().setNear(best); }
-      const ns = seat.current ? null : nearestSeat(pos.current.x, pos.current.z, mayUse);
-      if ((ns?.id ?? null) !== (useHall.getState().nearSeat?.id ?? null)) useHall.getState().setNearSeat(ns);
+      const ns = seat.current ? null : (nearestSeat(pos.current.x, pos.current.z, mayUse) ?? nearestSeat(pos.current.x, pos.current.z));
+      const ok = !!ns && mayUse(ns);
+      const st = useHall.getState();
+      if ((ns?.id ?? null) !== (st.nearSeat?.id ?? null) || ok !== st.nearSeatOk) st.setNearSeat(ns, ok);
     }
   });
 

@@ -21,7 +21,7 @@ export function unregisterSeat(id: string) { chairs.delete(id); }
  * The closest seat to (x, z) that `allowed` says this person may use. Booth floors are
  * solid, so an exhibitor reaches their chair from the booth's edge: 9 ft for chairs, 6 ft for bench spots.
  */
-export function nearestSeat(x: number, z: number, allowed: (s: Seat) => boolean): Seat | null {
+export function nearestSeat(x: number, z: number, allowed: (s: Seat) => boolean = () => true): Seat | null {
   let best: Seat | null = null, bd = Infinity;
   const consider = (s: Seat) => { const d = Math.hypot(s.x - x, s.z - z); if (d < bd && d < (s.booth != null ? 9 : 6) && allowed(s)) { bd = d; best = s; } };
   for (const s of chairs.values()) consider(s);

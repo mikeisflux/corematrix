@@ -115,6 +115,8 @@ export async function createTeam(ownerId: string, name: string): Promise<string>
   if (Number(c) >= 20) throw new Error("That's plenty of teams");
   const id = newId();
   await db.insert(schema.teams).values({ id, ownerId, name: n, createdAt: now() });
+  // it staffs every booth of yours that has no crew yet, so adding a person is enough to let them sit
+  await db.update(schema.booths).set({ teamId: id }).where(and(eq(schema.booths.ownerId, ownerId), sql`${schema.booths.teamId} IS NULL`));
   return id;
 }
 
