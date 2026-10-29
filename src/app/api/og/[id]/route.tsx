@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { getBooth, claimedBooths } from "@/lib/economy";
+import { getPublicBooth, claimedBooths } from "@/lib/economy";
 import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES } from "@/lib/config";
 import { boothSpace, describeSpace, hallLayout, HALL_LENGTH, HALL_DEPTH, X0, Z0 } from "@/lib/hall/layout";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** Share card: the booth's banner colors, name, stats and a mini floor plan with the booth highlighted. */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const p = await getBooth(Number(id));
+  const p = await getPublicBooth(Number(id));
   const space = boothSpace(Number(id));
   const all = await claimedBooths();
   const claimed = new Map(all.map((b) => [b.id, b.color]));

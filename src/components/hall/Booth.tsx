@@ -18,8 +18,7 @@ interface Props { booth: HallBooth; night: boolean; hovered: boolean; selected: 
 /** Opens the exhibitor's site in a new tab. Called from a click handler so popup blockers allow it. */
 export function openSite(id: number, website: string | null | undefined, src: string) {
   if (!website) return false;
-  track({ kind: "clicks", boothId: id, source: src });
-  window.open(`/app/go/${id}?src=${src}`, "_blank", "noopener");
+  window.open(`/app/go/${id}?src=${src}`, "_blank", "noopener"); // /app/go counts the click; counting here too doubled it
   return true;
 }
 

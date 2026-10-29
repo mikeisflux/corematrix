@@ -29,7 +29,10 @@ export function BoothPanel() {
     setView("view"); setDetail(null);
     if (!id || !booth) return;
     track({ kind: "views", boothId: id, source: mode === "walk" ? "walk" : "map" });
-    api<Detail>(`/api/booth/${id}`).then(setDetail).catch(() => null);
+    // clicking A then B quickly: only B's storefront may land (A's links and art on B's covers otherwise)
+    let on = true;
+    api<Detail>(`/api/booth/${id}`).then((d) => { if (on) setDetail(d); }).catch(() => null);
+    return () => { on = false; };
   }, [id, booth?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!id) return null;

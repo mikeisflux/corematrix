@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { currentUser } from "@/lib/auth";
+import { currentUser, clientIp } from "@/lib/auth";
+import { allow } from "@/lib/throttle";
 import { getOrSetVisitor } from "@/lib/visitor";
 import { appendPerf } from "@/lib/perf";
 
@@ -21,6 +22,8 @@ export async function POST(req: Request) {
   const visitorId = await getOrSetVisitor(res);
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "bad body" }, { status: 400 });
+  // a real tab reports a few times a minute; this keeps a script from filling the table
+  if (!allow(`perf:${await clientIp()}`, 30, 60_000)) return NextResponse.json({ ok: true });
   const u = await currentUser();
   try { await appendPerf({ ...parsed.data, visitorId, userId: u?.id ?? null }); }
   // a reset is stored as a marker sample so it shows on the timeline and in the summary

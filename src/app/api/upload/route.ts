@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/auth";
 /**
  * Logo upload. Raster images are fitted (never cropped) and centred on a
  * transparent 512×512 canvas with sharp, so any shape of logo looks right on
- * the floor; SVGs pass through. Returns a data URL to store on the booth.
+ * the floor; SVGs are drawn to PNG too. Returns a data URL to store on the booth.
  */
 export async function POST(req: Request) {
   const u = await currentUser();
@@ -17,10 +17,8 @@ export async function POST(req: Request) {
   }
   if (file.size > 8_000_000) return NextResponse.json({ error: "Keep logos under 8 MB" }, { status: 400 });
   const buf = Buffer.from(await file.arrayBuffer());
-  if (file.type === "image/svg+xml") {
-    if (buf.length > 300_000) return NextResponse.json({ error: "Keep SVG logos under 300 KB" }, { status: 400 });
-    return NextResponse.json({ url: `data:${file.type};base64,${buf.toString("base64")}` });
-  }
+  // SVGs are drawn to a PNG like everything else: a stored SVG was refused when saving, so the logo silently never changed
+  if (file.type === "image/svg+xml" && buf.length > 300_000) return NextResponse.json({ error: "Keep SVG logos under 300 KB" }, { status: 400 });
   try {
     const sharp = (await import("sharp")).default;
     const png = await sharp(buf, { failOn: "none", animated: false }).rotate()

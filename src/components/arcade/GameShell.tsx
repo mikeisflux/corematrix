@@ -35,7 +35,10 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
   const loadBoard = useCallback(() => api<typeof board>(`/api/arcade/leaderboard?game=${gameId}&scope=${scope}`).then(setBoard), [gameId, scope]);
   useEffect(() => { void loadBoard(); api<{ user: { coins: number } | null }>("/api/me").then((d) => setCoins(d.user?.coins ?? null)); }, [loadBoard]);
 
+  const [starting, setStarting] = useState(false);
   const start = async () => {
+    if (starting) return; // a double click would pay for two games and throw the first away
+    setStarting(true);
     setErr(null);
     setResult(null);
     try {
@@ -48,7 +51,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
       stop.current = RUNNERS[gameId](canvas.current!, setScore, (final) => void finish(r.playId, final));
     } catch (e) {
       setErr((e as Error).message);
-    }
+    } finally { setStarting(false); }
   };
   const finish = async (pid: string, final: number) => {
     setState("over");
@@ -77,7 +80,7 @@ export function GameShell({ gameId, name, blurb, cost, prize, prizeAt }: { gameI
           {state !== "playing" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#070a16]/80 text-center">
               {result && <div><div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Final score</div><div className="mono text-5xl font-bold">{result.score.toLocaleString()}</div>{result.prize > 0 ? <div className="mt-1 text-emerald-400">+{result.prize} coins prize!</div> : <div className="mt-1 text-xs text-slate-400">{prizeAt.toLocaleString()}+ wins {prize} coins</div>}</div>}
-              <button className="btn-primary" onClick={start} disabled={coins == null}>{state === "over" ? `Play again · ${cost} coins` : `Insert ${cost} coins`}</button>
+              <button className="btn-primary" onClick={start} disabled={coins == null || starting}>{state === "over" ? `Play again · ${cost} coins` : `Insert ${cost} coins`}</button>
               {err && <p className="text-xs text-rose-400">{err}</p>}
               <p className="text-[11px] text-slate-500">{HINTS[gameId] ?? "Keyboard or mouse"}</p>
             </div>

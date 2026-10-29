@@ -26,7 +26,8 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ ok: false }, { status: 400 });
   const b = parsed.data;
   // a real visitor sends a few of these a minute; a script looping them only gets its first share counted
-  if (!allow(`track:${visitor ?? (await clientIp())}`, 120, 60_000)) return res;
+  // by address as well as visitor: without a cookie every request is a "new" visitor
+  if (!allow(`track:${visitor}`, 120, 60_000) || !allow(`trackip:${await clientIp()}`, 240, 60_000)) return res;
   // only booths that exist on the floor get rows
   if ("boothId" in b && !boothSpace(b.boothId)) return res;
   if (b.kind === "impressions") await trackImpressions(b.boothIds.filter((id) => boothSpace(id)), visitor);

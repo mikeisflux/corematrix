@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function GamePage({ params }: { params: Promise<{ game: string }> }) {
   const { game } = await params;
-  if (!GAMES[game as GameId]) notFound();
+  if (!Object.hasOwn(GAMES, game)) notFound(); // not a plain lookup: "constructor" would pass
   const g = GAMES[game as GameId];
   return (
     <Shell wide>

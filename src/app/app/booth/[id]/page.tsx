@@ -2,19 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell } from "@/components/pages/Shell";
-import { getBooth, boothHistory, claimedBooths } from "@/lib/economy";
+import { allow } from "@/lib/throttle";
+import { getPublicBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
 import { CATEGORIES, formatCount, formatMoney, SITE_NAME, SITE_URL, splitTakeover, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID } from "@/lib/config";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
-import { currentUser } from "@/lib/auth";
+import { currentUser, clientIp } from "@/lib/auth";
 import { visitorId } from "@/lib/auth";
 import { ClientTrack } from "@/components/ui/ClientTrack";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const p = await getBooth(Number(id));
+  const p = await getPublicBooth(Number(id));
   if (!p?.ownerId) return { title: `Booth ${boothSpace(Number(id))?.label ?? id} is open` };
   return {
     title: `${p.name} · Booth ${p.label}`,
@@ -29,7 +30,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
   const sp = await searchParams;
   const boothId = Number(id);
   if (!Number.isFinite(boothId) || boothId < 1) notFound();
-  const p = await getBooth(boothId);
+  const p = await getPublicBooth(boothId);
   const space = boothSpace(boothId);
   if (!space) notFound();
   if (!p?.ownerId) {
@@ -48,7 +49,9 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
   }
   const user = await currentUser();
   const vid = await visitorId();
-  await trackBooth(boothId, "views", vid, sp.src ?? (sp.utm_source ? "share" : "direct"));
+  // a reload loop from one address only counts a few times
+  const ip = await clientIp();
+  if (allow(`pageview:${ip}:${boothId}`, 3, 10 * 60_000) && allow(`pageviews:${ip}`, 120, 10 * 60_000)) await trackBooth(boothId, "views", vid, sp.src ?? (sp.utm_source ? "share" : "direct"));
   const [series, history, all] = await Promise.all([boothSeries(boothId, 30), boothHistory(boothId), claimedBooths()]);
   const totals = sumSeries(series.slice(-7));
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;

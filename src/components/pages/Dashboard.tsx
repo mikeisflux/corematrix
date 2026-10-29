@@ -47,6 +47,9 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
 
+  // merge into whatever is on screen now, and only if it is still the same booth: an upload that finishes after a
+  // rename (or a booth switch) must not put back the old copy
+  const patchBooth = useCallback((boothId: number, d: Partial<Detail["booth"]>) => setDetail((cur) => (cur && cur.booth.id === boothId ? { ...cur, booth: { ...cur.booth, ...d } } : cur)), []);
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); }, [msg]);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const series = useMemo(() => (detail ? detail.series.slice(-range) : []), [detail, range]);
@@ -113,7 +116,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <div className="flex flex-wrap items-center gap-3">
             <img src={`/api/logo/${p.id}`} alt="" className="h-14 w-14 rounded-xl bg-white/10 object-cover" />
             <div className="min-w-0 flex-1">
-              <NameEditor p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setBooths((bs) => bs.map((b) => (b.id === p.id ? { ...b, name: d.name ?? b.name } : b))); setMsg("Name saved. The show floor updates instantly."); }} setMsg={setMsg} />
+              <NameEditor p={p} onSaved={(d) => { patchBooth(p.id, d); setBooths((bs) => bs.map((b) => (b.id === p.id ? { ...b, name: d.name ?? b.name } : b))); setMsg("Name saved. The show floor updates instantly."); }} setMsg={setMsg} />
               <div className="text-xs text-slate-400">
                 {p.kind === "artist" ? `Table ${p.label}` : `Booth ${p.label}`} · Hall {p.hall} · {BOOTH_SIZES[p.size as keyof typeof BOOTH_SIZES]?.short ?? p.size} · {CATEGORIES[p.category]?.name} · rank <b className="text-white">#{detail.rank}</b>
                 {detail.prevRank != null && detail.prevRank !== detail.rank && (
@@ -174,9 +177,9 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
             <Emails me={me} onChanged={() => void load()} />
           </div>
 
-          <Edit p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
-          <Artwork p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
-          <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => setDetail({ ...detail, booth: { ...detail.booth, art, ...(artLinks ? { artLinks } : {}) } })} />
+          <Edit p={p} onSaved={(d) => { patchBooth(p.id, d); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
+          <Artwork p={p} setMsg={setMsg} onChanged={(art) => patchBooth(p.id, { art })} />
+          <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />
           <Teams booths={booths} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">

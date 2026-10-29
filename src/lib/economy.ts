@@ -51,25 +51,34 @@ function profileUrl(v: string | undefined, base: string): string | null {
   return handle ? base + handle : null;
 }
 
+const badLogo = (msg: string): never => { throw new Error(msg); };
+/** Cleared fields come back as null (so an edit really removes them); fields not given come back undefined. */
 export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
   const name = clampStr(d.name, 40);
   if (!name) throw new Error("Give your booth a name");
   const website = normalizeUrl(d.website);
-  // logos: a local path, an uploaded data URL (what /api/upload returns), or a remote http(s) URL
-  // SVG is refused here: an SVG served from our own origin can run script. Uploads go through /api/upload, which rasterises.
-  const logo = d.logoUrl ? (/^\/(?![/\\])/.test(d.logoUrl) ? d.logoUrl : /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(d.logoUrl) && d.logoUrl.length < 1_500_000 ? d.logoUrl : d.logoUrl.startsWith("data:") ? null : normalizeUrl(d.logoUrl)) : null;
+  // logos: a static image path on this site, an uploaded raster data URL (what /api/upload returns), or a remote http(s)
+  // URL. Not any local path: /logo/<id> redirects there for every visitor, so "/api/px/42?v=..." or "/app/go/42" would turn
+  // each logo load into a fake conversion or click. SVG is refused: an SVG served from our origin can run script.
+  const raw = d.logoUrl;
+  const logo = raw === undefined ? undefined : !raw ? null
+    : /^\/(?!\/)[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/i.test(raw) && !raw.includes("..") ? raw
+    : /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(raw) && raw.length < 1_500_000 ? raw
+    : raw.startsWith("data:") ? badLogo("Use a PNG, JPG, WebP or GIF logo (SVG isn't supported).")
+    : raw.startsWith("/") ? badLogo("A logo path on this site must point to a PNG, JPG, WebP or GIF file.")
+    : normalizeUrl(raw) ?? badLogo("That logo link isn't a web address.");
   return {
     name,
-    tagline: clampStr(d.tagline, 90),
-    description: clampStr(d.description, 600),
-    website: website ?? undefined,
-    artstation: profileUrl(d.artstation, "https://www.artstation.com/") ?? undefined,
-    deviantart: profileUrl(d.deviantart, "https://www.deviantart.com/") ?? undefined,
-    instagram: profileUrl(d.instagram, "https://www.instagram.com/") ?? undefined,
-    xUrl: profileUrl(d.xUrl, "https://x.com/") ?? undefined,
-    facebook: profileUrl(d.facebook, "https://www.facebook.com/") ?? undefined,
-    globalcomix: profileUrl(d.globalcomix, "https://globalcomix.com/a/") ?? undefined,
-    logoUrl: logo ?? undefined,
+    tagline: (clampStr(d.tagline, 90) ?? null) as string | undefined,
+    description: (clampStr(d.description, 600) ?? null) as string | undefined,
+    website: (website ?? null) as string | undefined,
+    artstation: (profileUrl(d.artstation, "https://www.artstation.com/") ?? null) as string | undefined,
+    deviantart: (profileUrl(d.deviantart, "https://www.deviantart.com/") ?? null) as string | undefined,
+    instagram: (profileUrl(d.instagram, "https://www.instagram.com/") ?? null) as string | undefined,
+    xUrl: (profileUrl(d.xUrl, "https://x.com/") ?? null) as string | undefined,
+    facebook: (profileUrl(d.facebook, "https://www.facebook.com/") ?? null) as string | undefined,
+    globalcomix: (profileUrl(d.globalcomix, "https://globalcomix.com/a/") ?? null) as string | undefined,
+    logoUrl: logo as string | undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#5b8def",
     accent: d.accent && isHexColor(d.accent) ? d.accent : "#ffffff",
     style: BANNER_STYLES.includes((d.style ?? "") as never) ? d.style : "classic",
@@ -85,6 +94,11 @@ export function spaceColumns(boothId: number) {
   return { label: s.label, size: s.size, kind: s.kind, hall: s.hall, aisle: s.aisle };
 }
 
+/** A booth as the public may see it: one an admin has hidden reads as not there. */
+export async function getPublicBooth(id: number): Promise<Booth | null> {
+  const p = await getBooth(id);
+  return p && !p.hidden ? p : null;
+}
 export async function getBooth(id: number): Promise<Booth | null> {
   if (!Number.isSafeInteger(id) || id < 1) return null; // /app/booth/abc and friends: no such booth, not a crashed query
   await ensureMigrated();
@@ -643,13 +657,12 @@ export async function boothHistory(boothId: number) {
 export async function updateBooth(boothId: number, ownerId: string, draft: Partial<BoothDraft>) {
   const p = await getBooth(boothId);
   if (!p || p.ownerId !== ownerId) throw new Error("Not your booth");
-  const d = sanitizeDraft({ ...p, ...draft, name: draft.name ?? p.name ?? "" } as BoothDraft);
+  // the logo is only checked when this edit changes it, so an older stored logo doesn't block unrelated edits
+  const d = sanitizeDraft({ ...p, ...draft, logoUrl: "logoUrl" in draft ? draft.logoUrl : undefined, name: draft.name ?? p.name ?? "" } as BoothDraft);
+  if (!("logoUrl" in draft)) delete (d as Partial<BoothDraft>).logoUrl;
   await db.update(schema.booths).set({ ...d, updatedAt: now() }).where(eq(schema.booths.id, boothId));
   const booth = (await getBooth(boothId))!;
-  publish({
-    type: "booth",
-    booth: liveBooth(booth),
-  });
+  if (!booth.hidden) publish({ type: "booth", booth: liveBooth(booth) }); // a booth an admin hid stays off the floor
   return booth;
 }
 

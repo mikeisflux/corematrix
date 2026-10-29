@@ -9,6 +9,7 @@ import { dayKey, newId, now } from "@/lib/util";
 import { addEvent, liveBooth } from "@/lib/economy";
 import { publish } from "@/lib/realtime";
 import { REFERRAL_COINS } from "@/lib/config";
+import { allow } from "@/lib/throttle";
 import { notify } from "@/lib/notify";
 
 export const GAMES = {
@@ -82,6 +83,8 @@ export async function dailyCheckIn(userId: string): Promise<{ awarded: number; s
 }
 
 export async function exploreReward(userId: string, boothId: number): Promise<number> {
+  // decided before any await, so a burst of parallel views can't all pass the daily checks below
+  if (!allow(`explore:${userId}`, 10, 86_400_000) || !allow(`explore:${userId}:${boothId}`, 1, 86_400_000)) return 0;
   const since = now() - 86_400_000;
   const [c] = await db
     .select({ n: sql<number>`count(*)` })
@@ -102,6 +105,9 @@ export async function startPlay(userId: string, gameId: GameId): Promise<{ playI
   const g = GAMES[gameId];
   const coins = await spendCoins(userId, g.cost, "play", gameId);
   if (coins === null) throw new Error(`You need ${g.cost} coins to play. Come back tomorrow for your daily coins, or grab a pack.`);
+  // one game at a time: starting a new one closes any other open game, so a script can't run dozens at once and
+  // claim a prize on each
+  await db.update(schema.gamePlays).set({ finishedAt: now() }).where(and(eq(schema.gamePlays.userId, userId), isNull(schema.gamePlays.finishedAt)));
   const playId = newId();
   await db.insert(schema.gamePlays).values({ id: playId, gameId, userId, startedAt: now() });
   return { playId, coins };
@@ -128,7 +134,10 @@ export async function finishPlay(userId: string, playId: string, score: number, 
   const s = impossible ? 0 : Math.max(0, Math.floor(score));
   await db.insert(schema.gameScores).values({ id: newId(), gameId: p.gameId, userId, playerName, boothId, score: s, day: dayKey(), createdAt: now() });
   let prize = 0;
-  if (s >= g.prizeAt) {
+  // prizes pay a few times per game per day, however many winning scores come in
+  const [won] = s >= g.prizeAt ? await db.select({ n: sql<number>`count(*)` }).from(schema.coinLedger)
+    .where(and(eq(schema.coinLedger.userId, userId), eq(schema.coinLedger.reason, "prize"), sql`${schema.coinLedger.ref} LIKE ${`${p.gameId}:%`}`, gte(schema.coinLedger.createdAt, now() - 86_400_000))) : [{ n: 0 }];
+  if (s >= g.prizeAt && Number(won?.n ?? 0) < 3) {
     prize = g.prize;
     await addCoins(userId, prize, "prize", `${p.gameId}:${s}`);
     await notify(userId, "prize", `You won ${prize} coins on ${g.name}`, `${s.toLocaleString()} points. Coins convert into booth value from the dashboard.`);

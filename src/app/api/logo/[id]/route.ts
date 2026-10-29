@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getBooth } from "@/lib/economy";
+import { fetchPublic } from "@/lib/safe-fetch";
 
 /**
  * Serves a booth's logo. Stored logos are data URLs (portable, no object
@@ -12,7 +13,7 @@ const SAFE = { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const p = await getBooth(Number(id));
-  if (!p) return new NextResponse("not found", { status: 404 });
+  if (!p || p.hidden) return new NextResponse("not found", { status: 404 });
   if (p.logoUrl?.startsWith("data:")) {
     const m = /^data:([^;]+);base64,(.*)$/.exec(p.logoUrl);
     if (m) {
@@ -21,19 +22,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       });
     }
   }
-  if (p.logoUrl && /^\/(?![/\\])/.test(p.logoUrl)) return NextResponse.redirect(new URL(p.logoUrl, _req.url), 307);
+  // only a static image file: any other local path would make every visitor's logo load hit it (page views, clicks...)
+  if (p.logoUrl && /^\/(?!\/)[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/i.test(p.logoUrl) && !p.logoUrl.includes("..")) return NextResponse.redirect(new URL(p.logoUrl, _req.url), 307);
   if (p.logoUrl?.startsWith("http")) {
-    // Proxy remote logos so textures stay same-origin. Small timeout, cached.
-    try {
-      const r = await fetch(p.logoUrl, { signal: AbortSignal.timeout(4000) });
-      if (r.ok && (r.headers.get("content-type") ?? "").startsWith("image/")) {
-        const buf = Buffer.from(await r.arrayBuffer());
-        if (buf.length < 2_000_000) {
-          return new NextResponse(buf, { headers: { ...SAFE, "Content-Type": r.headers.get("content-type")!, "Cache-Control": "public, max-age=3600" } });
-        }
-      }
-    } catch {
-      /* fall through to initials */
+    // proxied so textures stay same-origin; only public hosts, no redirects, capped size
+    const r = await fetchPublic(p.logoUrl, { timeoutMs: 4000, maxBytes: 2_000_000 }).catch(() => null);
+    if (r && /^image\/(png|jpeg|webp|gif)$/i.test(r.type.split(";")[0].trim())) {
+      return new NextResponse(new Uint8Array(r.body), { headers: { ...SAFE, "Content-Type": r.type, "Cache-Control": "public, max-age=3600" } });
     }
   }
   const initials = (p.name ?? `#${p.id}`)

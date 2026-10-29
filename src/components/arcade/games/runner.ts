@@ -33,8 +33,11 @@ export const runRunner: GameRunner = (canvas, onScore, onEnd) => {
   canvas.addEventListener("mousedown", jump);
   canvas.addEventListener("touchstart", jump, { passive: false });
   const px = 120;
-  const loop = () => {
-    if (!alive) return;
+  // fixed 60 Hz physics, whatever the screen's refresh rate: per-frame steps ran 2.4x fast on 144 Hz screens, and the
+  // server (which caps points per second) then threw those scores out
+  const STEP = 1000 / 60;
+  let last = performance.now(), acc = 0;
+  const step = (): boolean => {
     x += speed;
     speed += 0.0015;
     score = Math.floor(x / 10) + Math.floor(score - Math.floor((x - speed) / 10));
@@ -56,8 +59,15 @@ export const runRunner: GameRunner = (canvas, onScore, onEnd) => {
         score += 25;
       }
     }
+    return player.y > H;
+  };
+  const loop = () => {
+    if (!alive) return;
+    const t = performance.now(); acc += Math.min(100, t - last); last = t;
+    let dead = false;
+    while (acc >= STEP && !dead) { dead = step(); acc -= STEP; }
     onScore(score);
-    if (player.y > H) { alive = false; cleanup(); onEnd(score); return; }
+    if (dead) { alive = false; cleanup(); onEnd(score); return; }
     while (roofs[0].x + roofs[0].w < x - 50) roofs.shift();
     while (lastEnd < x + W + 200) addRoof();
     ctx.fillStyle = "#070a16";

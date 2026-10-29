@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getBooth, claimedBooths } from "@/lib/economy";
+import { getPublicBooth, claimedBooths } from "@/lib/economy";
 import { formatMoney, SITE_NAME } from "@/lib/config";
 
 /** SVG badge owners embed on their sites: <a href="/app/booth/N?src=embed"><img src="/app/embed/N"></a> */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const p = await getBooth(Number(id));
+  const p = await getPublicBooth(Number(id));
   if (!p?.ownerId) return new NextResponse("not found", { status: 404 });
   const all = await claimedBooths();
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
