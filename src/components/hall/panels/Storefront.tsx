@@ -46,7 +46,11 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const links = LINKS.map((l) => ({ ...l, href: (l.key === "website" ? booth.website : (detail?.booth[l.key] ?? booth[l.key])) ?? null })).filter((l) => l.href);
   const isOwner = !!me && !!detail?.booth.isOwner;
   const ownerId = detail?.booth.ownerId ?? null;
-  const ownerHere = ownerId ? Array.from(live.players.values()).find((p) => p.uid === ownerId && p.id !== live.me) : undefined;
+  const players = Array.from(live.players.values());
+  const ownerHere = ownerId ? players.find((p) => p.uid === ownerId && p.id !== live.me) : undefined;
+  const iAmOwner = !!me && me.id === ownerId;
+  // people standing around the booth right now (within 30 ft of its centre), me included
+  const browsing = space ? players.filter((p) => Math.hypot(p.x - space.x, p.z - space.z) < 30).length : 0;
   const { price, sellerPayout } = splitTakeover(booth.valueCents);
   const open = (href: string, key: string) => { if (key === "website") openSite(id, href, mode === "walk" ? "walk" : "panel"); else { track({ kind: "clicks", boothId: id, source: key }); window.open(href, "_blank", "noopener"); } };
   const tierName = booth.tier === "landmark" ? "Headliner" : booth.tier === "pro" ? "Pro" : null;
@@ -77,8 +81,8 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         ) : isOwner ? <Link href={`/app/dashboard?booth=${id}`} className="block rounded-xl border border-dashed border-white/15 p-2 text-center text-xs text-slate-400 hover:border-amber-300/50">Add your website, ArtStation and DeviantArt links →</Link> : null}
         {/* who is here */}
         <div className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
-          <span className={`h-2 w-2 rounded-full ${ownerHere ? "bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" : "bg-slate-600"}`} />
-          <span className="min-w-0 flex-1 truncate text-slate-300">{ownerHere ? <><b className="text-white">{ownerHere.n}</b> is at the booth right now</> : "The exhibitor isn't on the floor right now"}</span>
+          <span className={`h-2 w-2 rounded-full ${ownerHere || iAmOwner ? "bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" : "bg-slate-600"}`} />
+          <span className="min-w-0 flex-1 truncate text-slate-300">{iAmOwner ? <><b className="text-white">You're on the floor</b> at your own booth{browsing > 1 ? ` · ${browsing - 1} ${browsing === 2 ? "person" : "people"} browsing nearby` : ""}</> : ownerHere ? <><b className="text-white">{ownerHere.n}</b> is at the booth right now{browsing > 1 ? ` · ${browsing} here` : ""}</> : <>The exhibitor isn't on the floor right now{browsing > 0 ? ` · ${browsing} ${browsing === 1 ? "person" : "people"} browsing` : ""}</>}</span>
           {ownerHere && !isOwner && <button onClick={() => openDm(ownerHere.id, ownerHere.n)} className="rounded-lg bg-white/10 px-2 py-1 font-semibold hover:bg-white/20">💬 Say hi</button>}
         </div>
         {/* on the table */}
