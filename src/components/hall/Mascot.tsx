@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { ARCADE } from "@/lib/hall/layout";
@@ -54,7 +55,8 @@ const LOOPING = new Set(["Walking", "Running", "Idle", "Dance", "Sitting"]);
 function Robot({ url }: { url: string }) {
   const { scene, animations } = useGLTF(url);
   const obj = useMemo(() => {
-    const c = scene.clone(true);
+    // the robot is skinned: a plain clone would leave its skinned parts bound to the original, unanimated skeleton
+    const c = cloneSkinned(scene);
     const box = new THREE.Box3().setFromObject(c);
     const h = box.max.y - box.min.y || 1;
     c.scale.setScalar(7 / h); c.position.y = -box.min.y * (7 / h);

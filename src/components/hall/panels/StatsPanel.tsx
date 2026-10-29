@@ -16,8 +16,8 @@ interface S {
 export function StatsPanel() {
   const [s, setS] = useState<S | null>(null);
   useEffect(() => {
-    api<S>("/api/stats").then(setS);
-    const t = setInterval(() => api<S>("/api/stats").then(setS), 15000);
+    api<S>("/api/stats").then(setS).catch(() => {});
+    const t = setInterval(() => api<S>("/api/stats").then(setS).catch(() => {}), 15000);
     return () => clearInterval(t);
   }, []);
   if (!s) return <><PanelHeader title="Show statistics" /><p className="p-3 text-xs text-slate-400">Loading…</p></>;

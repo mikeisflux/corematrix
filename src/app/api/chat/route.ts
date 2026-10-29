@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrSetVisitor } from "@/lib/visitor";
+import { getOrSetPlayer } from "@/lib/visitor";
 import { z } from "zod";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
@@ -7,6 +7,7 @@ import { db, ensureMigrated, schema } from "@/lib/db";
 import { newId, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
 import { notify } from "@/lib/notify";
+import { allow } from "@/lib/throttle";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Message too long or empty" }, { status: 400 });
   const { room, body } = parsed.data;
+  // decided before any await, so two messages sent at once can't both slip past the 5 second rule
+  if (!allow(`chat:${u.id}`, 1, 5000)) return NextResponse.json({ error: "Slow down a little" }, { status: 429 });
   const [booth] = await db
     .select({ id: schema.booths.id, name: schema.booths.name })
     .from(schema.booths)
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
   if (Number(dup?.n ?? 0) > 0) return NextResponse.json({ error: "You just said that" }, { status: 429 });
   const msg = { id: newId(), room, userId: u.id, authorName: booth?.name ?? u.displayName ?? "visitor", authorBoothId: booth?.id ?? null, body, createdAt: t };
   await db.insert(schema.messages).values(msg);
-  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetVisitor() } });
+  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetPlayer() } });
   // @handle mentions tell the person, even if they are not in the hall right now
   const handles = Array.from(new Set((body.match(/@([a-z0-9_]{2,30})/gi) ?? []).map((h) => h.slice(1).toLowerCase()))).slice(0, 5);
   for (const h of handles) {

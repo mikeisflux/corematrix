@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, useHall } from "@/lib/hall/store";
 import { timeAgo } from "@/lib/util";
 import { PanelHeader, SignIn } from "./common";
+import { onChat } from "@/lib/hall/social";
 
 interface Msg { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number }
 
@@ -16,13 +17,11 @@ export function ChatPanel({ room = "lobby", title = "Hall chat" }: { room?: stri
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    api<{ messages: Msg[] }>(`/api/chat?room=${room}`).then((d) => setMsgs(d.messages));
-    const es = new EventSource("/api/live");
-    es.onmessage = (ev) => {
-      const m = JSON.parse(ev.data);
-      if (m.type === "chat" && m.message.room === room) setMsgs((x) => [...x.filter((y) => y.id !== m.message.id), m.message].slice(-80));
-    };
-    return () => es.close();
+    let on = true;
+    api<{ messages: Msg[] }>(`/api/chat?room=${room}`).then((d) => { if (on) setMsgs((x) => [...d.messages, ...x.filter((y) => !d.messages.some((z) => z.id === y.id))].slice(-80)); }).catch(() => { if (on) setErr("Couldn't load the chat. It fills in as people talk."); });
+    // live messages ride the hall's own stream
+    const off = onChat((m) => { if (m.room === room) setMsgs((x) => [...x.filter((y) => y.id !== m.id), m].slice(-80)); });
+    return () => { on = false; off(); };
   }, [room]);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [msgs]);
 

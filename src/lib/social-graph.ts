@@ -12,11 +12,12 @@ import { visitorsOf } from "@/lib/presence";
 import { notify, notifyMany } from "@/lib/notify";
 
 export interface Person { id: string; name: string; handle: string | null }
-const person = (u: { id: string; displayName: string | null; handle: string | null; email: string }): Person => ({ id: u.id, name: u.displayName || u.email.split("@")[0], handle: u.handle });
+// never fall back to the email: these names reach strangers in requests and notifications
+const person = (u: { id: string; displayName: string | null; handle: string | null }): Person => ({ id: u.id, name: u.displayName || (u.handle ? `@${u.handle}` : "A member"), handle: u.handle });
 
 async function people(ids: string[]): Promise<Map<string, Person>> {
   if (ids.length === 0) return new Map();
-  const rows = await db.select({ id: schema.users.id, displayName: schema.users.displayName, handle: schema.users.handle, email: schema.users.email }).from(schema.users).where(inArray(schema.users.id, ids));
+  const rows = await db.select({ id: schema.users.id, displayName: schema.users.displayName, handle: schema.users.handle }).from(schema.users).where(inArray(schema.users.id, ids));
   return new Map(rows.map((u) => [u.id, person(u)]));
 }
 
@@ -104,7 +105,7 @@ export async function teamsOf(ownerId: string): Promise<TeamView[]> {
   return ts.map((t) => ({
     id: t.id, name: t.name,
     booths: booths.filter((b) => b.teamId === t.id).map((b) => b.id),
-    members: members.filter((m) => m.teamId === t.id).map((m) => ({ id: m.id, userId: m.userId, email: m.email, name: m.userId ? (who.get(m.userId)?.name ?? null) : null })),
+    members: members.filter((m) => m.teamId === t.id).map((m) => ({ id: m.id, userId: m.userId, email: m.userId ? "" : m.email /* only pending email invites show the address the owner typed */, name: m.userId ? (who.get(m.userId)?.name ?? null) : null })),
   }));
 }
 

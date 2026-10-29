@@ -22,8 +22,10 @@ export function MePanel() {
     if (!me) return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
     void soc.noticeVersion;
-    api<{ notifications: N[] }>("/api/notifications").then((d) => setNotes(d.notifications));
-    void api("/api/notifications", { method: "POST" });
+    // read the list first, then mark it read: the other order could mark a notice read before it was ever shown
+    let on = true;
+    api<{ notifications: N[] }>("/api/notifications").then((d) => { if (!on) return; setNotes(d.notifications); return api("/api/notifications", { method: "POST" }); }).catch(() => {});
+    return () => { on = false; };
   }, [me, soc.noticeVersion]);
   if (!me) {
     return (

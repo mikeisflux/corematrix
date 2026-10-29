@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
-import { social, showBubble, bumpSocial } from "@/lib/hall/social";
+import { social, showBubble, bumpSocial, emitChat, viewingDm } from "@/lib/hall/social";
 import { usePrefs } from "@/lib/hall/prefs";
 import { openDm, player } from "./Avatar";
 import { NOTICE_ICON } from "@/lib/hall/notices";
@@ -77,22 +77,25 @@ export function HallCanvas() {
       else if (m.type === "presence") setStats({ online: Math.max(1, m.online) });
       else if (m.type === "players") { applyRoster(m.players as LivePlayer[]); friendsOnFloor(m.players as LivePlayer[]); }
       else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me) useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
-      else if (m.type === "chat") { if (m.message.playerId) showBubble(m.message.playerId, m.message.body); }
+      else if (m.type === "chat") { emitChat(m.message); if (m.message.playerId) showBubble(m.message.playerId, m.message.body); }
       else if (m.type === "dm") {
         const msg = m.message; const d = social.dm;
         const other = msg.from === d.me ? msg.to : msg.from;
         if (d.active && d.active.id === other) { d.messages = [...d.messages.filter((x) => x.id !== msg.id), msg]; }
         const th = d.threads.find((t) => t.with === other);
         const mine = msg.from === d.me;
-        if (th) { th.last = msg; if (!mine) { th.name = msg.fromName; if (!(d.active && d.active.id === other)) th.unread++; } }
-        else d.threads.unshift({ with: other, name: mine ? (d.active?.name ?? "Visitor") : msg.fromName, last: msg, unread: mine || (d.active && d.active.id === other) ? 0 : 1 });
+        // read only while the thread is actually open; a thread left behind in another panel still counts as unread
+        const seen = viewingDm(other, useHall.getState().panel);
+        if (seen && !mine) void fetch(`/api/dm?with=${encodeURIComponent(other)}`).catch(() => {}); // tell the server it was read
+        if (th) { th.last = msg; if (!mine) { th.name = msg.fromName; if (!seen) th.unread++; } }
+        else d.threads.unshift({ with: other, name: mine ? (d.active?.name ?? live.players.get(other)?.n ?? "Visitor") : msg.fromName, last: msg, unread: mine || seen ? 0 : 1 });
         d.threads.sort((a, b) => b.last.createdAt - a.last.createdAt);
         d.unread = d.threads.reduce((a, t) => a + t.unread, 0);
-        if (!mine) { showBubble(msg.from, msg.body, 6000); if (!(d.active && d.active.id === other && useHall.getState().panel === "dm")) setToast(`💬 ${msg.fromName}: ${msg.body.slice(0, 80)}`, () => openDm(msg.from, msg.fromName)); }
+        if (!mine) { showBubble(msg.from, msg.body, 6000); if (!seen) setToast(`💬 ${msg.fromName}: ${msg.body.slice(0, 80)}`, () => openDm(msg.from, msg.fromName)); }
         bumpSocial();
       }
       else if (m.type === "friend") { setToast(m.kind === "request" ? `🤝 ${m.from.name} sent you a friend request` : `🤝 ${m.from.name} accepted your friend request`, () => useHall.getState().setPanel("people")); social.friendsVersion++; bumpSocial(); if (m.kind === "accepted") social.friendIds.add(m.from.id); }
-      else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`, () => useHall.getState().setPanel("me")); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)); }
+      else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`, () => useHall.getState().setPanel("me")); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)).catch(() => {}); }
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
     };
     es.onmessage = onMessage;

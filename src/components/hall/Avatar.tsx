@@ -365,7 +365,8 @@ export function Player() {
     if (!seat.current && social.pending.e && (!motion.emote || motion.emote.at !== social.pending.e.t)) motion.emote = { name: social.pending.e.n, at: social.pending.e.t };
     // share where we are: 6×/s while moving, once a second standing still, at once when an emote or reaction fired
     if (social.pending.dirty || state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
-    // camera
+    // camera (the flyover drives it while the ride lasts; two rigs steering at once shake the view)
+    if (useHall.getState().ride) return;
     const back = fp.current ? 0 : 20, up = fp.current ? 5.6 : 10;
     // keep the camera inside the building so it never ends up looking at the back of a wall
     const cx = THREE.MathUtils.clamp(pos.current.x - Math.sin(yaw.current) * back, X0 + 3, X0 + HALL_LENGTH - 3);

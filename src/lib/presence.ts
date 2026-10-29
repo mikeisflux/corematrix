@@ -33,6 +33,8 @@ export function updatePlayer(p: Omit<LivePlayer, "t">) {
   players.set(p.id, { ...p, t: Date.now() });
   startTicker();
 }
+export const hasPlayer = (id: string) => players.has(id);
+export const playerCount = () => players.size;
 export function removePlayer(id: string) {
   if (players.delete(id)) publish({ type: "players", players: roster() });
 }

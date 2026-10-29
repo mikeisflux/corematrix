@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { subscribe, onlineCount, type LiveMessage } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
 import { ensureMigrated } from "@/lib/db";
-import { getOrSetVisitor } from "@/lib/visitor";
+import { getOrSetVisitor, publicId } from "@/lib/visitor";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   await ensureMigrated();
   const res = new NextResponse(null); // only used to collect a Set-Cookie when the visitor is new
-  const visitorId = await getOrSetVisitor(res);
+  const visitorId = await publicId(await getOrSetVisitor(res)); // targeted messages go to the public floor id
   const encoder = new TextEncoder();
   let unsub: (() => void) | null = null;
   let ping: NodeJS.Timeout | null = null;

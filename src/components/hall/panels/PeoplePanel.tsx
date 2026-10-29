@@ -45,8 +45,9 @@ export function PeoplePanel() {
     const read = () => setPeople(Array.from(live.players.values()).filter((p) => p.id !== live.me));
     read(); const t = setInterval(read, 1000); return () => clearInterval(t);
   }, []);
+  // threads where only I have spoken carry no name: borrow it from the floor
   useEffect(() => {
-    api<{ me: string; threads: { with: string; name: string; last: DmMessage; unread: number }[] }>("/api/dm").then((d) => { social.dm.me = d.me; social.dm.threads = d.threads; social.dm.unread = d.threads.reduce((a, t) => a + t.unread, 0); bumpSocial(); }).catch(() => {});
+    api<{ me: string; threads: { with: string; name: string; last: DmMessage; unread: number }[] }>("/api/dm").then((d) => { social.dm.me = d.me; social.dm.threads = d.threads.map((t) => (t.name === "Visitor" && live.players.get(t.with)?.n ? { ...t, name: live.players.get(t.with)!.n } : t)); social.dm.unread = d.threads.reduce((a, t) => a + t.unread, 0); bumpSocial(); }).catch(() => {});
   }, []);
   const goTo = (p: LivePlayer) => { if (mode !== "walk") setMode("walk"); setWalkPoint({ x: p.x + 3, z: p.z + 1, face: { x: p.x, z: p.z } }); setPanel("none"); };
   const dist = (p: LivePlayer) => Math.round(Math.hypot(p.x - player.x, p.z - player.z));

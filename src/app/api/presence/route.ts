@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getOrSetVisitor } from "@/lib/visitor";
-import { updatePlayer, removePlayer } from "@/lib/presence";
+import { getOrSetPlayer } from "@/lib/visitor";
+import { updatePlayer, removePlayer, hasPlayer, playerCount } from "@/lib/presence";
+import { allow } from "@/lib/throttle";
+import { clientIp } from "@/lib/auth";
 import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -20,14 +22,16 @@ const Body = z.object({
   r: z.object({ k: z.string().max(8), t: z.number() }).nullable().optional(),
 });
 
-/** Where I am on the floor. The visitor cookie is the player id, so nobody can move somebody else. */
+/** Where I am on the floor. The player id is derived from the private visitor cookie, so nobody can move somebody else. */
 export async function POST(req: Request) {
   const res = NextResponse.json({ ok: true });
-  const id = await getOrSetVisitor(res);
+  const id = await getOrSetPlayer(res);
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "bad body" }, { status: 400 });
   const b = parsed.data;
   if (b.leave || b.x === undefined || b.z === undefined) { removePlayer(id); return NextResponse.json({ ok: true, id }); }
+  // a script without cookies mints a fresh player per request: new players are limited per address and the floor is capped
+  if (!hasPlayer(id) && (playerCount() >= 600 || !allow(`newplayer:${await clientIp()}`, 30, 60_000))) return NextResponse.json({ error: "The floor is full right now" }, { status: 429 });
   const u = await currentUser().catch(() => null);
   updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: b.e ?? null, r: b.r ?? null, uid: u?.id ?? null, j: u?.title ?? null, w: b.w === true });
   const out = NextResponse.json({ ok: true, id });

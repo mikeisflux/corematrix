@@ -25,6 +25,15 @@ export function bumpSocial() { social.version++; for (const l of listeners) l();
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
 export function useSocial() { useSyncExternalStore(subscribe, () => social.version, () => 0); return social; }
 
+/** Hall chat messages from the one live stream the hall already holds, so the chat panel doesn't open a second connection. */
+type ChatMsg = { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number };
+const chatListeners = new Set<(m: ChatMsg) => void>();
+export function onChat(l: (m: ChatMsg) => void) { chatListeners.add(l); return () => { chatListeners.delete(l); }; }
+export function emitChat(m: ChatMsg) { for (const l of chatListeners) l(m); }
+
+/** The DM thread with this person is on screen right now (panel open), so their messages count as read. */
+export const viewingDm = (other: string, panel: string) => panel === "dm" && social.dm.active?.id === other;
+
 export const REACTIONS = ["👋", "❤️", "😂", "🔥", "👏", "🎉", "😮", "👍"] as const;
 
 export function guestName(): string { try { return (localStorage.getItem("fcc_name") || "").trim().slice(0, 24); } catch { return ""; } }

@@ -10,7 +10,7 @@ import { Booth } from "./Booth";
 import { Hall } from "./Hall";
 import { EmptyBooths } from "./EmptyBooths";
 import { Arcade, flyoverCurve } from "./Arcade";
-import { Player, Crowd, Others } from "./Avatar";
+import { Player, Crowd, Others, player } from "./Avatar";
 import { Mascot } from "./Mascot";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
@@ -214,10 +214,13 @@ function CameraRig() {
   }, [flyTo, setFlyTo, mode]);
   useEffect(() => { if (ride) rideT.current = 0; }, [ride]);
   const pinned = useRef(false);
+  const prevMode = useRef(mode);
   useEffect(() => {
     // leaving walk mode: pull the camera back up over the hall
+    // over where the player was standing, not wherever the map camera was left before the walk began
+    const fromWalk = prevMode.current === "walk"; prevMode.current = mode;
     if (mode === "map" && controls.current && !pinned.current) {
-      const t = controls.current.target.clone();
+      const t = fromWalk ? { x: player.x, z: player.z } : controls.current.target;
       target.current = { look: new THREE.Vector3(t.x, 2, t.z), pos: new THREE.Vector3(t.x, 70, t.z + 90) };
     }
     pinned.current = false;
