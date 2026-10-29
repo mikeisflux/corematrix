@@ -14,6 +14,8 @@ const Draft = z.object({
   deviantart: z.string().max(300).optional(),
   instagram: z.string().max(300).optional(),
   xUrl: z.string().max(300).optional(),
+  facebook: z.string().max(300).optional(),
+  globalcomix: z.string().max(300).optional(),
   logoUrl: z.string().max(1_500_000).optional(),
   color: z.string().max(9).optional(),
   accent: z.string().max(9).optional(),

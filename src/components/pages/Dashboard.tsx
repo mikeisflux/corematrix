@@ -10,7 +10,7 @@ import { timeAgo } from "@/lib/util";
 interface Me { id: string; email: string; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
-  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
@@ -27,6 +27,8 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // the booth detail starts loading at once, alongside /api/me, instead of waiting for it
+  useEffect(() => { if (initialBooth) api<Detail>(`/api/booth/${initialBooth}`).then((d) => setDetail((cur) => cur ?? d)).catch(() => {}); }, [initialBooth]);
   const load = useCallback(async () => {
     const d = await api<{ user: Me; booths: MyBooth[] }>("/api/me");
     setMe(d.user);
@@ -37,7 +39,9 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!sel) return;
+    if (sel === initialBooth && detail?.booth.id === sel) return; // already fetched in parallel above
     api<Detail>(`/api/booth/${sel}`).then(setDetail).catch(() => setDetail(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -145,7 +149,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
                     const max = Math.max(1, ...detail.referrers.map((x) => x.clicks));
                     return (
                       <li key={r.source}>
-                        <div className="flex justify-between text-xs"><span className="capitalize">{r.source}</span><span className="mono">{r.clicks} clicks · {r.views} views</span></div>
+                        <div className="flex items-baseline justify-between gap-2 text-xs"><span className="min-w-0 truncate capitalize" title={r.source}>{r.source}</span><span className="mono shrink-0 whitespace-nowrap">{r.clicks} clicks · {r.views} views</span></div>
                         <div className="mt-0.5 h-1.5 rounded bg-white/5"><div className="h-full rounded bg-amber-300" style={{ width: `${(r.clicks / max) * 100}%` }} /></div>
                       </li>
                     );
@@ -167,7 +171,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
 
           <Edit p={p} onSaved={(d) => { setDetail({ ...detail, booth: { ...detail.booth, ...d } }); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
-          <Books p={p} setMsg={setMsg} onChanged={(art) => setDetail({ ...detail, booth: { ...detail.booth, art } })} />
+          <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => setDetail({ ...detail, booth: { ...detail.booth, art, ...(artLinks ? { artLinks } : {}) } })} />
           <Teams booths={booths} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -463,9 +467,9 @@ function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: Return
 }
 
 function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
-  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
+  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p]);
+  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p]);
   const save = async () => {
     setBusy(true);
     try {
@@ -498,6 +502,8 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
         <div><label className="label">DeviantArt</label><input className="input" placeholder="username or link" value={d.deviantart} onChange={(e) => setD({ ...d, deviantart: e.target.value })} /></div>
         <div><label className="label">Instagram</label><input className="input" placeholder="@handle" value={d.instagram} onChange={(e) => setD({ ...d, instagram: e.target.value })} /></div>
         <div><label className="label">X</label><input className="input" placeholder="@handle" value={d.xUrl} onChange={(e) => setD({ ...d, xUrl: e.target.value })} /></div>
+        <div><label className="label">Facebook</label><input className="input" placeholder="page name or link" value={d.facebook} onChange={(e) => setD({ ...d, facebook: e.target.value })} /></div>
+        <div><label className="label">GlobalComix</label><input className="input" placeholder="username or link" value={d.globalcomix} onChange={(e) => setD({ ...d, globalcomix: e.target.value })} /></div>
         <div className="md:col-span-2"><label className="label">Tagline</label><input className="input" maxLength={90} value={d.tagline} onChange={(e) => setD({ ...d, tagline: e.target.value })} /></div>
         <div className="md:col-span-2"><label className="label">Description</label><textarea className="input" rows={3} maxLength={600} value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></div>
         <div>
@@ -561,7 +567,15 @@ async function uploadArt(boothId: number, slot: string, file: File, want: { widt
 }
 
 /** "Display a book": $5 per platform; each unlocked platform takes a 2:3 cover that stands on the table. */
-function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
+function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>, artLinks?: Record<string, string>) => void }) {
+  const [links, setLinks] = useState<Record<string, string>>(p.artLinks ?? {});
+  useEffect(() => { setLinks(p.artLinks ?? {}); }, [p.artLinks]);
+  const saveLink = async (n: number) => {
+    const slot = bookSlotKey(n); const link = (links[slot] ?? "").trim();
+    if ((p.artLinks?.[slot] ?? "") === link) return;
+    try { const r = await api<{ art: Record<string, number>; artLinks: Record<string, string> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, link: link || null }) }); onChanged(r.art, r.artLinks); setMsg(link ? `Buy link saved for book ${n + 1}.` : `Buy link removed from book ${n + 1}.`); }
+    catch (e) { setMsg((e as Error).message); }
+  };
   const cap = bookCapacity(p.size, p.kind);
   const owned = Math.min(cap, p.bookSlots || 0);
   const [qty, setQty] = useState(1);
@@ -590,7 +604,7 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Books on display · {owned}/{cap} stands</div>
         <div className="text-[11px] text-slate-500">{formatMoney(BOOK_PRICE_CENTS)} per book, one-time</div>
       </div>
-      <p className="mt-1 text-[11px] text-slate-500">You have {cap} comic stands on your tables. Unlock one and stand a comic on it: upload the front cover at {spec.width} × {spec.height} px ({spec.ratio}; minimum {spec.width / 2} × {spec.height / 2}). {spec.tip}</p>
+      <p className="mt-1 text-[11px] text-slate-500">You have {cap} comic stands on your tables. Unlock one and stand a comic on it, then add a buy link under the cover so visitors can purchase it from the hall. Upload the front cover at {spec.width} × {spec.height} px ({spec.ratio}; minimum {spec.width / 2} × {spec.height / 2}). {spec.tip}</p>
       {owned < cap && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select className="input w-auto" value={qty} onChange={(e) => setQty(Number(e.target.value))}>{Array.from({ length: cap - owned }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} {n === 1 ? "book" : "books"} · {formatMoney(n * BOOK_PRICE_CENTS)}</option>)}</select>
@@ -607,6 +621,7 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
                   {v ? <img src={`/api/art/${p.id}/${bookSlotKey(n)}?v=${v}`} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[10px] text-slate-500">#{n + 1}</div>}
                 </div>
                 <label className={`btn-ghost mt-2 block cursor-pointer text-[11px] ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === bookSlotKey(n) ? "…" : v ? "Replace" : "Upload cover"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(n, f); e.target.value = ""; }} /></label>
+                {v && <input className="input mt-1.5 px-2 py-1 text-[11px]" placeholder="Buy link https://…" value={links[bookSlotKey(n)] ?? ""} onChange={(e) => setLinks({ ...links, [bookSlotKey(n)]: e.target.value })} onBlur={() => void saveLink(n)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} title="Where visitors can buy this comic. Shown on the cover in the hall and in your storefront." />}
                 {v && <button className="mt-1 text-[11px] text-slate-500 hover:text-rose-300" onClick={() => remove(n)}>remove</button>}
               </div>
             );

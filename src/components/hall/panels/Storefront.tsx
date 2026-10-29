@@ -15,16 +15,18 @@ import { openDm } from "../Avatar";
 import { timeAgo } from "@/lib/util";
 
 export interface StorefrontDetail {
-  booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; art?: Record<string, number> };
+  booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
   totals: { views: number; clicks: number; impressions: number; uniques: number };
   history: Array<{ id: string; kind: string; amountCents: number; valueAfter: number; createdAt: number }>;
 }
 
-const LINKS: Array<{ key: "website" | "artstation" | "deviantart" | "instagram" | "xUrl"; label: string; glyph: string; cls: string }> = [
+const LINKS: Array<{ key: "website" | "globalcomix" | "artstation" | "deviantart" | "instagram" | "facebook" | "xUrl"; label: string; glyph: string; cls: string }> = [
   { key: "website", label: "Website", glyph: "🌐", cls: "bg-amber-300 text-slate-950 hover:bg-amber-200" },
+  { key: "globalcomix", label: "GlobalComix", glyph: "GC", cls: "bg-[#ff4d4d]/15 text-[#ff9c9c] hover:bg-[#ff4d4d]/25" },
   { key: "artstation", label: "ArtStation", glyph: "A", cls: "bg-[#13aff0]/20 text-[#7fd4ff] hover:bg-[#13aff0]/30" },
   { key: "deviantart", label: "DeviantArt", glyph: "DA", cls: "bg-[#00e59b]/15 text-[#5ef0c0] hover:bg-[#00e59b]/25" },
   { key: "instagram", label: "Instagram", glyph: "◎", cls: "bg-[#e1306c]/15 text-[#ff8ab0] hover:bg-[#e1306c]/25" },
+  { key: "facebook", label: "Facebook", glyph: "f", cls: "bg-[#1877f2]/20 text-[#8ab8ff] hover:bg-[#1877f2]/30" },
   { key: "xUrl", label: "X", glyph: "𝕏", cls: "bg-white/10 text-white hover:bg-white/20" },
 ];
 
@@ -39,6 +41,8 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 3000); return () => clearInterval(t); }, []); // who is at the booth refreshes
   const space = boothSpace(id);
   const art = detail?.booth.art ?? booth.art ?? {};
+  const buy = detail?.booth.artLinks ?? booth.artLinks ?? {};
+  const buyIt = (slot: string) => { const l = buy[slot]; if (!l) return; track({ kind: "clicks", boothId: id, source: "comic" }); window.open(l, "_blank", "noopener"); };
   const url = (slot: string) => `/api/art/${id}/${slot}?v=${art[slot] ?? 0}`;
   const covers = useMemo(() => Object.keys(art).filter((k) => k.startsWith("book:")).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))), [art]);
   const signage = useMemo(() => ["wide", "portrait", "drape", "tower", "floor", "rollup:0", "rollup:1", "rollup:2", "rollup:3"].filter((k) => art[k]), [art]);
@@ -78,7 +82,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
               <button key={l.key} onClick={() => open(l.href!, l.key)} className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${l.cls}`}><span className="text-[11px] font-black">{l.glyph}</span>{l.label} ↗</button>
             ))}
           </div>
-        ) : isOwner ? <Link href={`/app/dashboard?booth=${id}`} className="block rounded-xl border border-dashed border-white/15 p-2 text-center text-xs text-slate-400 hover:border-amber-300/50">Add your website, ArtStation and DeviantArt links →</Link> : null}
+        ) : isOwner ? <a href={`/app/dashboard?booth=${id}`} className="block rounded-xl border border-dashed border-white/15 p-2 text-center text-xs text-slate-400 hover:border-amber-300/50">Add your website, GlobalComix, ArtStation and DeviantArt links →</a> : null}
         {/* who is here */}
         <div className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
           <span className={`h-2 w-2 rounded-full ${ownerHere || iAmOwner ? "bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" : "bg-slate-600"}`} />
@@ -93,13 +97,13 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
               {covers.map((k, i) => (
                 <button key={k} onClick={() => setLight(i)} className="group relative w-[108px] shrink-0 snap-start overflow-hidden rounded-lg bg-white/5 shadow-lg transition hover:-translate-y-0.5">
                   <img src={url(k)} alt={`Comic ${i + 1}`} loading="lazy" className="aspect-[2/3] w-full object-cover" />
-                  <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100">#{i + 1}</span>
+                  {buy[k] ? <span className="absolute bottom-1 left-1 right-1 rounded bg-amber-300 px-1 py-0.5 text-center text-[10px] font-bold text-slate-950 shadow">🛒 Buy</span> : <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100">#{i + 1}</span>}
                 </button>
               ))}
             </div>
           </section>
         )}
-        {covers.length === 0 && isOwner && <Link href={`/app/dashboard?booth=${id}#books`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Stand comics on your table: upload covers from the dashboard →</Link>}
+        {covers.length === 0 && isOwner && <a href={`/app/dashboard?booth=${id}#books`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Stand comics on your table: upload covers from the dashboard →</a>}
         {/* about */}
         {detail?.booth.description && <section><h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">About</h3><p className="whitespace-pre-line text-sm leading-relaxed text-slate-200">{detail.booth.description}</p></section>}
         {/* signage */}
@@ -121,7 +125,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
           <button className="btn-ghost" onClick={() => { navigator.clipboard?.writeText(`${location.origin}/app/booth/${id}`); setToast("Link copied"); }}>Share</button>
         </div>
         {isOwner ? (
-          <Link href={`/app/dashboard?booth=${id}`} className="btn-ghost block w-full text-center text-xs">Manage this booth · covers, links, boosts →</Link>
+          <a href={`/app/dashboard?booth=${id}`} className="btn-ghost block w-full text-center text-xs">Manage this booth · covers, links, boosts →</a>
         ) : booth.house ? (
           <p className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-400">This is the show's own booth. It is never up for takeover.</p>
         ) : (
@@ -132,13 +136,13 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         <p className="text-[11px] text-slate-500">Claimed {booth.claimedAt ? timeAgo(booth.claimedAt) : "recently"}{booth.salesCount > 1 ? ` · changed hands ${booth.salesCount - 1}×` : ""} · <Link href={`/app/booth/${id}`} className="underline">public page</Link></p>
       </div>
       {light !== null && covers[light] && (
-        <Lightbox src={url(covers[light])} caption={`${booth.name} · comic ${light + 1} of ${covers.length}`} onClose={() => setLight(null)} onPrev={light > 0 ? () => setLight(light - 1) : undefined} onNext={light < covers.length - 1 ? () => setLight(light + 1) : undefined} />
+        <Lightbox src={url(covers[light])} caption={`${booth.name} · comic ${light + 1} of ${covers.length}`} buy={buy[covers[light]] ? () => buyIt(covers[light]) : undefined} onClose={() => setLight(null)} onPrev={light > 0 ? () => setLight(light - 1) : undefined} onNext={light < covers.length - 1 ? () => setLight(light + 1) : undefined} />
       )}
     </div>
   );
 }
 
-function Lightbox({ src, caption, onClose, onPrev, onNext }: { src: string; caption: string; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
+function Lightbox({ src, caption, buy, onClose, onPrev, onNext }: { src: string; caption: string; buy?: () => void; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); if (e.key === "ArrowLeft") onPrev?.(); if (e.key === "ArrowRight") onNext?.(); };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
@@ -151,6 +155,7 @@ function Lightbox({ src, caption, onClose, onPrev, onNext }: { src: string; capt
         <span>{caption}</span>
         <button onClick={onNext} disabled={!onNext} className="rounded-full bg-white/10 px-3 py-1 disabled:opacity-30">→</button>
       </div>
+      {buy && <button onClick={(e) => { e.stopPropagation(); buy(); }} className="btn-primary mt-3">🛒 Buy this comic ↗</button>}
       <button onClick={onClose} className="absolute right-4 top-4 rounded-full bg-white/10 px-3 py-1 text-sm text-white hover:bg-white/20">✕</button>
     </div>
   );

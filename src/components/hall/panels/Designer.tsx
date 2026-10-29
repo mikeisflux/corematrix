@@ -10,7 +10,7 @@ const CLOTHS = ["#111827", "#7f1d1d", "#1e3a8a", "#065f46", "#4c1d95", "#9a3412"
 const STYLE_LABEL: Record<string, string> = { classic: "Classic", neon: "Neon", comic: "Comic", minimal: "Minimal", retro: "Retro" };
 
 interface Props { boothId: number; mode: "claim" | "takeover"; initial?: Partial<Draft> }
-interface Draft { name: string; tagline: string; description: string; website: string; artstation: string; deviantart: string; instagram: string; xUrl: string; logoUrl: string; color: string; accent: string; style: string; cloth: string; category: string }
+interface Draft { name: string; tagline: string; description: string; website: string; artstation: string; deviantart: string; instagram: string; xUrl: string; facebook: string; globalcomix: string; logoUrl: string; color: string; accent: string; style: string; cloth: string; category: string }
 
 export function Designer({ boothId, mode, initial }: Props) {
   const me = useHall((s) => s.me);
@@ -19,7 +19,7 @@ export function Designer({ boothId, mode, initial }: Props) {
   const setFlyTo = useHall((s) => s.setFlyTo);
   const space = boothSpace(boothId)!;
   const target = booths.get(boothId);
-  const [d, setD] = useState<Draft>({ name: "", tagline: "", description: "", website: "", artstation: "", deviantart: "", instagram: "", xUrl: "", logoUrl: "", color: PALETTE[0], accent: "#ffffff", style: "classic", cloth: "#111827", category: space.kind === "artist" ? "art" : "comics", ...initial });
+  const [d, setD] = useState<Draft>({ name: "", tagline: "", description: "", website: "", artstation: "", deviantart: "", instagram: "", xUrl: "", facebook: "", globalcomix: "", logoUrl: "", color: PALETTE[0], accent: "#ffffff", style: "classic", cloth: "#111827", category: space.kind === "artist" ? "art" : "comics", ...initial });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [useCredit, setUseCredit] = useState(true);
@@ -109,6 +109,8 @@ export function Designer({ boothId, mode, initial }: Props) {
         <div><label className="label">DeviantArt</label><input className="input" placeholder="username or link" value={d.deviantart} onChange={(e) => setD({ ...d, deviantart: e.target.value })} /></div>
         <div><label className="label">Instagram</label><input className="input" placeholder="@handle" value={d.instagram} onChange={(e) => setD({ ...d, instagram: e.target.value })} /></div>
         <div><label className="label">X</label><input className="input" placeholder="@handle" value={d.xUrl} onChange={(e) => setD({ ...d, xUrl: e.target.value })} /></div>
+        <div><label className="label">Facebook</label><input className="input" placeholder="page name or link" value={d.facebook} onChange={(e) => setD({ ...d, facebook: e.target.value })} /></div>
+        <div><label className="label">GlobalComix</label><input className="input" placeholder="username or link" value={d.globalcomix} onChange={(e) => setD({ ...d, globalcomix: e.target.value })} /></div>
       </div>
       <div><label className="label">About (optional)</label><textarea className="input" rows={3} maxLength={600} placeholder="Tell visitors what they'll find at your table." value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></div>
       <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">

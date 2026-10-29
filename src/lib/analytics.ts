@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql, inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { dayKey, daysAgoKey } from "@/lib/util";
 
@@ -40,7 +40,11 @@ export type BoothMetric = "impressions" | "hovers" | "views" | "clicks";
  * Record a metric for a booth. `visitor` lets us count uniques per day.
  * Cheap enough to call on every request; batched upserts keep it to 2 writes.
  */
+/** A referrer source is a short tag (map, walk, banner, share, x.com…): anything else collapses to "other" so junk never reaches the dashboard. */
+export const cleanSource = (s: string | undefined) => { const v = (s ?? "").toLowerCase().trim(); return /^[a-z0-9][a-z0-9_.-]{0,23}$/.test(v) ? v : v ? "other" : "map"; };
+
 export async function trackBooth(boothId: number, metric: BoothMetric, visitor: string | null, source?: string) {
+  source = cleanSource(source);
   const day = dayKey();
   let isNewUnique = 0;
   if (visitor && (metric === "views" || metric === "impressions")) {
@@ -173,12 +177,16 @@ export function sumSeries(rows: DailyRow[]) {
 }
 
 export async function boothReferrerRows(boothId: number) {
-  return db
+  const rows = await db
     .select()
     .from(schema.boothReferrers)
     .where(eq(schema.boothReferrers.boothId, boothId))
     .orderBy(desc(schema.boothReferrers.clicks), desc(schema.boothReferrers.views))
-    .limit(12);
+    .limit(40);
+  // rows written before sources were cleaned: drop them from the table and the list
+  const junk = rows.filter((r) => cleanSource(r.source) !== r.source);
+  if (junk.length) await db.delete(schema.boothReferrers).where(and(eq(schema.boothReferrers.boothId, boothId), inArray(schema.boothReferrers.source, junk.map((r) => r.source))));
+  return rows.filter((r) => cleanSource(r.source) === r.source).slice(0, 12);
 }
 
 /** Views in the last 7 days per booth, for "trending" rankings. */

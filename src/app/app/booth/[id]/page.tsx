@@ -81,6 +81,8 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
                 {p.deviantart && <a className="btn-ghost" href={p.deviantart} target="_blank" rel="noopener">DeviantArt ↗</a>}
                 {p.instagram && <a className="btn-ghost" href={p.instagram} target="_blank" rel="noopener">Instagram ↗</a>}
                 {p.xUrl && <a className="btn-ghost" href={p.xUrl} target="_blank" rel="noopener">X ↗</a>}
+                {p.facebook && <a className="btn-ghost" href={p.facebook} target="_blank" rel="noopener">Facebook ↗</a>}
+                {p.globalcomix && <a className="btn-ghost" href={p.globalcomix} target="_blank" rel="noopener">GlobalComix ↗</a>}
                 <Link href={`/app?booth=${boothId}`} className="btn-ghost">See it on the floor</Link>
                 <a className="btn-ghost" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${p.name} is exhibiting at ${SITE_NAME}, booth ${space.label}`)}&url=${encodeURIComponent(`${process.env.NEXT_PUBLIC_SITE_URL}/app/booth/${boothId}?src=share`)}`}>Share on X</a>
               </div>

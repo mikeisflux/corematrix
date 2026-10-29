@@ -122,6 +122,12 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const artist = space.kind === "artist";
   const glow = night ? 0.35 : 0;
   const bh = Math.min(artist ? BANNER.artistMaxHeight : island ? BANNER.islandMaxHeight : BANNER.maxHeight, Math.max(BANNER.defaultHeight, booth.bannerHeight || BANNER.defaultHeight)), bw = bannerWidth(bh);
+  // a comic with a buy link opens the shop; otherwise the cover acts like the banner
+  const bookClick = (n: number, e: { stopPropagation: () => void }) => {
+    const link = booth.artLinks?.[`book:${n}`];
+    if (link && !preview) { e.stopPropagation(); track({ kind: "clicks", boothId: booth.id, source: "comic" }); window.open(link, "_blank", "noopener"); return; }
+    bannerClick(e);
+  };
   const bannerClick = (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { if (!openSite(booth.id, booth.website, "banner")) select(booth.id); else select(booth.id); } };
   const tip = (hovered || selected) && !preview && (
     <Html position={[0, (island ? sign.height : 9) + 3, 0]} center zIndexRange={[50, 0]} style={{ pointerEvents: "none" }}>
@@ -180,7 +186,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* tables on four sides + a header frame on corner uprights */}
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
         {/* one table per edge, each turned so its aisle side (local +x: stands, drape print) faces out of the island: north -z, south +z, west -x, east +x */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bannerClick} wide />)}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} wide />)}
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
@@ -205,7 +211,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         <PipeAndDrape w={w} d={d} drape={drape} low />
         <mesh geometry={PRINT_MATS} material={MAT_WHITE} position={[-w / 2 + 0.45, 2.3, 0]} />
         <mesh geometry={PRINT_ART} position={[-w / 2 + 0.45, 2.3, 0]}><meshStandardMaterial color={booth.accent} roughness={0.7} /></mesh>
-        <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />
+        <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} />
         {/* retractable banner stand */}
         <group position={[-w / 2 + 1.1, 0, 0]} rotation={[0, Math.PI / 2, 0]}><RollUp bw={3} bh={6} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
         {/* chair, beside the roll-up so neither hides the other */}
@@ -241,7 +247,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       )}
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
-      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bannerClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bannerClick} />}
+      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} />}
       {/* a chair behind each table, facing the aisle */}
       {(wide ? [-5, 5] : [0]).map((z, i) => <Chair key={z} booth={booth.id} n={i} x={w / 2 - 4.6} z={z + 1.6} rot={Math.PI / 2} fallback={chairFallback} />)}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
@@ -281,7 +287,7 @@ function RollUp({ bw, bh, portrait, glow, onClick }: { bw: number; bh: number; p
 }
 
 /** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by stand, this table owning stands first..first+3 (four stands per table). */
-function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (e: { stopPropagation: () => void }) => void }) {
+function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void }) {
   const len = wide ? 8 : 6;
   const n = TABLE_STANDS;
   return (
@@ -289,7 +295,7 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: n
       <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} />} />
       {books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
         // stand i sits at x 0.35, top at y 3.03; the book leans back against the easel and faces the aisle (+x)
-        <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={onBook}>
+        <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={(e) => onBook?.(first + i, e)}>
           <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
           <mesh position={[0, 0.54, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 1.08]} /><meshStandardMaterial map={tex} roughness={0.55} /></mesh>
         </group>

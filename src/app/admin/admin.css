@@ -114,7 +114,8 @@
 .admInput::placeholder { color: var(--text-faint); }
 .admInput--mono { font-family: var(--font-mono); font-size: 12px; }
 textarea.admInput { min-height: 90px; resize: vertical; }
-select.admInput { appearance: none; }
+select.admInput { appearance: none; color-scheme: dark; }
+.adm select option { background: var(--ink); color: var(--text); }
 .admInput--sm { padding: 5px 8px; font-size: 12px; max-width: 220px; }
 .admCheck { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); }
 .admCheck input { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); }

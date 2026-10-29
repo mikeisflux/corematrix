@@ -4,7 +4,7 @@
  * size and stored as base64 in `booth_art`, so a booth can carry full-size
  * art without bloating the floor reads.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { now } from "@/lib/util";
 import { ART_SLOTS, ART_MAX_UPLOAD, ART_FORMATS, specForSlot, type ArtSlot } from "@/lib/config";
@@ -57,4 +57,22 @@ export async function artFlagsFor(boothId: number): Promise<ArtFlags> {
   await ensureMigrated();
   const rows = await db.select({ slot: schema.boothArt.slot, updatedAt: schema.boothArt.updatedAt }).from(schema.boothArt).where(eq(schema.boothArt.boothId, boothId));
   const f: ArtFlags = {}; for (const r of rows) f[r.slot] = r.updatedAt; return f;
+}
+
+/** Buy links per cover slot (book:N → https://…), for one booth or for everyone. */
+export async function artLinksFor(boothId: number): Promise<Record<string, string>> {
+  await ensureMigrated();
+  const rows = await db.select({ slot: schema.boothArt.slot, link: schema.boothArt.link }).from(schema.boothArt).where(eq(schema.boothArt.boothId, boothId));
+  const out: Record<string, string> = {}; for (const r of rows) if (r.link) out[r.slot] = r.link; return out;
+}
+export async function artLinks(): Promise<Map<number, Record<string, string>>> {
+  await ensureMigrated();
+  const rows = await db.select({ boothId: schema.boothArt.boothId, slot: schema.boothArt.slot, link: schema.boothArt.link }).from(schema.boothArt).where(sql`${schema.boothArt.link} IS NOT NULL`);
+  const m = new Map<number, Record<string, string>>();
+  for (const r of rows) { if (!r.link) continue; const f = m.get(r.boothId) ?? {}; f[r.slot] = r.link; m.set(r.boothId, f); }
+  return m;
+}
+export async function setArtLink(boothId: number, slot: string, link: string | null) {
+  await ensureMigrated();
+  await db.update(schema.boothArt).set({ link }).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot)));
 }

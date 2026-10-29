@@ -64,6 +64,8 @@ export const booths = sqliteTable(
     deviantart: text("deviantart"),
     instagram: text("instagram"),
     xUrl: text("x_url"),
+    facebook: text("facebook"),
+    globalcomix: text("globalcomix"),
     logoUrl: text("logo_url"),
     color: text("color").notNull().default("#5b8def"),
     accent: text("accent").notNull().default("#ffffff"),
@@ -422,6 +424,7 @@ export const boothArt = sqliteTable(
     slot: text("slot").notNull(), // portrait (roll-up, 1:2) | wide (back wall / hanging, 4:1)
     mime: text("mime").notNull(),
     data: text("data").notNull(), // base64 (no data: prefix)
+    link: text("link"), // comic covers: where to buy it
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     updatedAt: integer("updated_at").notNull(),

@@ -18,8 +18,8 @@ import { notify } from "@/lib/notify";
 
 export type Booth = typeof schema.booths.$inferSelect;
 
-export function liveBooth(p: Booth, art?: Record<string, number>) {
-  return { art, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: p.updatedAt ?? 0, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>) {
+  return { art, artLinks, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: p.updatedAt ?? 0, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -32,6 +32,8 @@ export interface BoothDraft {
   deviantart?: string;
   instagram?: string;
   xUrl?: string;
+  facebook?: string;
+  globalcomix?: string;
   logoUrl?: string;
   color?: string;
   accent?: string;
@@ -64,6 +66,8 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
     deviantart: profileUrl(d.deviantart, "https://www.deviantart.com/") ?? undefined,
     instagram: profileUrl(d.instagram, "https://www.instagram.com/") ?? undefined,
     xUrl: profileUrl(d.xUrl, "https://x.com/") ?? undefined,
+    facebook: profileUrl(d.facebook, "https://www.facebook.com/") ?? undefined,
+    globalcomix: profileUrl(d.globalcomix, "https://globalcomix.com/a/") ?? undefined,
     logoUrl: logo ?? undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#5b8def",
     accent: d.accent && isHexColor(d.accent) ? d.accent : "#ffffff",

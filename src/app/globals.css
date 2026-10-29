@@ -58,6 +58,10 @@ body {
 .label {
   @apply mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-400;
 }
+/* native select menus take the OS colours: tell the browser the page is dark and paint the options ourselves */
+:root { color-scheme: dark; }
+select.input, select { color-scheme: dark; }
+select.input option, select option { background: #0b0f1a; color: #e5e7eb; }
 .kpi {
   @apply rounded-xl border border-white/10 bg-white/[0.04] p-3;
 }

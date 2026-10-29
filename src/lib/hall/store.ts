@@ -12,6 +12,8 @@ export interface HallBooth {
   deviantart?: string | null;
   instagram?: string | null;
   xUrl?: string | null;
+  facebook?: string | null;
+  globalcomix?: string | null;
   hasLogo: boolean;
   logoVersion?: number; // bumps when the logo changes so the floor reloads it
   color: string;
@@ -20,7 +22,8 @@ export interface HallBooth {
   cloth: string;
   bannerHeight: number;
   house?: boolean; // the show's own booth: flagship build
-  art?: Record<string, number>; // uploaded art: portrait | wide | drape | book:N → version
+  art?: Record<string, number>;
+  artLinks?: Record<string, string>; // book:N → where to buy that comic // uploaded art: portrait | wide | drape | book:N → version
   bookSlots?: number; // paid display platforms
   category: string;
   size: string;
