@@ -231,3 +231,6 @@ export const PROP_BUILDERS: Record<string, () => THREE.Group> = {
   cabinet: buildCabinet,
   light: buildLight,
 };
+
+/** Pipe-and-drape heights in feet, shared with the empty booths. */
+export const DRAPE = { back: 10, rail: 4, low: 4 } as const;

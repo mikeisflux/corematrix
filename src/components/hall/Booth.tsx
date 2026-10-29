@@ -1,5 +1,5 @@
 "use client";
-import { TABLE_STANDS, DRAPE_PANEL_MAX_W } from "@/lib/hall/modelkit/props";
+import { TABLE_STANDS, DRAPE_PANEL_MAX_W, DRAPE } from "@/lib/hall/modelkit/props";
 import { memo, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -82,7 +82,9 @@ function Bar({ x, y, z, len, along }: { x: number; y: number; z: number; len: nu
  * +x is the aisle, the back wall sits at -w/2.
  */
 function PipeAndDrape({ w, d, drape, low }: { w: number; d: number; drape: THREE.Texture; low?: boolean }) {
-  const H = low ? 3.2 : 8, bx = -w / 2 + 0.25, side = w * 0.7;
+  // back wall 10 ft (4 ft low drape in Artists' Alley), side rails 4 ft: the 8/3 ft convention standard read squat next
+  // to the hall's figures and art
+  const H = low ? DRAPE.low : DRAPE.back, R = DRAPE.rail, bx = -w / 2 + 0.25, side = w * 0.7;
   return (
     <group>
       <mesh position={[bx, H / 2 - 0.05, 0]}><boxGeometry args={[0.35, H - 0.2, d - 0.3]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>
@@ -91,9 +93,9 @@ function PipeAndDrape({ w, d, drape, low }: { w: number; d: number; drape: THREE
       <Bar x={bx} y={H} z={0} len={d - 0.3} along="z" />
       {!low && [-1, 1].map((s) => (
         <group key={s}>
-          <mesh position={[bx + side / 2, 1.45, s * (d / 2 - 0.15)]}><boxGeometry args={[side - 0.2, 2.8, 0.25]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>
-          <Upright x={bx + side} z={s * (d / 2 - 0.15)} h={3} />
-          <Bar x={bx + side / 2} y={3} z={s * (d / 2 - 0.15)} len={side} along="x" />
+          <mesh position={[bx + side / 2, (R - 0.2) / 2 + 0.05, s * (d / 2 - 0.15)]}><boxGeometry args={[side - 0.2, R - 0.2, 0.25]} /><meshStandardMaterial map={drape} roughness={0.95} /></mesh>
+          <Upright x={bx + side} z={s * (d / 2 - 0.15)} h={R} />
+          <Bar x={bx + side / 2} y={R} z={s * (d / 2 - 0.15)} len={side} along="x" />
         </group>
       ))}
     </group>
@@ -265,20 +267,20 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   return (
     <group position={[space.x, 0, space.z]} rotation={[0, rotY, 0]} {...common}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}><planeGeometry args={[w, d]} /><meshStandardMaterial color={floorColor} roughness={1} transparent opacity={preview ? 0.6 : 0.9} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} /></mesh>
-      {/* pipe and drape: back wall 8ft on uprights, side rails 3ft */}
+      {/* pipe and drape: back wall 10 ft on uprights, side rails 4 ft */}
       <PipeAndDrape w={w} d={d} drape={drape} />
       {/* vinyl banner across the back wall, on a slim board */}
-      <mesh position={[-w / 2 + 0.52, 6.2, 0]} rotation={[0, Math.PI / 2, 0]} material={FRAME}><boxGeometry args={[d - 0.6, (d - 0.8) / 4 + 0.2, 0.04]} /></mesh>
-      <mesh position={[-w / 2 + 0.55, 6.2, 0]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}>
+      <mesh position={[-w / 2 + 0.52, 7.8, 0]} rotation={[0, Math.PI / 2, 0]} material={FRAME}><boxGeometry args={[d - 0.6, (d - 0.8) / 4 + 0.2, 0.04]} /></mesh>
+      <mesh position={[-w / 2 + 0.55, 7.8, 0]} rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}>
         <planeGeometry args={[d - 0.8, (d - 0.8) / 4]} />
         <meshStandardMaterial map={banner} emissiveMap={banner} emissive="#ffffff" emissiveIntensity={glow} />
       </mesh>
       {/* logo board */}
-      <mesh position={[-w / 2 + 0.53, 2.9, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]} material={MAT_WHITE}><boxGeometry args={[3.3, 3.3, 0.04]} /></mesh>
-      <mesh position={[-w / 2 + 0.56, 2.9, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[3, 3]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
+      <mesh position={[-w / 2 + 0.53, 3.6, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]} material={MAT_WHITE}><boxGeometry args={[3.3, 3.3, 0.04]} /></mesh>
+      <mesh position={[-w / 2 + 0.56, 3.6, -d / 2 + 2.2]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[3, 3]} /><meshBasicMaterial map={logo} toneMapped={false} /></mesh>
       {/* header banner on posts (level 2+) */}
       {sign.level >= 2 && (
-        <group position={[-w / 2 + 0.6, 9.6, 0]}>
+        <group position={[-w / 2 + 0.6, 11.6, 0]}>
           <mesh rotation={[0, Math.PI / 2, 0]} onClick={bannerClick}><planeGeometry args={[d - 0.8, 2.6]} /><meshStandardMaterial map={banner} emissiveMap={banner} emissive="#fff" emissiveIntensity={glow} side={THREE.DoubleSide} /></mesh>
           {[-d / 2 + 0.5, d / 2 - 0.5].map((z) => <mesh key={z} geometry={BAR} material={ALU} position={[0, -1.5, z]} scale={[1.6, 3.2, 1.6]} />)}
         </group>

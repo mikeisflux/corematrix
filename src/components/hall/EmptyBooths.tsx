@@ -5,6 +5,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { drapeTexture, signTexture } from "./textures";
 import { useHall, dragged } from "@/lib/hall/store";
 import { hallLayout, ARCADE, islandOpenEdges, type BoothSpace } from "@/lib/hall/layout";
+import { DRAPE } from "@/lib/hall/modelkit/props";
 import { BOOTH_SIZES, formatMoney, type BoothSize } from "@/lib/config";
 
 const tmp = new THREE.Object3D();
@@ -49,7 +50,7 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
   const L = island || d === 20 ? 8 : table ? 5.4 : 6;
   const per = island ? 4 : d === 20 ? 2 : 1;
   const bannerH = 6, bannerW = 3; // the default roll-up every space comes with
-  const drapeH = table ? 3.2 : 8; // artists' alley gets a low back drape
+  const drapeH = table ? DRAPE.low : DRAPE.back; // artists' alley gets a low back drape
   const ids = useMemo(() => spaces.map((s) => s.id), [spaces]);
   // posts: 2 per inline space (back corners) or 4 per island; a crossbar along the back wall of every inline space
   const postsPer = island ? 4 : 2;
@@ -66,8 +67,8 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
         tmp.position.set(s.x - f * (w / 2 - 0.25), drapeH / 2 - 0.05, s.z); tmp.updateMatrix(); drape.current.setMatrixAt(i, tmp.matrix);
       }
       if (rails.current) {
-        // 3 ft side rails along both edges, running from the back wall 70% of the way to the aisle
-        for (const k of [0, 1]) { tmp.position.set(s.x - f * (w / 2 - w * 0.35), 1.45, s.z + (k ? 1 : -1) * (d / 2 - 0.15)); tmp.updateMatrix(); rails.current.setMatrixAt(i * 2 + k, tmp.matrix); }
+        // side rails along both edges, running from the back wall 70% of the way to the aisle
+        for (const k of [0, 1]) { tmp.position.set(s.x - f * (w / 2 - w * 0.35), (DRAPE.rail - 0.2) / 2 + 0.05, s.z + (k ? 1 : -1) * (d / 2 - 0.15)); tmp.updateMatrix(); rails.current.setMatrixAt(i * 2 + k, tmp.matrix); }
       }
       if (posts.current) {
         if (island) {
@@ -166,7 +167,7 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
       )}
       {!island && !table && (
         <instancedMesh frustumCulled={false} ref={rails} args={[undefined, undefined, n * 2]} onPointerOver={over} onPointerOut={out} onClick={click}>
-          <boxGeometry args={[w * 0.7 - 0.2, 2.8, 0.25]} />
+          <boxGeometry args={[w * 0.7 - 0.2, DRAPE.rail - 0.2, 0.25]} />
           <meshStandardMaterial map={drapeTex} roughness={0.95} />
         </instancedMesh>
       )}

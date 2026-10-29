@@ -24,19 +24,20 @@ export const player = { x: 0, z: 0, h: 0, seated: false };
 /** The walker's animation state; the emote panel and number keys write emotes into it. */
 export const playerMotion: Motion = { speed: 0, emote: null, sit: false };
 /**
- * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a
- * find bar, a menu, another window), which would leave the figure walking
- * forever. Every keydown auto-repeat refreshes the key's timestamp; once we've
- * seen the OS repeat at all, a key that stops repeating for 1.2 s counts as
- * released. Focus loss or a hidden tab releases everything.
+ * Held keys, self-healing. Browsers sometimes lose a keyup (focus jumps to a find bar, a menu, another window),
+ * which would leave the figure walking forever. Focus loss or a hidden tab releases everything. The OS only
+ * auto-repeats the LAST key pressed, so a key's own repeats can't tell whether it's still held (holding Shift then
+ * W repeats only W, and Shift used to time out after a second, which stopped running): instead, held keys count as
+ * released only if the keyboard goes completely quiet (no repeat from any key) for 1.5 s. Shift's real state comes
+ * with every key event, so it is synced from there.
  */
 const keys = new Map<string, number>();
-let repeatSeen = false;
+let repeatSeen = false, lastKeyEvent = 0;
 const GAME_KEYS = new Set(["w", "a", "s", "d", "q", "e", "v", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "'", "/"]);
 function isDown(k: string): boolean {
   const t = keys.get(k);
   if (t === undefined) return false;
-  if (repeatSeen && performance.now() - t > 1200) { keys.delete(k); return false; }
+  if (repeatSeen && performance.now() - lastKeyEvent > 1500) { keys.clear(); return false; }
   return true;
 }
 if (typeof window !== "undefined") {
@@ -47,12 +48,18 @@ if (typeof window !== "undefined") {
     const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.tagName === "SELECT" || t?.isContentEditable) return;
     const k = e.key.toLowerCase();
     if (e.repeat) repeatSeen = true;
+    lastKeyEvent = performance.now();
+    if (e.shiftKey) keys.set("shift", lastKeyEvent); else keys.delete("shift");
     // claim the game keys so the browser doesn't treat them as typing (Firefox find-as-you-type, page scroll on arrows)
     if (GAME_KEYS.has(k) && !e.ctrlKey && !e.metaKey && !e.altKey && useHall.getState().mode === "walk") e.preventDefault();
     if (k === "escape" || k === " ") { keys.clear(); return; } // full stop
     keys.set(k, performance.now());
   });
-  window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+  window.addEventListener("keyup", (e) => {
+    keys.delete(e.key.toLowerCase());
+    lastKeyEvent = performance.now();
+    if (!e.shiftKey) keys.delete("shift"); else keys.set("shift", lastKeyEvent);
+  });
   const release = () => keys.clear();
   window.addEventListener("blur", release);
   document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
@@ -379,7 +386,8 @@ export function Player() {
     if (social.pending.dirty || state.clock.elapsedTime - lastReport.current > (motion.speed > 0 ? 0.16 : 1)) { lastReport.current = state.clock.elapsedTime; report(); }
     // camera (the flyover drives it while the ride lasts; two rigs steering at once shake the view)
     if (useHall.getState().ride) return;
-    const back = fp.current ? 0 : 20, up = fp.current ? 5.6 : 10;
+    // high enough to see over the 10 ft back walls when the camera swings behind a booth row
+    const back = fp.current ? 0 : 20, up = fp.current ? 5.6 : 12.5;
     // keep the camera inside the building so it never ends up looking at the back of a wall
     const cx = THREE.MathUtils.clamp(pos.current.x - Math.sin(yaw.current) * back, X0 + 3, X0 + HALL_LENGTH - 3);
     const cz = THREE.MathUtils.clamp(pos.current.z - Math.cos(yaw.current) * back, Z0 + 3, Z0 + HALL_DEPTH - 3);
