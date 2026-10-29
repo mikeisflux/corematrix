@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Html } from "@react-three/drei";
 import { bannerTexture, drapeTexture, framedLogoTexture, logoTexture, signTexture, luminance } from "./textures";
-import { useHall, track, type HallBooth } from "@/lib/hall/store";
+import { useHall, track, dragged, type HallBooth } from "@/lib/hall/store";
 import { boothSpace, signageForValue, CEILING, describeSpace } from "@/lib/hall/layout";
 import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
 import { Prop } from "./models";
@@ -112,7 +112,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const hang = useMemo(() => wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
   const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
-  const cubeLogo = useMemo(() => framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a", 1.5), [booth.id, booth.logoVersion, booth.cloth]); // 5 wide × 7.5 tall faces
+  // the spinning logo box is the house booth's alone: building its 1024×1536 canvas for every booth cost ~6 MB each at load
+  const cubeLogo = useMemo(() => (booth.house ? framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a", 1.5) : null), [booth.house, booth.id, booth.logoVersion, booth.cloth]); // 5 wide × 7.5 tall faces
   if (!space) return null;
   const facing = space.facing;
   const rotY = facing === -1 ? Math.PI : 0;
@@ -125,10 +126,11 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   // a comic with a buy link opens the shop; otherwise the cover acts like the banner
   const bookClick = (n: number, e: { stopPropagation: () => void }) => {
     const link = booth.artLinks?.[`book:${n}`];
+    if (dragged(e)) return;
     if (link && !preview) { e.stopPropagation(); track({ kind: "clicks", boothId: booth.id, source: "comic" }); window.open(link, "_blank", "noopener"); return; }
     bannerClick(e);
   };
-  const bannerClick = (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { if (!openSite(booth.id, booth.website, "banner")) select(booth.id); else select(booth.id); } };
+  const bannerClick = (e: { stopPropagation: () => void }) => { if (dragged(e)) return; e.stopPropagation(); if (!preview) { if (!openSite(booth.id, booth.website, "banner")) select(booth.id); else select(booth.id); } };
   const tip = (hovered || selected) && !preview && (
     <Html position={[0, (island ? sign.height : 9) + 3, 0]} center zIndexRange={[50, 0]} style={{ pointerEvents: "none" }}>
       <div className="rounded-xl border border-white/10 bg-slate-950/90 px-3 py-2 text-left text-white shadow-xl whitespace-nowrap">
@@ -141,7 +143,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const common = {
     onPointerOver: (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { setHovered(booth.id); document.body.style.cursor = "pointer"; } },
     onPointerOut: () => { if (!preview) { setHovered(null); document.body.style.cursor = ""; } },
-    onClick: (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) select(booth.id); },
+    onClick: (e: { stopPropagation: () => void }) => { if (dragged(e)) return; e.stopPropagation(); if (!preview) select(booth.id); },
   };
   const floorColor = selected ? "#ffd166" : hovered ? "#e5e7eb" : booth.color;
   const chairFallback = <><mesh position={[0, 1.5, 0]}><boxGeometry args={[1.4, 0.14, 1.4]} /><meshStandardMaterial color="#1f2937" /></mesh><mesh position={[0, 2.3, -0.65]}><boxGeometry args={[1.4, 1.2, 0.12]} /><meshStandardMaterial color="#1f2937" /></mesh></>;
@@ -197,7 +199,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
           <group key={i} position={[x * rd, 0, z * rd]} rotation={[0, r, 0]}><RollUp bw={bw} bh={bh} portrait={rollups[i]} glow={glow} onClick={bannerClick} /></group>
         ))}
         {night && !booth.house && <pointLight position={[0, th + 2, 0]} intensity={120} distance={50} color={booth.accent} />}
-        {booth.house && <Flagship color={booth.color} logo={cubeLogo} banner={banner} th={th} />}
+        {booth.house && cubeLogo && <Flagship color={booth.color} logo={cubeLogo} banner={banner} th={th} />}
         {tip}
       </group>
     );
@@ -348,7 +350,7 @@ function Chair({ booth, n, x, z, rot, fallback }: { booth: number; n: number; x:
     registerSeat({ id, x: p.x, z: p.z, yaw: Math.atan2(f.x, f.z), booth });
     return () => unregisterSeat(id);
   }, [id, booth, x, z, rot]);
-  const sit = (e: { stopPropagation: () => void }) => { e.stopPropagation(); const s = seatOf(id); if (s) requestSit(s); };
+  const sit = (e: { stopPropagation: () => void }) => { if (dragged(e)) return; e.stopPropagation(); const s = seatOf(id); if (s) requestSit(s); };
   return <group ref={ref} position={[x, 0, z]} rotation={[0, rot, 0]} onClick={sit}><Prop name="chair" fallback={fallback} /></group>;
 }
 

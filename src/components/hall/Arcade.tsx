@@ -15,7 +15,7 @@ import { scheduleAt } from "@/lib/theater-schedule";
 const SCREEN_W = 32, SCREEN_H = 24, SCREEN_Y = 2 + 1.2 + SCREEN_H / 2;
 type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; duration: number }[] };
 import { CABINET_ROWS } from "./Avatar";
-import { useHall, api } from "@/lib/hall/store";
+import { useHall, api, dragged } from "@/lib/hall/store";
 import { TwoSided } from "./Booth";
 import { useModelUrl } from "./models";
 
@@ -554,7 +554,7 @@ function Theater({ night }: { night: boolean }) {
         {/* the audience is on the -z side: backing behind the picture, neon bezel just in front of it */}
         <mesh position={[0, 0, 0.45]}><boxGeometry args={[SCREEN_W + 2.4, SCREEN_H + 2.4, 0.5]} /><meshStandardMaterial color="#0b0f1a" metalness={0.4} roughness={0.5} /></mesh>
         {/* the picture at its own aspect, fitted inside the 4:3 screen; the backing shows as black bars around anything wider or taller */}
-        <mesh rotation={[0, Math.PI, 0]} onClick={(e) => { e.stopPropagation(); if (!theater.playing) return; if (!theater.near) { useHall.getState().setToast("Step into the arcade to hear the film."); return; } setTheaterSound(!theater.sound); useHall.getState().setToast(theater.sound ? "Sound on. It switches off when you leave the arcade." : "Sound off."); }}
+        <mesh rotation={[0, Math.PI, 0]} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); if (!theater.playing) return; if (!theater.near) { useHall.getState().setToast("Step into the arcade to hear the film."); return; } setTheaterSound(!theater.sound); useHall.getState().setToast(theater.sound ? "Sound on. It switches off when you leave the arcade." : "Sound off."); }}
           onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
           <planeGeometry args={playing ? [Math.min(SCREEN_W, SCREEN_H * aspect), Math.min(SCREEN_H, SCREEN_W / aspect)] : [SCREEN_W, SCREEN_H]} /><meshBasicMaterial map={playing && tex ? tex : poster} toneMapped={false} />
         </mesh>
@@ -567,7 +567,7 @@ function Theater({ night }: { night: boolean }) {
       </group>
       {/* benches: two rows, an aisle down the middle, facing the screen */}
       {BENCHES.map((b, i) => (
-        <group key={i} position={[b.x - ARCADE.x, 0, b.z]} onClick={(e) => { e.stopPropagation(); const px = e.point.x; let best = BENCH_SEATS[0], bd = Infinity; for (const sp of BENCH_SEATS) { const d = Math.hypot(sp.x - px, sp.z - b.z); if (d < bd) { bd = d; best = sp; } } requestSit(best); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+        <group key={i} position={[b.x - ARCADE.x, 0, b.z]} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); const px = e.point.x; let best = BENCH_SEATS[0], bd = Infinity; for (const sp of BENCH_SEATS) { const d = Math.hypot(sp.x - px, sp.z - b.z); if (d < bd) { bd = d; best = sp; } } requestSit(best); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
           <mesh position={[0, 1.35, 0]} castShadow><boxGeometry args={[b.w, 0.45, b.d]} /><meshStandardMaterial color="#141a33" roughness={0.6} metalness={0.2} /></mesh>
           <mesh position={[0, 2.3, -b.d / 2 + 0.1]}><boxGeometry args={[b.w, 1.5, 0.18]} /><meshStandardMaterial color="#141a33" roughness={0.6} metalness={0.2} /></mesh>
           <mesh position={[0, 1.12, b.d / 2 - 0.05]}><boxGeometry args={[b.w, 0.06, 0.06]} /><meshStandardMaterial color="#00f5ff" emissive="#00f5ff" emissiveIntensity={neon * 0.6} toneMapped={false} /></mesh>
@@ -589,7 +589,7 @@ export function Arcade({ night }: { night: boolean }) {
   const rail = night ? 2.6 : 1.3;
   const { x, z, w, d } = ARCADE;
   return (
-    <group onClick={(e) => { e.stopPropagation(); setPanel("arcade"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+    <group onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); setPanel("arcade"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       {/* carpet: lit by the hall by day, glowing under black light by night */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.05, z]} receiveShadow>
         <planeGeometry args={[w, d]} />

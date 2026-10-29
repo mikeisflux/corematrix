@@ -96,12 +96,17 @@ export function HallCanvas() {
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
     };
     es.onmessage = onMessage;
+    // a non-200 (a deploy, a restart) closes an EventSource for good: reopen it with a growing delay
+    let backoff = 1000, retry: ReturnType<typeof setTimeout> | null = null;
+    const watch = (src: EventSource) => { src.onerror = () => { if (src.readyState !== EventSource.CLOSED || !alive) return; retry = setTimeout(() => { if (!alive) return; es = new EventSource("/api/live"); es.onmessage = onMessage; es.onopen = () => { backoff = 1000; }; watch(es); }, backoff); backoff = Math.min(30_000, backoff * 2); }; };
+    watch(es);
     const check = setInterval(() => {
-      if (live.me && sseId && live.me !== sseId) { es.close(); sseId = ""; es = new EventSource("/api/live"); es.onmessage = onMessage; }
+      if (live.me && sseId && live.me !== sseId) { es.close(); sseId = ""; es = new EventSource("/api/live"); es.onmessage = onMessage; watch(es); }
     }, 2000);
     return () => {
       alive = false;
       clearInterval(check);
+      if (retry) clearTimeout(retry);
       clearInterval(refresh);
       document.removeEventListener("visibilitychange", refreshMe);
       es.close();

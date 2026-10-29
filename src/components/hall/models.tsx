@@ -4,7 +4,7 @@
  * are listed in manifest.json; anything missing from the manifest falls back
  * to the procedural primitives, so the scene never breaks on a missing file.
  */
-import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, type ReactNode, Component } from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
@@ -47,11 +47,22 @@ interface PropProps { name: string; colors?: Record<string, string>; emissive?: 
 export function Prop(p: PropProps) {
   const url = useModelUrl(p.name);
   if (!url) return <group position={p.position} rotation={p.rotation} scale={p.scale}>{p.fallback}</group>;
+  const fb = <group position={p.position} rotation={p.rotation} scale={p.scale}>{p.fallback}</group>;
   return (
-    <Suspense fallback={<group position={p.position} rotation={p.rotation} scale={p.scale}>{p.fallback}</group>}>
-      <GltfProp {...p} url={url} />
-    </Suspense>
+    <ModelBoundary fallback={fb}>
+      <Suspense fallback={fb}>
+        <GltfProp {...p} url={url} />
+      </Suspense>
+    </ModelBoundary>
   );
+}
+
+/** A model that fails to load (a 404, a dropped connection) falls back to its primitives instead of taking the hall down. */
+export class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err: unknown) { console.warn("[models] falling back to primitives:", err); }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onClick }: PropProps & { url: string }) {
   const { scene } = useGLTF(url);

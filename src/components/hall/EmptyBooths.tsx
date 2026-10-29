@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import { drapeTexture, signTexture } from "./textures";
-import { useHall } from "@/lib/hall/store";
+import { useHall, dragged } from "@/lib/hall/store";
 import { hallLayout, ARCADE, type BoothSpace } from "@/lib/hall/layout";
 import { BOOTH_SIZES, formatMoney, type BoothSize } from "@/lib/config";
 
@@ -128,7 +128,7 @@ function SizeGroup({ size, spaces, night }: { size: BoothSize; spaces: BoothSpac
 
   const over = (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); const id = e.instanceId != null ? ids[e.instanceId] : null; if (id) { setHovered(id); document.body.style.cursor = "pointer"; } };
   const out = () => { setHovered(null); document.body.style.cursor = ""; };
-  const click = (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); const id = e.instanceId != null ? ids[e.instanceId] : null; if (id) select(id); };
+  const click = (e: ThreeEvent<MouseEvent>) => { if (dragged(e)) return; e.stopPropagation(); const id = e.instanceId != null ? ids[e.instanceId] : null; if (id) select(id); };
   const n = spaces.length;
   const floorGeo = useMemo(() => { const g = new THREE.PlaneGeometry(w - 0.6, d - 0.6); g.rotateX(-Math.PI / 2); return g; }, [w, d]);
   const tapeGeo = useMemo(() => { const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); return g; }, [w, d]);

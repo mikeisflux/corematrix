@@ -14,7 +14,7 @@ import { Player, Crowd, Others } from "./Avatar";
 import { Mascot } from "./Mascot";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
-import { useHall, track, guessQuality, type HallBooth, type Quality } from "@/lib/hall/store";
+import { useHall, track, guessQuality, type HallBooth, type Quality, dragged } from "@/lib/hall/store";
 import { usePrefs } from "@/lib/hall/prefs";
 import { PerfCapture } from "./PerfCapture";
 import { boothSpace, boothPosition, CEILING, HALLS, HALL_LENGTH, X0, Z_CROSS0, Z_CROSS1, Z0 } from "@/lib/hall/layout";
@@ -168,7 +168,7 @@ function AisleBanners({ billboards, night }: { billboards: Ad[]; night: boolean 
         const ad = billboards.find((b) => b.slot === `block:${i}`);
         const tex = signTexture(ad ? [ad.headline, ad.body ?? ""] : ["YOUR BANNER HERE", `Hall ${h} cross aisle · $20/week`], { bg: ad?.color ?? "#1f2937", fg: "#fff", w: 1024, h: 256, size: ad ? 80 : 56 });
         return (
-          <group key={h} position={[X0 + hallW * (i + 0.5), CEILING - 8, (Z_CROSS0 + Z_CROSS1) / 2]} onClick={(e) => { e.stopPropagation(); if (ad) track({ kind: "billboard", id: ad.id, metric: "opens" }); setPanel("billboards"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+          <group key={h} position={[X0 + hallW * (i + 0.5), CEILING - 8, (Z_CROSS0 + Z_CROSS1) / 2]} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); if (ad) track({ kind: "billboard", id: ad.id, metric: "opens" }); setPanel("billboards"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
             <TwoSided w={40} h={10}><meshStandardMaterial map={tex} emissiveMap={tex} emissive="#fff" emissiveIntensity={night ? 0.6 : 0.1} /></TwoSided>
             {[-18, 18].map((x) => <mesh key={x} position={[x, 6.5, 0]}><cylinderGeometry args={[0.08, 0.08, 5, 4]} /><meshStandardMaterial color="#9ca3af" /></mesh>)}
           </group>
@@ -184,7 +184,7 @@ function EntranceBanner({ billboards, night }: { billboards: Ad[]; night: boolea
   const tex = useMemo(() => signTexture(ad ? [ad.headline, ad.body ?? ""] : ["WELCOME TO FOREVERCOMICCON", "the convention that never closes"], { bg: ad?.color ?? "#111827", fg: "#ffffff", w: 2048, h: 512, size: ad ? 150 : 120 }), [ad]);
   const setPanel = useHall((s) => s.setPanel);
   return (
-    <group position={[0, CEILING - 7, Z0 + 14]} onClick={(e) => { e.stopPropagation(); if (ad) track({ kind: "billboard", id: ad.id, metric: "opens" }); setPanel("billboards"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+    <group position={[0, CEILING - 7, Z0 + 14]} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); if (ad) track({ kind: "billboard", id: ad.id, metric: "opens" }); setPanel("billboards"); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <mesh><planeGeometry args={[150, 12]} /><meshStandardMaterial map={tex} emissiveMap={tex} emissive="#fff" emissiveIntensity={night ? 0.6 : 0.12} side={THREE.DoubleSide} /></mesh>
       {[-70, -35, 0, 35, 70].map((x) => <mesh key={x} position={[x, 6.5 + (CEILING - (CEILING - 7) - 6) / 2, 0]}><cylinderGeometry args={[0.1, 0.1, 7, 4]} /><meshStandardMaterial color="#9ca3af" /></mesh>)}
     </group>

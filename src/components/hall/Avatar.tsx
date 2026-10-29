@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS } from "@/lib/hall/store";
+import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, dragged } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
-import { AvatarRig, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
+import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
 import { Html } from "@react-three/drei";
@@ -68,6 +68,7 @@ function cells() {
   return grid;
 }
 const R = 1.1; // body radius
+const TOTAL_AISLES_FOR_PILLARS = Math.round((HALL_LENGTH - AISLE_W) / PITCH);
 function blocked(x: number, z: number): boolean {
   if (x < X0 + 2 || x > X0 + HALL_LENGTH - 2 || z < Z0 + 2 || z > Z0 + HALL_DEPTH - 2) return true;
   for (const b of cells().get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`) ?? []) {
@@ -77,6 +78,11 @@ function blocked(x: number, z: number): boolean {
   for (const row of CABINET_ROWS) if (Math.abs(x - row.x) < row.w / 2 + R && Math.abs(z - row.z) < row.d / 2 + R) return true;
   for (const o of PLAZA_BLOCKS) if (Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R) return true;
   if (Math.hypot(x - ARCADE.x, z - ARCADE.z) < PAD_RADIUS + R) return true;
+  // structural columns in the front and back concourses (same spots as Hall.tsx), base radius 2.2
+  if (Math.abs(z - (Z_FRONT - 4)) < 2.2 + R || Math.abs(z - (Z_BACK + 4)) < 2.2 + R) {
+    const c = Math.round((x - X0 - SLOT) / PITCH / 4) * 4;
+    if (c >= 0 && c <= TOTAL_AISLES_FOR_PILLARS && Math.hypot(x - (X0 + c * PITCH + SLOT), z - (Math.abs(z - (Z_FRONT - 4)) < 3.4 ? Z_FRONT - 4 : Z_BACK + 4)) < 2.2 + R) return true;
+  }
   return false;
 }
 /** Theater benches in front of the stage (same numbers as Arcade.tsx): two rows, two benches each, an aisle down the middle. */
@@ -110,7 +116,7 @@ export function AvatarModel({ config, motion, idle }: { config: AvatarConfig; mo
   const url = useModelUrl(`avatar-${config.body}`);
   const still = useMemo<Motion>(() => ({ speed: 0 }), []);
   const m = idle || !motion ? still : motion;
-  if (url) return <Suspense fallback={<PrimitiveAvatar config={config} motion={m} />}><AvatarRig config={config} motion={m} url={url} /></Suspense>;
+  if (url) return <ModelBoundary fallback={<PrimitiveAvatar config={config} motion={m} />}><Suspense fallback={<PrimitiveAvatar config={config} motion={m} />}><AvatarRig config={config} motion={m} url={url} /></Suspense></ModelBoundary>;
   return <PrimitiveAvatar config={config} motion={m} />;
 }
 
@@ -165,13 +171,15 @@ function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Mot
 
 /* ---------- where a visit starts ---------- */
 const SPOT_KEY = "fcc_spot", SPOT_TTL = 6 * 3600_000;
+let reloadHandled = false;
 export function rememberSpot(x: number, z: number, h: number) { try { localStorage.setItem(SPOT_KEY, JSON.stringify({ x, z, h, t: Date.now() })); } catch {} }
 /** The remembered spot if it is fresh, otherwise a random free point in the ring around the arcade plaza, facing it. */
 export function spawnPoint(): { x: number; z: number; h: number } {
   try {
     // a browser refresh is a reset: start fresh. Arriving from another page (or back/forward) picks up where you were.
+    // only the first spawn of a reloaded document: the navigation type stays "reload" for its whole life
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (nav?.type === "reload") { localStorage.removeItem(SPOT_KEY); throw new Error("fresh"); }
+    if (nav?.type === "reload" && !reloadHandled) { reloadHandled = true; localStorage.removeItem(SPOT_KEY); throw new Error("fresh"); }
     const s = JSON.parse(localStorage.getItem(SPOT_KEY) || "null") as { x: number; z: number; h: number; t: number } | null;
     if (s && Date.now() - s.t < SPOT_TTL && Number.isFinite(s.x) && Number.isFinite(s.z) && !blocked(s.x, s.z)) return { x: s.x, z: s.z, h: Number.isFinite(s.h) ? s.h : 0 };
   } catch {}
@@ -197,7 +205,8 @@ export function Player() {
   const { camera, gl } = useThree();
   const group = useRef<THREE.Group>(null);
   // where you stand: back where you were if you left the hall recently (any page, any reason), else a fresh spot around the arcade
-  const start = useRef(spawnPoint());
+  const [startSpot] = useState(spawnPoint); // once per mount, not on every render
+  const start = useRef(startSpot);
   const pos = useRef(new THREE.Vector3(start.current.x, 0, start.current.z));
   const heading = useRef(start.current.h); // dx = sin(h), dz = cos(h): heading 0 faces +z, into the hall
   const yaw = useRef(start.current.h);
@@ -254,7 +263,8 @@ export function Player() {
   const report = (leave = false, away = false) => {
     const pend = social.pending;
     const fresh = (t: number) => Date.now() - t < 6000;
-    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: me?.displayName || "Visitor", a: avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null, w: away || document.hidden || undefined };
+    const st = useHall.getState(); // the heartbeat closure outlives renders: read who we are now, not when it was made
+    const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: (st.me?.displayName || "Visitor").slice(0, 40), a: st.avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null, w: away || document.hidden || undefined };
     pend.dirty = false;
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
       .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
@@ -328,7 +338,8 @@ export function Player() {
     const run = isDown("shift") || input.run;
     let len = Math.hypot(fx, fz);
     // a sit request from the HUD button or a click on a seat
-    const rq = seating.request;
+    const rq = seating.request && Date.now() - seating.request.t < 3000 ? seating.request : null;
+    if (seating.request && !rq) seating.request = null;
     if (rq) { seating.request = null; if (rq.seat === "stand") standUp(); else if (Math.hypot(rq.seat.x - pos.current.x, rq.seat.z - pos.current.z) < 14) { if (seat.current) standUp(); sitDown(rq.seat); } else useHall.getState().setToast("Walk closer to sit there."); }
     if (seat.current) { if (len > 0.3) standUp(); else len = 0; }
     if (len <= 0.01) motion.speed = 0;
@@ -531,6 +542,7 @@ function Other({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null);
   const motion = useRef<Motion>({ speed: 0 }).current;
   const [cfg, setCfg] = useState<AvatarConfig>(() => live.players.get(id)?.a ?? DEFAULT_AVATAR);
+  const lastA = useRef<AvatarConfig | undefined>(undefined);
   const [name, setName] = useState(() => live.players.get(id)?.n ?? "Visitor");
   const [title, setTitle] = useState<string | null>(() => live.players.get(id)?.j ?? null);
   const [away, setAway] = useState<boolean>(() => !!live.players.get(id)?.w);
@@ -549,14 +561,14 @@ function Other({ id }: { id: string }) {
     motion.speed = p.s === 3 ? 0 : p.s; motion.sit = p.s === 3;
     if (p.e && Date.now() - p.e.t < 6000 && (!motion.emote || motion.emote.at !== p.e.t)) motion.emote = { name: p.e.n, at: p.e.t };
     if (p.r && Date.now() - p.r.t < 4000) { const cur = social.reactions.get(id); if (!cur || cur.until - 3000 < p.r.t) { social.reactions.set(id, { k: p.r.k, until: p.r.t + 3000 }); bumpSocial(); } }
-    if (p.a && p.a !== cfg && JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a);
+    if (p.a && p.a !== lastA.current) { lastA.current = p.a; if (JSON.stringify(p.a) !== JSON.stringify(cfg)) setCfg(p.a); }
     if (p.n !== name) setName(p.n);
     if ((p.j ?? null) !== title) setTitle(p.j ?? null);
     if (!!p.w !== away) setAway(!!p.w);
     if (clock.elapsedTime - nearT.current > 0.5) { nearT.current = clock.elapsedTime; const d = Math.hypot(camera.position.x - c.x, camera.position.z - c.z); g.visible = d < 260; const n = d < 80; if (n !== near) setNear(n); }
   });
   return (
-    <group ref={group} onClick={(e) => { e.stopPropagation(); openDm(id, name); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+    <group ref={group} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); openDm(id, name); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <AvatarModel config={cfg} motion={motion} />
       <LiveMarker away={away} />
       <OverheadNotes id={id} />

@@ -252,3 +252,7 @@ export function track(body: Record<string, unknown>) {
     void fetch("/api/track", { method: "POST", body: data, headers: { "Content-Type": "application/json" }, keepalive: true });
   }
 }
+
+/** R3F fires onClick whenever pointer-down and pointer-up land on the same object, however far the pointer travelled:
+ *  dragging to look over a banner would open the exhibitor's site. Click handlers ignore anything that moved. */
+export const dragged = (e: unknown) => ((e as { delta?: number }).delta ?? 0) > 5;

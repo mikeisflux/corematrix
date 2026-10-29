@@ -1,7 +1,14 @@
 "use client";
 import * as THREE from "three";
 
-const cache = new Map<string, THREE.CanvasTexture>();
+/** Generated textures, keyed by their content. Bounded: the claim designer's live preview and the mascot's speech bubbles
+ *  mint a new key per keystroke or line, so the oldest are evicted and their GPU copies freed. */
+class TexCache extends Map<string, THREE.CanvasTexture> {
+  constructor(private max: number) { super(); }
+  get(k: string) { const v = super.get(k); if (v) { super.delete(k); super.set(k, v); } return v; }
+  set(k: string, v: THREE.CanvasTexture) { super.set(k, v); while (this.size > this.max) { const [old, t] = this.entries().next().value as [string, THREE.CanvasTexture]; super.delete(old); t.dispose(); } return this; }
+}
+const cache = new TexCache(400);
 
 export function shade(hex: string, amt: number): string {
   const c = new THREE.Color(hex);
@@ -535,7 +542,7 @@ export function ribbedTexture(color: string, repeat: [number, number]): THREE.Ca
 
 const logoCache = new Map<string, THREE.Texture>();
 const loader = new THREE.TextureLoader();
-const framedCache = new Map<string, THREE.CanvasTexture>();
+const framedCache = new TexCache(8);
 /**
  * A tile for the spinning logo box: the booth colour with the logo fitted inside a margin, never cropped or stretched
  * whatever its shape. `aspect` is the tile's height over its width, so a tall face gets a tall tile with the logo

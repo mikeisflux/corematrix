@@ -6,7 +6,7 @@ import { useGLTF, useAnimations } from "@react-three/drei";
 import { ARCADE } from "@/lib/hall/layout";
 import { signTexture } from "./textures";
 import { useModelUrl } from "./models";
-import { useHall } from "@/lib/hall/store";
+import { useHall, dragged } from "@/lib/hall/store";
 import { player } from "./Avatar";
 import { conbot, botSay, useConBot, GREETINGS, TRICKS_ALL, pick } from "@/lib/hall/conbot";
 
@@ -179,7 +179,7 @@ function Robot({ url }: { url: string }) {
     conbot.x = s.x; conbot.z = s.z;
   });
   return (
-    <group ref={group} position={[state.current.x, 0, state.current.z]} onClick={(e) => { e.stopPropagation(); useHall.getState().setPanel("conbot"); }}>
+    <group ref={group} position={[state.current.x, 0, state.current.z]} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); useHall.getState().setPanel("conbot"); }}>
       <primitive ref={inner} object={obj} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.07, 0]}>
         <planeGeometry args={[5.5, 5.5]} />
