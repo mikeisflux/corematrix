@@ -89,7 +89,9 @@ async function chargeFirstPeriod(tx: Tx, paymentMethodId: string): Promise<{ ok:
   }
   try { await divinitycoin.captureHold(ref); } catch (err) { console.error(`[divinitycoin] capture failed for ${ref}:`, err); }
   await db.update(schema.transactions).set({ meta: JSON.stringify({ ...meta, paymentMethodId }) }).where(eq(schema.transactions.id, tx.id));
-  await settle(tx.id, "divinitycoin", charge.paymentIntentId ?? ref);
+  // same "<period ref>|<payment intent>" shape as renewals, so the payment.succeeded webhook for this period finds it
+  // instead of booking it a second time as a renewal
+  await settle(tx.id, "divinitycoin", `${ref}|${charge.paymentIntentId ?? ""}`);
   return { ok: true };
 }
 

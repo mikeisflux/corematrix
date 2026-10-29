@@ -50,6 +50,10 @@ export async function processDivinityEvent(evt: { id: string; type: string; data
     case "checkout.expired":
     case "checkout.canceled": {
       if (!ref) return { status: "ignored" };
+      // every checkout page load opens a new session for the same transaction: a stale session expiring must not fail a
+      // payment that a newer session is completing
+      const ftx = await findTx();
+      if (ftx?.sessionId && d.sessionId && String(d.sessionId) !== ftx.sessionId) return { status: "ignored", note: "superseded session" };
       const reason = String(d.error || d.declineCode || d.code || evt.type);
       await markTxFailed(ref, `${evt.type}: ${reason}`);
       return { status: "processed", note: reason };

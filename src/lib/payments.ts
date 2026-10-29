@@ -145,7 +145,8 @@ export async function refundTx(txId: string, amountCents: number | undefined, re
   const amt = Number.isFinite(amountCents) && Number(amountCents) > 0 ? Math.min(Number(amountCents), tx.amountCents - tx.refundedCents) : tx.amountCents - tx.refundedCents;
   if (amt <= 0) throw new Error("Nothing left to refund.");
   if (tx.provider === "divinitycoin" && tx.amountCents > 0) {
-    let pi = tx.providerRef || "";
+    // plan charges store "<period ref>|<payment intent>"; checkout payments store the intent (or a cs_ session id)
+    let pi = (tx.providerRef || "").includes("|") ? (tx.providerRef || "").split("|").pop() || "" : tx.providerRef || "";
     if (!pi || pi.startsWith("cs_")) {
       const sess = tx.sessionId ? await divinitycoin.getCheckoutSession(tx.sessionId).catch(() => null) : null;
       if (!sess?.paymentIntentId) throw new Error("DivinityCoin has no completed payment for this transaction. Mark it refunded manually if you refunded another way.");
