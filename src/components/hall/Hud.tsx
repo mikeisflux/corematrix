@@ -19,6 +19,7 @@ import { AvatarPanel } from "./panels/AvatarPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { ConBotPanel } from "./panels/ConBotPanel";
 import { EmotesPanel } from "./panels/EmotesPanel";
+import { TeamsPanel } from "./panels/TeamsPanel";
 import { requestSit } from "@/lib/hall/seats";
 import { PeoplePanel } from "./panels/PeoplePanel";
 import { DmPanel } from "./panels/DmPanel";
@@ -73,6 +74,7 @@ export function Hud() {
       {panel === "conbot" && <ConBotPanel />}
       {panel === "emotes" && <EmotesPanel />}
       {panel === "people" && <PeoplePanel />}
+      {panel === "teams" && <TeamsPanel />}
       {panel === "dm" && <DmPanel />}
     </>
   );
@@ -131,6 +133,7 @@ export function Hud() {
         <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
         <RailButton label="Arcade" active={panel === "arcade"} onClick={() => toggle("arcade")} icon="🕹️" />
         <RailButton label="Hanging banners" active={panel === "billboards"} onClick={() => toggle("billboards")} icon="🪧" />
+        <RailButton label="Teams" active={panel === "teams"} onClick={() => toggle("teams")} icon="🎟️" />
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
       </div>
 

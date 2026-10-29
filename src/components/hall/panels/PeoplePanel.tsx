@@ -103,7 +103,7 @@ export function PeoplePanel() {
                 </div>
               ))}
             </div>
-            <p className="mt-1.5 text-[11px] text-slate-500">Friends can be put on a team in your dashboard, so they can sit at your booth.</p>
+            <p className="mt-1.5 text-[11px] text-slate-500">Put friends on a <button onClick={() => setPanel("teams")} className="text-amber-300 underline">team</button> so they can sit at your booth.</p>
           </div>
         )}
         <div>
