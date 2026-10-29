@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
@@ -98,7 +98,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
         <div className="rounded-2xl border border-white/10 p-2">
           <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Your booths</div>
           {booths.map((b) => (
-            <button key={b.id} onClick={() => setSel(b.id)} className={`flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left ${sel === b.id ? "bg-amber-300/15" : "hover:bg-white/5"}`}>
+            <button key={b.id} onClick={() => { if (b.id !== sel && okToLeave()) { unsaved.current = false; setSel(b.id); } }} className={`flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left ${sel === b.id ? "bg-amber-300/15" : "hover:bg-white/5"}`}>
               <span className="h-8 w-8 shrink-0 rounded-lg" style={{ background: b.color }} />
               <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{b.name}</span><span className="block text-[11px] text-slate-400">#{b.id} · {formatMoney(b.valueCents)} · {b.tier}</span></span>
             </button>
@@ -395,13 +395,19 @@ function TeamCard({ t, booths, friends, busy, run }: { t: TeamView; booths: MyBo
   const [friendId, setFriendId] = useState("");
   const onTeam = new Set(t.members.map((m) => m.userId).filter(Boolean));
   const addable = friends.filter((f) => !onTeam.has(f.id));
-  const toggleBooth = (id: number) => { const next = t.booths.includes(id) ? t.booths.filter((b) => b !== id) : [...t.booths, id]; void run(() => api(`/api/teams/${t.id}`, { method: "PATCH", body: JSON.stringify({ booths: next }) })); };
+  const toggleBooth = (id: number) => { const on = !t.booths.includes(id); const next = on ? [...t.booths, id] : t.booths.filter((b) => b !== id); const bn = booths.find((b) => b.id === id)?.name || `Booth #${id}`; void run(() => api(`/api/teams/${t.id}`, { method: "PATCH", body: JSON.stringify({ booths: next }) }), on ? `Saved: ${t.name} now staffs ${bn}.` : `Saved: ${t.name} no longer staffs ${bn}.`); };
+  // the name saves with its own button (or Enter); until then it counts as an unsaved change
+  const nameDirty = name.trim() !== "" && name !== t.name;
+  useEffect(() => { markUnsaved(`team:${t.id}`, nameDirty); return () => markUnsaved(`team:${t.id}`, false); }, [nameDirty, t.id]);
+  useEffect(() => { setName(t.name); }, [t.name]);
+  const saveName = () => { if (nameDirty) void run(() => api(`/api/teams/${t.id}`, { method: "PATCH", body: JSON.stringify({ name }) }), `Saved: the team is now called ${name}.`); };
   const addFriend = () => { if (!friendId) return; void run(() => api(`/api/teams/${t.id}/members`, { method: "POST", body: JSON.stringify({ userId: friendId }) }), "Added. They've been told they can sit at your booth."); setFriendId(""); };
   const addEmail = () => { const e = email.trim(); if (!e) return; void run(() => api(`/api/teams/${t.id}/members`, { method: "POST", body: JSON.stringify({ email: e }) }), `${e} added to ${t.name}.`); setEmail(""); };
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} onBlur={() => { if (name.trim() && name !== t.name) void run(() => api(`/api/teams/${t.id}`, { method: "PATCH", body: JSON.stringify({ name }) })); }} className="input w-56 text-sm font-semibold" title="Click to rename" />
+        <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setName(t.name); }} className="input w-56 text-sm font-semibold" title="Rename the team" />
+        {nameDirty && <><button type="button" className="btn-primary text-xs" disabled={busy} onClick={saveName}>Save name</button><button type="button" className="btn-ghost text-xs" onClick={() => setName(t.name)}>Cancel</button></>}
         <span className="text-[11px] text-slate-500">{t.members.length} {t.members.length === 1 ? "person" : "people"}</span>
         <button type="button" onClick={() => { if (confirm(`Delete team "${t.name}"? Its people lose their seats at your booths.`)) void run(() => api(`/api/teams/${t.id}`, { method: "DELETE" }), "Team deleted."); }} className="btn-ghost ml-auto text-xs text-rose-300" disabled={busy}>Delete</button>
       </div>
@@ -478,18 +484,51 @@ function Protect({ p, takeover, setMsg }: { p: Detail["booth"]; takeover: Return
   );
 }
 
+/** Unsaved edits in the booth form: checked before leaving the page or switching booths. */
+const unsavedKeys = new Set<string>();
+const unsaved = {
+  get current() { return unsavedKeys.size > 0; },
+  set current(v: boolean) { if (!v) unsavedKeys.clear(); },
+};
+/** Mark one part of the page as having (or no longer having) unsaved edits. */
+const markUnsaved = (key: string, on: boolean) => { if (on) unsavedKeys.add(key); else unsavedKeys.delete(key); };
+const LEAVE_MSG = "You have unsaved changes to your booth. Leave without saving?";
+const okToLeave = () => !unsaved.current || window.confirm(LEAVE_MSG);
+
 function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
-  const [d, setD] = useState({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
+  const fromBooth = () => ({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
+  const [d, setD] = useState(fromBooth);
+  const [saved, setSaved] = useState(fromBooth); // what's on the floor now: the form is "dirty" when it differs
+  const dirty = JSON.stringify(d) !== JSON.stringify(saved);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setD({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category }); }, [p.id, p.name]); // a logo or art upload mid-edit must not wipe what was typed
+  useEffect(() => { const f = fromBooth(); setD(f); setSaved(f); }, [p.id, p.name]); // eslint-disable-line react-hooks/exhaustive-deps -- a logo or art upload mid-edit must not wipe what was typed
   const save = async () => {
     setBusy(true);
     try {
-      const r = await api<{ booth: Detail["booth"] }>(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify(d) });
+      const sent = d;
+      const r = await api<{ booth: Detail["booth"] }>(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify(sent) });
+      setSaved(sent); markUnsaved("booth", false);
       onSaved(r.booth);
     } catch (e) { setMsg((e as Error).message); }
     setBusy(false);
   };
+  // leaving with unsaved edits asks first: closing or reloading the tab, any link on the page, Ctrl/Cmd+S saves
+  markUnsaved("booth", dirty);
+  const saveRef = useRef(save); saveRef.current = save;
+  useEffect(() => {
+    const beforeUnload = (e: BeforeUnloadEvent) => { if (!unsaved.current) return; e.preventDefault(); e.returnValue = LEAVE_MSG; return LEAVE_MSG; };
+    const onClick = (e: MouseEvent) => {
+      if (!unsaved.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      if (!window.confirm(LEAVE_MSG)) { e.preventDefault(); e.stopPropagation(); } else unsaved.current = false;
+    };
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && unsavedKeys.has("booth")) { e.preventDefault(); void saveRef.current(); } };
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", onClick, true); // capture: runs before Next's link handler
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", onClick, true); window.removeEventListener("keydown", onKey); markUnsaved("booth", false); };
+  }, []);
   const upload = async (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -497,7 +536,7 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
     const r = await fetch("/api/upload", { method: "POST", body: fd });
     const j = await r.json();
     if (!r.ok) return setMsg(j.error);
-    setD((x) => ({ ...x, logoUrl: j.url }));
+    setD((x) => ({ ...x, logoUrl: j.url })); setSaved((x) => ({ ...x, logoUrl: j.url })); // uploads save straight away
     // save straight away so it's on the floor without a second click
     try {
       const saved = await api<{ booth: Detail["booth"] }>(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ logoUrl: j.url }) });
@@ -506,7 +545,10 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
   };
   return (
     <div className="rounded-2xl border border-white/10 p-4">
-      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Edit booth · free, instant</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Edit booth · free, instant</div>
+        <button className="btn-primary text-xs" disabled={busy || !dirty || !d.name.trim()} onClick={save}>{busy ? "Saving…" : dirty ? "Save changes" : "Saved ✓"}</button>
+      </div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div><label className="label">Name</label><input className="input" maxLength={40} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></div>
         <div><label className="label">Website</label><input className="input" value={d.website} onChange={(e) => setD({ ...d, website: e.target.value })} /></div>
@@ -534,7 +576,17 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
         <div><label className="label">Table cloth / drapes</label><input type="color" className="h-10 w-full rounded-xl bg-transparent" value={d.cloth} onChange={(e) => setD({ ...d, cloth: e.target.value })} /></div>
         <div><label className="label">Category</label><select className="input" value={d.category} onChange={(e) => setD({ ...d, category: e.target.value })}>{Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}</select></div>
       </div>
-      <button className="btn-primary mt-3" disabled={busy || !d.name.trim()} onClick={save}>{busy ? "Saving…" : "Save changes"}</button>
+      <button className="btn-primary mt-3" disabled={busy || !dirty || !d.name.trim()} onClick={save}>{busy ? "Saving…" : dirty ? "Save changes" : "Saved ✓"}</button>
+      {/* always in reach while there's something to save, wherever you've scrolled to */}
+      {dirty && (
+        <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+          <div className="flex w-full max-w-xl items-center gap-3 rounded-2xl border border-amber-300/40 bg-slate-950/95 px-4 py-3 shadow-2xl backdrop-blur">
+            <span className="min-w-0 flex-1 text-sm text-slate-200">You have unsaved changes to <b className="text-white">{saved.name || "your booth"}</b></span>
+            <button className="btn-ghost text-xs" disabled={busy} onClick={() => setD(saved)}>Discard</button>
+            <button className="btn-primary text-xs" disabled={busy || !d.name.trim()} onClick={save}>{busy ? "Saving…" : "Save changes"}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -582,6 +634,9 @@ async function uploadArt(boothId: number, slot: string, file: File, want: { widt
 function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>, artLinks?: Record<string, string>) => void }) {
   const [links, setLinks] = useState<Record<string, string>>(p.artLinks ?? {});
   useEffect(() => { setLinks(p.artLinks ?? {}); }, [p.artLinks]);
+  const linkDirty = (n: number) => ((links[bookSlotKey(n)] ?? "").trim() !== (p.artLinks?.[bookSlotKey(n)] ?? ""));
+  const anyLinkDirty = Object.keys(links).some((k) => (links[k] ?? "").trim() !== (p.artLinks?.[k] ?? ""));
+  useEffect(() => { markUnsaved("links", anyLinkDirty); return () => markUnsaved("links", false); }, [anyLinkDirty]);
   const saveLink = async (n: number) => {
     const slot = bookSlotKey(n); const link = (links[slot] ?? "").trim();
     if ((p.artLinks?.[slot] ?? "") === link) return;
@@ -634,6 +689,7 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
                 </div>
                 <label className={`btn-ghost mt-2 block cursor-pointer text-[11px] ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === bookSlotKey(n) ? "…" : v ? "Replace" : "Upload cover"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(n, f); e.target.value = ""; }} /></label>
                 {v && <input className="input mt-1.5 px-2 py-1 text-[11px]" placeholder="Buy link https://…" value={links[bookSlotKey(n)] ?? ""} onChange={(e) => setLinks({ ...links, [bookSlotKey(n)]: e.target.value })} onBlur={() => void saveLink(n)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} title="Where visitors can buy this comic. Shown on the cover in the hall and in your storefront." />}
+                {v && linkDirty(n) && <button className="btn-primary mt-1 w-full py-1 text-[11px]" onClick={() => void saveLink(n)}>Save link</button>}
                 {v && <button className="mt-1 text-[11px] text-slate-500 hover:text-rose-300" onClick={() => remove(n)}>remove</button>}
               </div>
             );
