@@ -11,6 +11,14 @@ const PROTECTED = new Set(["SESSION_SECRET"]);
 // whoever controls these controls admin access itself
 const SUPERADMIN_ONLY = new Set(["ADMIN_EMAILS", "ADMIN_ALLOWED_IPS", "CRON_SECRET"]);
 const mask = (v: string) => (v ? `•••${v.slice(-4)}` : "");
+const isManaged = (key: string) => SETTING_KEYS.some((d) => d.key === key);
+/** A setting's value as this page may show it: managed keys resolve normally (stored value, then env); any other key is only
+ *  what was saved here, never the server environment (saving SUPERADMIN_PASSWORD as "" must not reveal the real one). */
+async function visibleValue(key: string): Promise<string> {
+  if (isManaged(key)) return getSetting(key);
+  const [row] = await db.select({ v: schema.settings.value }).from(schema.settings).where(eq(schema.settings.key, key)).limit(1);
+  return row?.v ?? "";
+}
 
 export async function GET(req: Request) {
   const g = await guard("settings"); if (g instanceof NextResponse) return g;
@@ -24,7 +32,7 @@ export async function GET(req: Request) {
     if (!known) return bad("unknown setting");
     if (SUPERADMIN_ONLY.has(reveal) && !g.isAdmin) return bad("Only a superadmin can read this setting.", 403);
     await audit(g.id, "setting.reveal", "setting", reveal, undefined, undefined, g.email);
-    return NextResponse.json({ key: reveal, value: await getSetting(reveal) });
+    return NextResponse.json({ key: reveal, value: await visibleValue(reveal) });
   }
   const dbRows = await db.select().from(schema.settings).orderBy(schema.settings.key);
   const inDb = new Set(dbRows.map((r) => r.key));
@@ -48,7 +56,7 @@ export async function PUT(req: Request) {
   b.value = b.value.trim(); // a pasted key with a trailing space or newline breaks every request that uses it
   const def = SETTING_KEYS.find((d) => d.key === key);
   if (def?.readonly) return bad("read-only setting");
-  const before = await getSetting(key);
+  const before = await visibleValue(key);
   await setSetting(key, b.value);
   await audit(g.id, "setting.set", "setting", key, { value: def?.secret ? mask(before) : before }, { value: def?.secret ? mask(b.value) : b.value }, g.email);
   return NextResponse.json({ ok: true });

@@ -29,9 +29,12 @@ export async function sendMail(input: MailInput): Promise<MailResult> {
     : undefined;
 
   const logId = newId();
+  // the log is readable by email staff: one-time links (password reset, email confirm) are stored without their token,
+  // or anyone who can read the log could reset a superadmin's password
+  const redact = (v: string) => v.replace(/([?&](?:amp;)?token=)[^&"'\s<>]+/gi, "$1[redacted]");
   await db.insert(schema.mailMessages).values({
     id: logId, direction: "out", channel: input.channel || "email", fromEmail: from, fromName, toEmail: toList.join(", "), cc: input.cc?.join(", ") || null,
-    subject: input.subject, text, html: html ?? null, read: true, status: "queued", templateSlug: input.templateSlug ?? null,
+    subject: input.subject, text: redact(text), html: html ? redact(html) : null, read: true, status: "queued", templateSlug: input.templateSlug ?? null,
     userId: input.userId ?? null, txId: input.txId ?? null, boothId: input.boothId ?? null, threadId: input.threadId ?? null,
     headers: input.bcc?.length ? JSON.stringify({ bcc: input.bcc.join(", ") }) : null, createdAt: now(),
   });

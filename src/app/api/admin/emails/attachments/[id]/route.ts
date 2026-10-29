@@ -10,7 +10,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const { id } = await ctx.params;
   const [a] = await db.select().from(schema.mailAttachments).where(eq(schema.mailAttachments.id, id));
   if (!a) return notFound();
-  const inline = new URL(req.url).searchParams.get("inline") === "1";
+  // the type comes from whoever sent or uploaded the file: only plain raster images are shown in place; everything else
+  // (HTML, SVG, PDF...) downloads, and even then runs sandboxed, so a crafted attachment can't run script as an admin
+  const raster = /^image\/(png|jpe?g|gif|webp)$/i.test(a.contentType || "");
+  const inline = raster && new URL(req.url).searchParams.get("inline") === "1";
   const safe = a.filename.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "");
-  return new NextResponse(new Uint8Array(a.data), { headers: { "Content-Type": a.contentType || "application/octet-stream", "Content-Length": String(a.size), "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(a.filename)}`, "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600" } });
+  return new NextResponse(new Uint8Array(a.data), { headers: { "Content-Type": raster ? a.contentType : "application/octet-stream", "Content-Security-Policy": "sandbox", "Content-Length": String(a.size), "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${safe}"; filename*=UTF-8''${encodeURIComponent(a.filename)}`, "X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600" } });
 }

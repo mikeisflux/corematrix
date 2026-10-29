@@ -86,7 +86,8 @@ export const ONESHOT = new Set(["wave", "dance", "cheer", "clap", "bow", "point"
 export function wantedClip(motion: Motion, actions: Record<string, THREE.AnimationAction | undefined>, st: { at: number; until: number; name: string }): string {
   if (motion.sit && actions.sit) { st.until = 0; return "sit"; }
   const em = motion.emote;
-  if (em && em.at !== st.at && actions[em.name]) { st.at = em.at; st.name = em.name; st.until = performance.now() + (actions[em.name]!.getClip().duration - 0.15) * 1000; }
+  // own keys only: an emote named "constructor" would pass a plain lookup and throw every frame
+  if (em && em.at !== st.at && Object.hasOwn(actions, em.name) && actions[em.name]) { st.at = em.at; st.name = em.name; st.until = performance.now() + (actions[em.name]!.getClip().duration - 0.15) * 1000; }
   if (motion.speed >= 1) st.until = 0;
   if (st.until > performance.now()) return st.name;
   return motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";

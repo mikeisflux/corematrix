@@ -45,7 +45,8 @@ export async function requireAdmin(): Promise<User | null> {
   if (u.isAdmin) return u;
   if (parsePermissions(u.permissions).length > 0) return u; // staff with some admin areas; each route checks its own area
   const list = ((await getSetting("ADMIN_EMAILS")) || process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  if (list.includes(u.email.toLowerCase())) {
+  // only an address the account has proven: otherwise registering a listed email before its owner does would make you superadmin
+  if (list.includes(u.email.toLowerCase()) && u.emailVerifiedAt) {
     await db.update(schema.users).set({ isAdmin: true }).where(eq(schema.users.id, u.id));
     return { ...u, isAdmin: true };
   }
@@ -160,7 +161,7 @@ export async function findOrCreateUser(email: string, ref?: string): Promise<Use
     referralCode: newCode(),
     referredBy,
     creditCents: 0, // referral credit is paid on their first real payment (see payReferral in economy.ts), never at signup
-    isAdmin: isAdminEmail(email),
+    isAdmin: false, // ADMIN_EMAILS promotes on first admin visit, once the address is confirmed (requireAdmin)
     createdAt: now(),
     lastSeenAt: now(),
   };

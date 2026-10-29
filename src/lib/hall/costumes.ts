@@ -30,6 +30,6 @@ export const COSTUMES: Record<CostumeId, Costume> = {
   royal: { name: "Warrior royal", blurb: "Crown of antenna spikes, gold armour, crimson cape.", parts: ["cos_chest", "cos_pads", "cos_cape", "cos_belt", "cos_emblem_ring"], colors: { costume: "#d4a017", costume2: "#7f1d1d", cape: "#991b1b", shirt: "#7f1d1d", pants: "#3f0d0d" } },
 };
 export const COSTUME_IDS = Object.keys(COSTUMES) as CostumeId[];
-export const isCostumeId = (v: unknown): v is CostumeId => typeof v === "string" && v in COSTUMES;
+export const isCostumeId = (v: unknown): v is CostumeId => typeof v === "string" && Object.hasOwn(COSTUMES, v); // not `in`: "constructor" or "__proto__" would pass and crash every viewer
 /** Costumes handed to crowd figures (everything but "none"). */
 export const CROWD_COSTUMES = COSTUME_IDS.filter((c) => c !== "none");

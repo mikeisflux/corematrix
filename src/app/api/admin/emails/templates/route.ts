@@ -19,6 +19,7 @@ export async function POST(req: Request) {
   const slug = str(b.slug, 60).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
   const name = str(b.name, 120).trim();
   if (!slug || !name) return bad("slug and name are required");
+  if ((slug === "password_reset" || slug === "verify_email") && !g.isAdmin) return bad("Only a superadmin can create the sign-in and email-confirm templates.", 403);
   const [dupe] = await db.select({ id: schema.emailTemplates.id }).from(schema.emailTemplates).where(eq(schema.emailTemplates.slug, slug));
   if (dupe) return bad("slug already exists");
   const id = newId();

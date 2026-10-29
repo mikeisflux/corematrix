@@ -12,6 +12,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
   const g = await guard("booths"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
+  if (!/^\d{1,9}$/.test(id)) return notFound();
   const [booth] = await db.select().from(schema.booths).where(eq(schema.booths.id, Number(id)));
   if (!booth) return notFound();
   const [[owner], txs, series, referrers] = await Promise.all([
@@ -25,6 +26,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   const g = await guard("booths"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
+  if (!/^\d{1,9}$/.test(id)) return notFound();
   const [booth] = await db.select().from(schema.booths).where(eq(schema.booths.id, Number(id)));
   if (!booth) return notFound();
   const b = await readJson(req);

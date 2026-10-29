@@ -86,6 +86,7 @@ export function spaceColumns(boothId: number) {
 }
 
 export async function getBooth(id: number): Promise<Booth | null> {
+  if (!Number.isSafeInteger(id) || id < 1) return null; // /app/booth/abc and friends: no such booth, not a crashed query
   await ensureMigrated();
   const [p] = await db.select().from(schema.booths).where(eq(schema.booths.id, id)).limit(1);
   return p ?? null;
@@ -337,6 +338,9 @@ export async function startBillboard(buyerId: string, d: BillboardDraft) {
   const headline = clampStr(d.headline, 48);
   if (!headline) throw new Error("Add a headline");
   const slotKey = d.slot === "airship" ? "airship" : `block:${Math.max(0, Math.floor(d.block ?? 0))}`;
+  // a billboard may point at the buyer's own booth only
+  const linked = d.boothId ? await getBooth(Number(d.boothId)) : null;
+  const boothRef = linked && linked.ownerId === buyerId ? linked.id : null;
   const price = (d.slot === "airship" ? BILLBOARD_SLOTS.airship.priceCentsPerWeek : BILLBOARD_SLOTS.block.priceCentsPerWeek) * weeks;
   // Find the next free window for that slot.
   const [last] = await db
@@ -349,16 +353,16 @@ export async function startBillboard(buyerId: string, d: BillboardDraft) {
     headline,
     body: clampStr(d.body, 140),
     website: normalizeUrl(d.website) ?? undefined,
-    imageUrl: d.imageUrl && (d.imageUrl.startsWith("/") || d.imageUrl.startsWith("data:")) ? d.imageUrl : normalizeUrl(d.imageUrl) ?? undefined,
+    imageUrl: d.imageUrl && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(d.imageUrl) ? d.imageUrl : normalizeUrl(d.imageUrl) ?? undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#111827",
-    boothId: d.boothId ?? null,
+    boothId: boothRef,
     startsAt,
     endsAt: startsAt + weeks * 7 * 86_400_000,
     weeks,
   };
   const tx: typeof schema.transactions.$inferInsert = {
     id: newId(),
-    boothId: d.boothId ?? 0,
+    boothId: boothRef ?? 0,
     kind: "billboard",
     buyerId,
     amountCents: price,
@@ -525,6 +529,27 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
         await sendTemplate("plan_started", u.email, { subject: `${p?.name ?? `#${tx.boothId}`} is now a ${TIERS[meta.tier].name}`, fallbackText: `Your ${TIERS[meta.tier].name} plan is active. Renews every 30 days; cancel any time from the dashboard.`, name: u.name ?? u.email, boothName: p?.name ?? `#${tx.boothId}`, planName: TIERS[meta.tier].name, amount: formatMoney(tx.amountCents), perks: TIERS[meta.tier].perks.join(" · "), boothId: tx.boothId }, { userId: tx.buyerId, boothId: tx.boothId, txId: tx.id, channel: "system" });
       }
     }
+  }
+
+  if (tx.kind === "coins" && meta.coins && tx.buyerId) {
+    await db.update(schema.users).set({ coins: sql`${schema.users.coins} + ${meta.coins}` }).where(eq(schema.users.id, tx.buyerId));
+    await db.insert(schema.coinLedger).values({ id: newId(), userId: tx.buyerId, delta: meta.coins, reason: "purchase", ref: tx.id, createdAt: t });
+    await bumpSiteDaily({ revenueCents: tx.amountCents });
+    await notify(tx.buyerId, "coins", `+${meta.coins} coins`, "They're in your wallet. Head to the arcade.").catch(() => {});
+  } else if (tx.kind === "billboard" && meta.billboard && tx.buyerId) {
+    const b = meta.billboard;
+    // the slot's next free window is decided now, not at checkout: two people buying the same slot queue one after the other
+    const [last] = await db.select({ endsAt: sql<number>`max(${schema.billboards.endsAt})` }).from(schema.billboards)
+      .where(and(eq(schema.billboards.slot, b.slot), sql`${schema.billboards.status} IN ('pending','active')`));
+    const startsAt = Math.max(t, Number(last?.endsAt ?? 0));
+    const endsAt = startsAt + (b.endsAt - b.startsAt);
+    await db.insert(schema.billboards).values({
+      id: newId(), slot: b.slot, ownerId: tx.buyerId, boothId: b.boothId ?? null, headline: b.headline, body: b.body ?? null, website: b.website ?? null,
+      imageUrl: b.imageUrl ?? null, color: b.color, startsAt, endsAt, amountCents: tx.amountCents, status: "active", createdAt: t,
+    });
+    await addEvent("billboard", b.boothId ?? null, `${b.headline} is now on a billboard`, b.slot === "airship" ? "Airship banner over the hall" : "Billboard over the aisles", tx.amountCents);
+    await bumpSiteDaily({ revenueCents: tx.amountCents });
+    await notify(tx.buyerId, "booth", "Your billboard is booked", startsAt > t + 60_000 ? `It goes up ${new Date(startsAt).toUTCString().slice(0, 16)}.` : "It's up now.").catch(() => {});
   }
 
   if (tx.buyerId && tx.amountCents > 0 && provider !== "comp") {

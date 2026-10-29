@@ -11,6 +11,9 @@ import { SAMPLE_VARS } from "@/lib/email-templates";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 const T = schema.emailTemplates, V = schema.emailTemplateVersions;
+/** Templates that carry one-time sign-in links: only a superadmin may change them, or a staffer could point the link at their own site. */
+export const LOCKED_SLUGS = new Set(["password_reset", "verify_email"]);
+const locked = (slug: string, g: { isAdmin: boolean }) => LOCKED_SLUGS.has(slug) && !g.isAdmin;
 
 export async function GET(_req: Request, ctx: Ctx) {
   const g = await guard("emails"); if (g instanceof NextResponse) return g;
@@ -25,6 +28,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const [before] = await db.select().from(T).where(eq(T.id, id));
   if (!before) return notFound();
+  if (locked(before.slug, g)) return bad("Only a superadmin can edit the sign-in and email-confirm templates.", 403);
   const b = await readJson(req);
   const subject = str(b.subject, 300).trim() || before.subject;
   const html = str(b.html, 200_000) || before.html;
@@ -56,6 +60,7 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ ok: true });
     }
     case "restore": {
+      if (locked(t.slug, g)) return bad("Only a superadmin can edit the sign-in and email-confirm templates.", 403);
       const [v] = await db.select().from(V).where(eq(V.id, str(b.versionId, 40)));
       if (!v || v.templateId !== id) return bad("Version not found");
       await db.insert(V).values({ id: newId(), templateId: id, version: t.version, subject: t.subject, html: t.html, text: t.text, changedBy: g.email, changeNote: `before restore of v${v.version}`, createdAt: now() });
@@ -76,6 +81,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const [t] = await db.select().from(T).where(eq(T.id, id));
   if (!t) return notFound();
+  if (locked(t.slug, g)) return bad("Only a superadmin can delete the sign-in and email-confirm templates.", 403);
   await db.delete(V).where(eq(V.templateId, id));
   await db.delete(T).where(eq(T.id, id));
   await audit(g.id, "template.delete", "email_template", id, { slug: t.slug }, undefined, g.email);
