@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { preload } from "react-dom";
 import { HallShell } from "@/components/hall/HallShell";
+import { hallSnapshot } from "@/lib/hall-snapshot";
+import manifest from "../../../public/models/manifest.json";
 import { RefCapture } from "@/components/ui/RefCapture";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { claimedBooths, TOTAL_BOOTHS } from "@/lib/economy";
 import { CATEGORIES, SITE_NAME } from "@/lib/config";
 import { pageMeta, siteOrigin, graph, appLd, breadcrumbLd, PRICE_FROM } from "@/lib/seo";
 import { LANDING_LINKS } from "@/lib/landings";
@@ -16,7 +18,12 @@ export const metadata = pageMeta({
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const [origin, booths] = await Promise.all([siteOrigin(), claimedBooths().catch(() => [])]);
+  const [origin, snapshot] = await Promise.all([siteOrigin(), hallSnapshot()]);
+  const booths = snapshot.booths;
+  // Resource hints: the models and the lighting map start downloading with the JavaScript instead of after the scene
+  // has mounted and asked for them, which took a manifest round trip plus the whole script parse first.
+  for (const m of Object.values(manifest.models)) preload(m.file, { as: "fetch", crossOrigin: "anonymous" });
+  preload("/hdri/warehouse.hdr", { as: "fetch", crossOrigin: "anonymous" });
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-[var(--bg)]">
       <JsonLd data={graph(appLd(origin), breadcrumbLd(origin, [["Home", "/"], ["Show floor", "/app"]]))} />
@@ -27,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <p>
           A 3D exhibit hall laid out like a real comic convention, open 24/7: Halls A to H of numbered booths, publisher islands,
           an Artists&apos; Alley, an arcade and a theater in the middle of the floor. Walk with the arrow keys or WASD, or the
-          on-screen joystick on a phone. {booths.length} exhibitors are on the floor and {TOTAL_BOOTHS - booths.length} spaces are open,
+          on-screen joystick on a phone. {booths.length} exhibitors are on the floor and {snapshot.stats.totalBooths - booths.length} spaces are open,
           from {PRICE_FROM}.
         </p>
         <h2>Exhibitors on the floor</h2>
@@ -42,7 +49,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           {LANDING_LINKS.map(([slug, label]) => <li key={slug}><Link href={`/${slug}`}>{label}</Link></li>)}
         </ul>
       </section>
-      <HallShell clean={sp.clean === "1"} />
+      <HallShell clean={sp.clean === "1"} initial={snapshot} />
       <RefCapture />
     </main>
   );

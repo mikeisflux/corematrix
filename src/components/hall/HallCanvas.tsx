@@ -1,5 +1,6 @@
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { HallSnapshot } from "@/lib/hall-snapshot";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { social, showBubble, bumpSocial, emitChat, viewingDm } from "@/lib/hall/social";
 import { usePrefs } from "@/lib/hall/prefs";
@@ -32,7 +33,7 @@ function friendsOnFloor(players: LivePlayer[]) {
   for (const [uid, t] of friendSeen) if (!here.has(uid) && Date.now() - t > 30_000) friendSeen.set(uid, t); // away: the timestamp ages, so a return after ten minutes toasts again
 }
 
-export function HallCanvas() {
+export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
   const setBooths = useHall((s) => s.setBooths);
   const upsertBooth = useHall((s) => s.upsertBooth);
   const pushEvent = useHall((s) => s.pushEvent);
@@ -42,22 +43,27 @@ export function HallCanvas() {
   const setFeatured = useHall((s) => s.setFeatured);
   const setToast = useHall((s) => s.setToast);
 
+  type Snapshot = { booths: HallBooth[]; stats: HallStats; events: HallEvent[]; billboards: HallBillboard[]; featured: Featured[] };
+  const applySnapshot = (d: Snapshot) => {
+    setBooths(d.booths);
+    setStats(d.stats);
+    d.events
+      .slice()
+      .reverse()
+      .forEach((e) => pushEvent(e));
+    setBillboards(d.billboards);
+    setFeatured(d.featured);
+  };
+  // the page carries the floor's state: it is in the store before the first paint, so the scene's first frame has
+  // every booth and there is no "Opening the hall…" wait on a round trip
+  const seeded = useRef(false);
+  useLayoutEffect(() => { if (initial && !seeded.current) { seeded.current = true; applySnapshot(initial as unknown as Snapshot); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let alive = true;
     // one failed request (a deploy, a blip) used to leave "Opening the hall…" up forever: retry with a growing delay
     let hallRetry: ReturnType<typeof setTimeout> | null = null;
-    const loadHall = (delay = 1000) => api<{ booths: HallBooth[]; stats: HallStats; events: HallEvent[]; billboards: HallBillboard[]; featured: Featured[] }>("/api/hall").then((d) => {
-      if (!alive) return;
-      setBooths(d.booths);
-      setStats(d.stats);
-      d.events
-        .slice()
-        .reverse()
-        .forEach((e) => pushEvent(e));
-      setBillboards(d.billboards);
-      setFeatured(d.featured);
-    }).catch(() => { if (alive) hallRetry = setTimeout(() => loadHall(Math.min(15_000, delay * 2)), delay); });
-    void loadHall();
+    const loadHall = (delay = 1000) => api<Snapshot>("/api/hall").then((d) => { if (alive) applySnapshot(d); }).catch(() => { if (alive) hallRetry = setTimeout(() => loadHall(Math.min(15_000, delay * 2)), delay); });
+    if (!initial) void loadHall();
     try { const saved = localStorage.getItem("fcc_avatar"); if (saved) useHall.getState().setAvatar(JSON.parse(saved)); } catch {}
     api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => {
       if (!alive) return;

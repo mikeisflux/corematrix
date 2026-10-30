@@ -3,10 +3,10 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF, useAnimations } from "@react-three/drei";
+import { useAnimations } from "@react-three/drei";
 import { ARCADE } from "@/lib/hall/layout";
 import { signTexture } from "./textures";
-import { useModelUrl } from "./models";
+import { useModelUrl, useModel } from "./models";
 import { useHall, dragged } from "@/lib/hall/store";
 import { player } from "./Avatar";
 import { conbot, botSay, useConBot, GREETINGS, TRICKS_ALL, pick } from "@/lib/hall/conbot";
@@ -53,7 +53,7 @@ const LOOP = [[-18, -28], [18, -28], [18, 28], [-18, 28]];
 const LOOPING = new Set(["Walking", "Running", "Idle", "Dance", "Sitting"]);
 
 function Robot({ url }: { url: string }) {
-  const { scene, animations } = useGLTF(url);
+  const { scene, animations } = useModel(url);
   const obj = useMemo(() => {
     // the robot is skinned: a plain clone would leave its skinned parts bound to the original, unanimated skeleton
     const c = cloneSkinned(scene);

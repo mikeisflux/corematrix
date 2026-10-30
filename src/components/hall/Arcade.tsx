@@ -2,7 +2,6 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { signTexture } from "./textures";
 import { ARCADE } from "@/lib/hall/layout";
@@ -13,11 +12,12 @@ import { scheduleAt } from "@/lib/theater-schedule";
 
 /** The theater screen: 4:3 for the public-domain classics, 32 ft wide, its bottom edge a foot over the stage. */
 const SCREEN_W = 32, SCREEN_H = 24, SCREEN_Y = 2 + 1.2 + SCREEN_H / 2;
-type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; duration: number }[] };
+type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; hls: string | null; duration: number }[] };
+type HlsPlayer = import("hls.js").default;
 import { CABINET_ROWS } from "./Avatar";
 import { useHall, api, dragged } from "@/lib/hall/store";
 import { TwoSided } from "./Booth";
-import { useModelUrl } from "./models";
+import { useModelUrl, useModel } from "./models";
 
 /* ---------- palette + the games on the floor ---------- */
 const NEON = ["#00f5ff", "#ff2bd6", "#ffd166", "#5ee6c3", "#8338ec", "#ff6b6b"];
@@ -280,7 +280,7 @@ function Instanced({ geo, mat, items, castShadow }: { geo: THREE.BufferGeometry;
 
 /** The GLB cabinet, instanced per material: 5 draw calls for the whole bank instead of one scene clone per cabinet. */
 function CabinetsGlb({ url, matrices, night }: { url: string; matrices: THREE.Matrix4[]; night: boolean }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useModel(url);
   const parts = useMemo(() => {
     scene.updateMatrixWorld(true);
     const byMat = new Map<string, { mat: THREE.MeshStandardMaterial; geos: THREE.BufferGeometry[] }>();
@@ -473,6 +473,41 @@ function Theater({ night }: { night: boolean }) {
     // one frame every 15-20 s. It syncs up again with the next film.
     let alive = true, current = -1, offset = -1, stalled = false, lagging = false;
     const clock = () => Date.now() / 1000; // server and client clocks agree well enough for a film
+    // The stream (small whole segments, a rung for every connection) plays through hls.js where the browser has Media
+    // Source Extensions and natively in Safari; the plain file is the fallback, and what a failed stream drops to.
+    let hls: HlsPlayer | null = null, hlsModule: Promise<typeof import("hls.js").default> | null = null, recovered = false;
+    const native = !!video.canPlayType("application/vnd.apple.mpegurl");
+    const plain = (url: string) => { if (hls) { hls.destroy(); hls = null; } video.src = url; video.load(); };
+    const setSource = async (i: number) => {
+      const item = items[i];
+      if (!item.hls) { plain(item.url); return; }
+      if (native) { plain(item.hls); return; }
+      // no point downloading the player on a browser that can't decode the stream (checked before the import, so
+      // such a browser never fetches hls.js at all)
+      const mse = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401e,mp4a.40.2"');
+      if (!mse) { plain(item.url); return; }
+      try {
+        hlsModule ??= import("hls.js/light").then((m) => m.default);
+        const Hls = await hlsModule;
+        if (!alive || current !== i) return; // the schedule moved on while the player script loaded
+        if (!Hls.isSupported()) { plain(item.url); return; }
+        if (!hls) {
+          // a modest first guess at the bandwidth, so a far-away viewer starts on the low rung and steps up once measured
+          // retries are short: a stream that keeps failing drops to the plain file within seconds instead of a dark screen
+          const retry = { maxNumRetry: 3, retryDelayMs: 1000, maxRetryDelayMs: 6000, backoff: "exponential" as const };
+          const policy = { default: { maxTimeToFirstByteMs: 10000, maxLoadTimeMs: 60000, timeoutRetry: retry, errorRetry: retry } };
+          hls = new Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 20, maxBufferLength: 20, maxMaxBufferLength: 60, abrEwmaDefaultEstimate: 1_200_000, fragLoadPolicy: policy, playlistLoadPolicy: policy, manifestLoadPolicy: policy });
+          hls.on(Hls.Events.ERROR, (_e, data) => {
+            if (!alive || !data.fatal) return;
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls?.recoverMediaError(); return; }
+            const it = items[current]; if (it) plain(it.url);
+          });
+          hls.attachMedia(video);
+        }
+        recovered = false;
+        hls.loadSource(item.hls);
+      } catch { plain(item.url); }
+    };
     // the clock says which film and how far in; load it and jump there once its length is known
     // The clock says which film and how far in. Small drift is corrected by nudging the playback rate (invisible);
     // only a big gap (a stall, a tab that slept) seeks. Nothing happens while nobody is near enough to see the screen.
@@ -482,7 +517,7 @@ function Theater({ night }: { night: boolean }) {
       let i = s.index, tries = 0;
       while (dead.has(i) && tries++ < items.length) i = (i + 1) % items.length;
       if (dead.has(i)) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
-      if (i !== current) { current = i; offset = s.offset; lagging = false; video.playbackRate = 1; video.src = items[i].url; video.load(); return; }
+      if (i !== current) { current = i; offset = s.offset; lagging = false; video.playbackRate = 1; void setSource(i); return; }
       const d = video.duration;
       if (s.offset >= 0 && Number.isFinite(d) && d > 0) {
         const drift = video.currentTime - s.offset; // + means we are ahead
@@ -527,6 +562,7 @@ function Theater({ night }: { night: boolean }) {
       alive = false; clearInterval(sync);
       video.removeEventListener("loadedmetadata", onMeta); video.removeEventListener("playing", onPlaying); video.removeEventListener("ended", onEnded); video.removeEventListener("error", onErr); video.removeEventListener("waiting", onWaiting);
       if (waitTimer) clearInterval(waitTimer);
+      if (hls) { hls.destroy(); hls = null; }
       video.pause(); video.removeAttribute("src"); video.load();
       theater.playing = false; bumpTheater();
     };

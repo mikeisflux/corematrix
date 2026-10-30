@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "typecheck": "tsc --noEmit",
-    "models": "node scripts/export-models.mjs"
+    "models": "node scripts/export-models.mjs",
+    "models:compress": "node scripts/compress-models.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
@@ -18,6 +19,7 @@
     "@react-three/fiber": "^9.8.2",
     "@react-three/postprocessing": "^3.2.2",
     "drizzle-orm": "^0.45.4",
+    "hls.js": "^1.7.4",
     "nanoid": "^6.0.2",
     "next": "^16.4.3",
     "pdfjs-dist": "^6.4.299",
@@ -29,6 +31,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",

@@ -8,21 +8,22 @@ import { Suspense, useEffect, useMemo, useRef, type ReactNode, Component } from 
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { create } from "zustand";
 import type { AvatarConfig } from "@/lib/hall/store";
 import { applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 
-interface Manifest { models: Record<string, { file: string }> }
-const useManifest = create<{ loaded: boolean; models: Record<string, string>; load: () => void }>((set, get) => ({
-  loaded: false, models: {},
-  load: () => {
-    if (get().loaded || typeof window === "undefined") return;
-    set({ loaded: true });
-    fetch("/models/manifest.json").then((r) => (r.ok ? r.json() : { models: {} })).then((m: Manifest) => { set({ models: Object.fromEntries(Object.entries(m.models ?? {}).map(([k, v]) => [k, v.file])) }); for (const f of Object.values(m.models ?? {})) useGLTF.preload(f.file); }).catch(() => null);
-  },
-}));
-export function modelUrl(name: string): string | null { const s = useManifest.getState(); if (!s.loaded) s.load(); return s.models[name] ?? null; }
-export function useModelUrl(name: string): string | null { const load = useManifest((s) => s.load); const url = useManifest((s) => s.models[name]); useEffect(() => load(), [load]); return url ?? null; }
+import manifest from "../../../public/models/manifest.json";
+
+/** name → file, baked in at build time: the hall used to fetch manifest.json first and only then ask for the models. */
+const MODELS: Record<string, string> = Object.fromEntries(Object.entries(manifest.models as Record<string, { file: string }>).map(([k, v]) => [k, v.file]));
+export function modelUrl(name: string): string | null { return MODELS[name] ?? null; }
+export function useModelUrl(name: string): string | null { return MODELS[name] ?? null; }
+/**
+ * Every GLB goes through this: the avatars and the mascot are meshopt-compressed (scripts/compress-models.mjs), so the
+ * loader carries the decoder, and drei keys its cache on these flags, so all call sites must agree or a model loads twice.
+ */
+export function useModel(url: string) { return useGLTF(url, false, true); }
+// start every download the moment this module is evaluated, well before the scene mounts and asks
+if (typeof window !== "undefined") for (const url of Object.values(MODELS)) useGLTF.preload(url, false, true);
 
 /** Deep-clone a loaded scene with per-instance materials so recoloring one booth doesn't recolor them all. */
 function cloneWithMaterials(scene: THREE.Object3D, colors?: Record<string, string>, emissive?: Record<string, string>): THREE.Object3D {
@@ -65,7 +66,7 @@ export class ModelBoundary extends Component<{ fallback: ReactNode; children: Re
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onClick }: PropProps & { url: string }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useModel(url);
   const colorKey = JSON.stringify([colors, emissive]);
   // keyed on the textures themselves: callers pass a fresh `maps` object every render, which re-cloned the model on every hover
   const mapKey = maps ? Object.entries(maps).map(([k, t]) => `${k}:${t?.uuid ?? ""}`).join("|") : "";
@@ -95,7 +96,7 @@ export function wantedClip(motion: Motion, actions: Record<string, THREE.Animati
   return motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
 }
 export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motion: Motion; url: string }) {
-  const { scene, animations } = useGLTF(url);
+  const { scene, animations } = useModel(url);
   const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}|${config.costume ?? "none"}`;
   const obj = useMemo(() => {
     const c = scene.clone(true);

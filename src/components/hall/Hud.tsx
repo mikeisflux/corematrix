@@ -8,23 +8,7 @@ import { formatCount, formatMoney, SITE_NAME } from "@/lib/config";
 import { timeAgo } from "@/lib/util";
 import { boothSpace } from "@/lib/hall/layout";
 import { input } from "./Avatar";
-import { BoothPanel } from "./panels/BoothPanel";
-import { RankingsPanel } from "./panels/RankingsPanel";
-import { SearchPanel } from "./panels/SearchPanel";
-import { ChatPanel } from "./panels/ChatPanel";
-import { StatsPanel } from "./panels/StatsPanel";
-import { ArcadePanel } from "./panels/ArcadePanel";
-import { BillboardsPanel } from "./panels/BillboardsPanel";
-import { MePanel } from "./panels/MePanel";
-import { ClaimPanel } from "./panels/ClaimPanel";
-import { AvatarPanel } from "./panels/AvatarPanel";
-import { SettingsPanel } from "./panels/SettingsPanel";
-import { ConBotPanel } from "./panels/ConBotPanel";
-import { EmotesPanel } from "./panels/EmotesPanel";
-import { TeamsPanel } from "./panels/TeamsPanel";
 import { requestSit } from "@/lib/hall/seats";
-import { PeoplePanel } from "./panels/PeoplePanel";
-import { DmPanel } from "./panels/DmPanel";
 import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
 import { useTheater, setTheaterSound } from "@/lib/hall/theater";
@@ -32,6 +16,34 @@ import { Minimap } from "./Minimap";
 import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { Tips } from "./Tips";
 import { SignupNudge } from "./SignupNudge";
+
+import dynamic from "next/dynamic";
+
+/**
+ * Panels are separate chunks: the hall's own download carries none of them. Each loads on first open, and once the
+ * floor is up they are all fetched in the background, so by the time anyone clicks, the chunk is already here.
+ */
+const PANEL_LOADERS = {
+  booth: () => import("./panels/BoothPanel").then((m) => m.BoothPanel),
+  rankings: () => import("./panels/RankingsPanel").then((m) => m.RankingsPanel),
+  search: () => import("./panels/SearchPanel").then((m) => m.SearchPanel),
+  chat: () => import("./panels/ChatPanel").then((m) => m.ChatPanel),
+  stats: () => import("./panels/StatsPanel").then((m) => m.StatsPanel),
+  arcade: () => import("./panels/ArcadePanel").then((m) => m.ArcadePanel),
+  billboards: () => import("./panels/BillboardsPanel").then((m) => m.BillboardsPanel),
+  me: () => import("./panels/MePanel").then((m) => m.MePanel),
+  claim: () => import("./panels/ClaimPanel").then((m) => m.ClaimPanel),
+  avatar: () => import("./panels/AvatarPanel").then((m) => m.AvatarPanel),
+  settings: () => import("./panels/SettingsPanel").then((m) => m.SettingsPanel),
+  conbot: () => import("./panels/ConBotPanel").then((m) => m.ConBotPanel),
+  emotes: () => import("./panels/EmotesPanel").then((m) => m.EmotesPanel),
+  teams: () => import("./panels/TeamsPanel").then((m) => m.TeamsPanel),
+  people: () => import("./panels/PeoplePanel").then((m) => m.PeoplePanel),
+  dm: () => import("./panels/DmPanel").then((m) => m.DmPanel),
+};
+type PanelKey = keyof typeof PANEL_LOADERS;
+const Panels = Object.fromEntries(Object.entries(PANEL_LOADERS).map(([k, load]) => [k, dynamic(load, { ssr: false, loading: () => <div className="p-4 text-xs text-slate-400">Loading…</div> })])) as Record<PanelKey, React.ComponentType>;
+export function prefetchPanels() { for (const load of Object.values(PANEL_LOADERS)) void load().catch(() => {}); }
 
 export function Hud() {
   const stats = useHall((s) => s.stats);
@@ -45,6 +57,13 @@ export function Hud() {
   const setToast = useHall((s) => s.setToast);
   const events = useHall((s) => s.events);
   const loaded = useHall((s) => s.loaded);
+  // warm the panel chunks once the floor is drawn and the browser has a quiet moment
+  useEffect(() => {
+    if (!loaded) return;
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) { const id = w.requestIdleCallback(prefetchPanels, { timeout: 8000 }); return () => w.cancelIdleCallback?.(id); }
+    const t = setTimeout(prefetchPanels, 3000); return () => clearTimeout(t);
+  }, [loaded]);
   const mode = useHall((s) => s.mode);
   const setMode = useHall((s) => s.setMode);
   const near = useHall((s) => s.near);
@@ -63,26 +82,8 @@ export function Hud() {
   // phones get the panels as a bottom sheet outside the animated column (an animated ancestor would pin a fixed sheet to it)
   const [mobile, setMobile] = useState(false);
   useEffect(() => { const mq = window.matchMedia("(max-width: 767px)"); const on = () => setMobile(mq.matches); on(); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, []);
-  const panelBody = panel === "none" ? null : (
-    <>
-      {panel === "booth" && <BoothPanel />}
-      {panel === "rankings" && <RankingsPanel />}
-      {panel === "search" && <SearchPanel />}
-      {panel === "chat" && <ChatPanel />}
-      {panel === "stats" && <StatsPanel />}
-      {panel === "arcade" && <ArcadePanel />}
-      {panel === "billboards" && <BillboardsPanel />}
-      {panel === "me" && <MePanel />}
-      {panel === "claim" && <ClaimPanel />}
-      {panel === "avatar" && <AvatarPanel />}
-      {panel === "settings" && <SettingsPanel />}
-      {panel === "conbot" && <ConBotPanel />}
-      {panel === "emotes" && <EmotesPanel />}
-      {panel === "people" && <PeoplePanel />}
-      {panel === "teams" && <TeamsPanel />}
-      {panel === "dm" && <DmPanel />}
-    </>
-  );
+  const Panel = panel !== "none" && Object.hasOwn(Panels, panel) ? Panels[panel as PanelKey] : null;
+  const panelBody = Panel ? <Panel /> : null;
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
