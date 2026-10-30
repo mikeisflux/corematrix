@@ -462,8 +462,7 @@ function Theater({ night }: { night: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [aspect, setAspect] = useState(4 / 3);
   const tuneRef = useRef<() => void>(() => {});
-  // far until the first frame measures it: a visitor who never comes near the stage never downloads the film
-  const farRef = useRef(true);
+  const farRef = useRef(false);
   const audio = useRef({ muted: true, volume: 1 }); // the picture's own shape; anything else is letterboxed on the 4:3 screen
   useEffect(() => {
     if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
@@ -538,9 +537,9 @@ function Theater({ night }: { night: boolean }) {
     const inArcade = st.mode === "walk" && Math.abs(player.x - ARCADE.x) < ARCADE.w / 2 && Math.abs(player.z - ARCADE.z) < ARCADE.d / 2;
     if (inArcade !== theater.near) { theater.near = inArcade; if (!inArcade && theater.sound) theater.sound = false; bumpTheater(); }
     const camDist = Math.hypot(camera.position.x - ARCADE.x, camera.position.z - (z + 4.5));
-    // the film is a megabyte or more: from the map view or across the hall the poster is all anyone sees, so only
-    // fetch and play it once someone walks within 100 ft of the stage
-    const far = st.mode !== "walk" || camDist > 100;
+    // 190 ft takes in the whole plaza: the arcade is 86 ft deep and the walk camera rides 20 ft behind the player, so a
+    // tighter limit (100 ft was tried) paused the film on a frozen frame for anyone in the front half of the arcade
+    const far = camDist > 190;
     if (far !== farRef.current) { farRef.current = far; if (far) video.pause(); else tuneRef.current(); }
     if (far && tex) tex.needsUpdate = false;
     const muted = !(theater.sound && inArcade);
