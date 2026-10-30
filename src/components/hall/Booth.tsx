@@ -30,6 +30,9 @@ const MAT_WHITE = new THREE.MeshStandardMaterial({ color: "#e9ecf1", roughness: 
 const BAR = new THREE.CylinderGeometry(0.045, 0.045, 1, 8); // unit length along y, rotated per use
 /** Island tower footprint: a thin 3 ft shaft so the roll-ups, chairs and tables all fit around it. */
 const TOWER_W = 3;
+/** Text on the hanging sign's dark board: the accent when it will show, else the booth colour, else white. A booth with a
+ *  dark accent (black on black) used to hang a sign with nothing readable on it. */
+const hangInk = (accent: string, color: string) => (luminance(accent) >= 0.3 ? accent : luminance(color) >= 0.3 ? color : "#ffffff");
 
 /* A soft pool of coloured light on the floor, drawn without lighting. Real point lights per booth meant that every
    night toggle (and every booth crossing the glow level at night) changed the scene's light count, which recompiles
@@ -135,7 +138,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const rollups = useMemo(() => rollupKey.split("|").map((v, i) => (Number(v) ? logoTexture(`/api/art/${booth.id}/rollup:${i}?v=${v}`) : portrait)), [rollupKey, booth.id, portrait]);
   // the 1024×256 hanging sign only shows on islands and higher-level booths: don't paint it for every booth at load
   const showsHang = booth.size === "20x20" || sign.level >= 2;
-  const hang = useMemo(() => !showsHang ? (null as unknown as THREE.Texture) : wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: booth.accent, accentBar: booth.color, w: 1024, h: 256, size: 150 }), [showsHang, wideUrl, booth.name, booth.accent, booth.color]);
+  const hang = useMemo(() => !showsHang ? (null as unknown as THREE.Texture) : wideUrl ? logoTexture(wideUrl) : signTexture([booth.name ?? ""], { bg: "#0b0f1a", fg: hangInk(booth.accent, booth.color), accentBar: booth.color, w: 1024, h: 256, size: 150 }), [showsHang, wideUrl, booth.name, booth.accent, booth.color]);
   const drape = useMemo(() => drapeTexture(booth.cloth), [booth.cloth]);
   const logo = useMemo(() => logoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`), [booth.id, booth.logoVersion]);
   // the spinning logo box is the house booth's alone: building its 1024×1536 canvas for every booth cost ~6 MB each at load
