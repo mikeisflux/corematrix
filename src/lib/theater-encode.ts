@@ -21,7 +21,9 @@ export const TARGET_KBPS = 2500;
 /** The HLS rungs; a rung taller than the source is skipped (the lowest always stays). */
 const LADDER = [{ h: 360, kbps: 600 }, { h: 720, kbps: 2000 }];
 const SEGMENT_SECONDS = 4;
-const g = globalThis as unknown as { __fccEncodeQueue?: string[]; __fccEncoding?: string | null; __fccFfmpeg?: string | null };
+const g = globalThis as unknown as { __fccEncodeQueue?: string[]; __fccEncoding?: string | null; __fccFfmpeg?: string | null; __fccEncodeErrors?: Record<string, string> };
+/** Why the last encode of a film failed, shown on Admin → Theater until the next attempt (in memory: a restart clears it). */
+const errors = () => (g.__fccEncodeErrors ??= {});
 
 /** The ffmpeg binary, or null when the server has none (FFMPEG_PATH overrides the lookup). */
 export function ffmpegPath(): string | null {
@@ -47,13 +49,16 @@ function probe(file: string): Probe | null {
   } catch { return null; }
 }
 
+/** ffmpeg at the lowest CPU priority: a feature-length encode takes about as long as the film on a small server, and the
+ *  site must stay responsive for everyone walking the floor meanwhile. */
 function run(ff: string, args: string[]): Promise<void> {
+  const nice = process.platform !== "win32" && fs.existsSync("/usr/bin/nice");
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(ff, args, { stdio: ["ignore", "ignore", "pipe"] });
+    const child = nice ? spawn("/usr/bin/nice", ["-n", "19", ff, ...args], { stdio: ["ignore", "ignore", "pipe"] }) : spawn(ff, args, { stdio: ["ignore", "ignore", "pipe"] });
     let err = "";
     child.stderr.on("data", (d) => { err += String(d); });
     child.on("error", reject);
-    child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err.trim().slice(-400) || `ffmpeg exit ${code}`))));
+    child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err.trim().slice(-1200) || `ffmpeg exit ${code}`))));
   });
 }
 
@@ -66,7 +71,9 @@ async function encodeHls(ff: string, src: string, id: string, info: Probe | null
   const srcH = info?.height || TARGET_HEIGHT;
   const rungs = LADDER.filter((r, i) => i === 0 || r.h <= srcH);
   const audio = info?.audio ?? true;
-  const filter = `[0:v]split=${rungs.length}${rungs.map((_, i) => `[i${i}]`).join("")};${rungs.map((r, i) => `[i${i}]scale=-2:'min(${r.h},ih)'[v${i}]`).join(";")}`;
+  const filter = rungs.length === 1
+    ? `[0:v]scale=-2:'min(${rungs[0].h},ih)'[v0]`
+    : `[0:v]split=${rungs.length}${rungs.map((_, i) => `[i${i}]`).join("")};${rungs.map((r, i) => `[i${i}]scale=-2:'min(${r.h},ih)'[v${i}]`).join(";")}`;
   const args = ["-y", "-hide_banner", "-loglevel", "error", "-i", src, "-filter_complex", filter,
     ...rungs.flatMap((_, i) => ["-map", `[v${i}]`, ...(audio ? ["-map", "0:a:0"] : [])]),
     "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "main", "-pix_fmt", "yuv420p",
@@ -104,7 +111,7 @@ export async function resumeEncodes(): Promise<void> {
   for (const r of rows) if (r.status === "processing" && r.kind === "file") { const q = (g.__fccEncodeQueue ??= []); if (!q.includes(r.id) && g.__fccEncoding !== r.id) q.push(r.id); }
   void pump();
 }
-export const encodeState = () => ({ encoding: g.__fccEncoding ?? null, queued: g.__fccEncodeQueue ?? [] });
+export const encodeState = () => ({ encoding: g.__fccEncoding ?? null, queued: g.__fccEncodeQueue ?? [], errors: { ...errors() } });
 
 async function pump() {
   if (g.__fccEncoding) return;
@@ -112,7 +119,8 @@ async function pump() {
   const id = q.shift();
   if (!id) return;
   g.__fccEncoding = id;
-  try { await encodeOne(id); } catch (e) { console.error("[theater] encode failed", id, (e as Error).message); await updateVideo(id, { status: "ready" }); }
+  delete errors()[id];
+  try { await encodeOne(id); } catch (e) { const msg = (e as Error).message; errors()[id] = msg; console.error("[theater] encode failed", id, msg); await updateVideo(id, { status: "ready" }); }
   g.__fccEncoding = null;
   void pump();
 }
@@ -136,7 +144,7 @@ async function encodeOne(id: string) {
   if (bytes === 0) throw new Error("empty output");
   // the stream comes from the original, not the downsampled MP4, so the 720p rung isn't a second-generation encode
   let hls: string | null = null;
-  try { hls = await encodeHls(ff, src, id, info); } catch (e) { console.error("[theater] hls encode failed", id, (e as Error).message); }
+  try { hls = await encodeHls(ff, src, id, info); } catch (e) { const msg = `stream (HLS) step: ${(e as Error).message}`; errors()[id] = msg; console.error("[theater] hls encode failed", id, msg); }
   const final = `${id}.mp4`;
   fs.renameSync(out, path.join(videoDir(), final));
   if (row.src !== final) { try { fs.unlinkSync(src); } catch { /* fine */ } }

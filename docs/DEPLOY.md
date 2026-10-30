@@ -106,6 +106,11 @@ carry and steps up or down as it changes) plus a fallback MP4 for browsers witho
 uploaded before this existed show no **HLS** badge on Admin → Theater; press **Downsample** on each to encode them.
 Without ffmpeg, films play as uploaded, as one progressive MP4.
 
+Encoding runs at the lowest CPU priority and takes about as long as the film on a small server (an 80-minute feature:
+an hour or more). The film keeps playing from its current file meanwhile and shows **encoding…** on the admin page. If
+an encode fails, its reason appears beside the film there; the full ffmpeg output is in `/srv/fcc/logs/err.log` under
+`[theater]`.
+
 ## Checks after a deploy
 
 ```bash

@@ -81,8 +81,9 @@ export async function playlist() {
   return {
     title: (title || "Now showing").slice(0, 60),
     serverTime: Date.now(),
-    // hls: the segmented, adaptive stream when the server has encoded one; url: the plain file, the fallback
-    items: rows.filter((r) => r.enabled && r.status === "ready").map((r) => ({ id: r.id, title: r.title, url: r.kind === "file" ? `/api/theater/file/${r.id}` : r.src, hls: r.kind === "file" && r.hls ? `/api/theater/hls/${r.hls}/master.m3u8` : null, duration: r.duration })),
+    // hls: the segmented, adaptive stream when the server has encoded one; url: the plain file, the fallback.
+    // A film being (re)encoded keeps playing from its current file: the encode takes about as long as the film runs.
+    items: rows.filter((r) => r.enabled && (r.status === "ready" || r.status === "processing")).map((r) => ({ id: r.id, title: r.title, url: r.kind === "file" ? `/api/theater/file/${r.id}` : r.src, hls: r.kind === "file" && r.hls ? `/api/theater/hls/${r.hls}/master.m3u8` : null, duration: r.duration })),
   };
 }
 export { scheduleAt } from "@/lib/theater-schedule";

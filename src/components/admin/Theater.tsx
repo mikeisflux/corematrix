@@ -5,7 +5,7 @@ import { useJson, api, useToast, PageHead, Badge, Empty, Input, ConfirmButton } 
 import { scheduleAt } from "@/lib/theater-schedule";
 
 interface Row { id: string; title: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; status: string; hls: string | null; createdAt: number }
-interface Resp { rows: Row[]; title: string; dir: string; maxBytes: number; encoder: boolean; target: { height: number; kbps: number }; encoding: string | null; queued: string[] }
+interface Resp { rows: Row[]; title: string; dir: string; maxBytes: number; encoder: boolean; target: { height: number; kbps: number }; encoding: string | null; queued: string[]; errors?: Record<string, string> }
 
 const fmtDur = (s: number) => (s > 0 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : "?");
 const fmtBytes = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(2)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(0)} MB` : b > 0 ? `${Math.round(b / 1024)} KB` : "");
@@ -145,7 +145,7 @@ export default function Theater() {
           )}
           <p className="admMuted" style={{ fontSize: 12 }}>Uploads go up in 8 MB pieces and resume: if the connection drops or the tab closes, pick the same file again and it continues from where it stopped.</p>
           {list.data && (list.data.encoder
-            ? <p className="admNote admNote--ok" style={{ fontSize: 12 }}>After upload each film is encoded on the server into an HLS stream (4-second segments at 360p and 720p; the screen picks the rung each viewer’s connection can carry) plus a fallback MP4: H.264 at most {list.data.target.height}p and about {(list.data.target.kbps / 1000).toFixed(1)} Mbps, with the index up front so it starts and seeks instantly. It plays once that is done (a feature film takes several minutes); films that are already small are only repackaged.</p>
+            ? <p className="admNote admNote--ok" style={{ fontSize: 12 }}>After upload each film is encoded on the server into an HLS stream (4-second segments at 360p and 720p; the screen picks the rung each viewer’s connection can carry) plus a fallback MP4. On a small server the encode takes about as long as the film runs (an 80-minute feature: an hour or more at low priority); the current file keeps playing on the screen meanwhile, and the <b>HLS</b> badge appears when the stream is in. A failed encode shows its reason beside the film: H.264 at most {list.data.target.height}p and about {(list.data.target.kbps / 1000).toFixed(1)} Mbps, with the index up front so it starts and seeks instantly. It plays once that is done (a feature film takes several minutes); films that are already small are only repackaged.</p>
             : <p className="admNote admNote--err" style={{ fontSize: 12 }}>ffmpeg is not installed on the server, so films play as uploaded. Install it (<span className="admMono">sudo apt install ffmpeg</span>, then restart the app) and uploads will be downsampled to {list.data.target.height}p automatically, which is what stops the screen from stalling.</p>)}
         </div>
         <div className="admCard">
@@ -176,7 +176,7 @@ export default function Theater() {
                 <td><input className="admInput" style={{ minWidth: 220 }} defaultValue={r.title} onBlur={(e) => { if (e.target.value !== r.title) void patch(r.id, { title: e.target.value }); }} /></td>
                 <td>{r.kind === "file" ? <><Badge kind="info">upload</Badge> {r.hls && <Badge kind="info">HLS</Badge>} <a href={`/api/theater/file/${r.id}`} target="_blank" rel="noreferrer">play</a></> : <><Badge kind="dim">link</Badge> <a href={r.src} target="_blank" rel="noreferrer" className="admMono" style={{ fontSize: 11 }}>{r.src.slice(0, 48)}{r.src.length > 48 ? "…" : ""}</a></>}</td>
                 <td className="num">{fmtDur(r.duration)}</td>
-                <td className="num">{fmtBytes(r.bytes)}{r.status === "processing" && <div><Badge kind="warn">{list.data?.encoding === r.id ? "downsampling…" : "queued"}</Badge></div>}</td>
+                <td className="num">{fmtBytes(r.bytes)}{r.status === "processing" && <div><Badge kind="warn">{list.data?.encoding === r.id ? "encoding…" : "queued"}</Badge></div>}{list.data?.errors?.[r.id] && <div title={list.data.errors[r.id]}><Badge kind="bad">encode failed</Badge> <span className="admMono" style={{ fontSize: 11, wordBreak: "break-word" }}>{list.data.errors[r.id].slice(-160)}</span></div>}</td>
                 <td><input type="checkbox" checked={!!r.enabled} onChange={(e) => void patch(r.id, { enabled: e.target.checked })} /></td>
                 <td className="act">
                   <button className="admBtn admBtn--sm" disabled={i === 0} onClick={() => void move(i, -1)} title="Earlier">↑</button>{" "}
