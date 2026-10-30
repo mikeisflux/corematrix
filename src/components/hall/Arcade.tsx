@@ -468,7 +468,10 @@ function Theater({ night }: { night: boolean }) {
     if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
     const items = show.items;
     const dead = new Set<number>();
-    let alive = true, current = -1, offset = -1, stalled = false;
+    // lagging: this film has stalled for buffering at least once. From then on it plays where it is instead of jumping
+    // to the shared schedule: on a slow connection each jump threw the buffer away and refetched, so the screen moved
+    // one frame every 15-20 s. It syncs up again with the next film.
+    let alive = true, current = -1, offset = -1, stalled = false, lagging = false;
     const clock = () => Date.now() / 1000; // server and client clocks agree well enough for a film
     // the clock says which film and how far in; load it and jump there once its length is known
     // The clock says which film and how far in. Small drift is corrected by nudging the playback rate (invisible);
@@ -479,12 +482,12 @@ function Theater({ night }: { night: boolean }) {
       let i = s.index, tries = 0;
       while (dead.has(i) && tries++ < items.length) i = (i + 1) % items.length;
       if (dead.has(i)) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
-      if (i !== current) { current = i; offset = s.offset; video.playbackRate = 1; video.src = items[i].url; video.load(); return; }
+      if (i !== current) { current = i; offset = s.offset; lagging = false; video.playbackRate = 1; video.src = items[i].url; video.load(); return; }
       const d = video.duration;
       if (s.offset >= 0 && Number.isFinite(d) && d > 0) {
         const drift = video.currentTime - s.offset; // + means we are ahead
-        if (video.ended || Math.abs(drift) > 20) { video.currentTime = s.offset % d; video.playbackRate = 1; }
-        else video.playbackRate = stalled ? 1 : Math.abs(drift) < 0.4 ? 1 : drift > 0 ? 0.94 : 1.06;
+        if (video.ended || (!lagging && !stalled && Math.abs(drift) > 20)) { video.currentTime = s.offset % d; video.playbackRate = 1; }
+        else video.playbackRate = stalled || lagging ? 1 : Math.abs(drift) < 0.4 ? 1 : drift > 0 ? 0.94 : 1.06;
       }
       if (video.paused && !stalled) void video.play().catch(() => {});
     };
@@ -497,6 +500,7 @@ function Theater({ night }: { night: boolean }) {
     const playWhenBuffered = () => {
       if (waitTimer) return;
       stalled = true;
+      if (video.currentTime > 0.5) lagging = true; // a stall mid-film, not the first load
       waitTimer = setInterval(() => {
         if (!alive) { clearInterval(waitTimer!); waitTimer = null; return; }
         const d = video.duration;
