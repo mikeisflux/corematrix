@@ -59,9 +59,9 @@ function Robot({ url }: { url: string }) {
     const c = cloneSkinned(scene);
     // A fresh clone's bones haven't had their world matrices worked out, and a skinned mesh measures itself through its
     // bones: measured as-is, the first mount came out ~30x too tall and the robot was scaled down to ant size. Settle
-    // the transforms and drop any cached boxes before measuring.
+    // the transforms and recompute the skinned boxes before measuring.
     c.updateMatrixWorld(true);
-    c.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).boundingBox = null; });
+    c.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).computeBoundingBox(); });
     const box = new THREE.Box3().setFromObject(c);
     const h = box.max.y - box.min.y || 1;
     c.scale.setScalar(7 / h); c.position.y = -box.min.y * (7 / h);
