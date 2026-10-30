@@ -523,7 +523,7 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
       if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
       if (!window.confirm(LEAVE_MSG)) { e.preventDefault(); e.stopPropagation(); } else unsaved.current = false;
     };
-    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && unsavedKeys.has("booth")) { e.preventDefault(); void saveRef.current(); } };
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && (e.key || "").toLowerCase() === "s" && unsavedKeys.has("booth")) { e.preventDefault(); void saveRef.current(); } };
     window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("click", onClick, true); // capture: runs before Next's link handler
     window.addEventListener("keydown", onKey);

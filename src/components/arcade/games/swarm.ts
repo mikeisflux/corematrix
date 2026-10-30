@@ -19,7 +19,7 @@ export const runSwarm: GameRunner = (canvas, onScore, onEnd) => {
     }
   };
   spawnWave();
-  const key = (e: KeyboardEvent, down: boolean) => { if (["ArrowLeft", "ArrowRight", "a", "d", "A", "D", " "].includes(e.key)) { e.preventDefault(); if (down) keys.add(e.key.toLowerCase()); else keys.delete(e.key.toLowerCase()); } };
+  const key = (e: KeyboardEvent, down: boolean) => { if (["ArrowLeft", "ArrowRight", "a", "d", "A", "D", " "].includes(e.key)) { e.preventDefault(); if (down) keys.add((e.key || "").toLowerCase()); else keys.delete((e.key || "").toLowerCase()); } };
   const kd = (e: KeyboardEvent) => key(e, true), ku = (e: KeyboardEvent) => key(e, false);
   let pointerX: number | null = null, pointerFire = false;
   const pm = (e: PointerEvent) => { const r = canvas.getBoundingClientRect(); pointerX = ((e.clientX - r.left) / r.width) * W; };

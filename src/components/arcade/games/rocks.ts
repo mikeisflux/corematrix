@@ -12,7 +12,7 @@ export const runRocks: GameRunner = (canvas, onScore, onEnd) => {
   const mk = (rx: number, ry: number, r: number): Rock => ({ x: rx, y: ry, vx: (Math.random() - 0.5) * (120 + level * 10), vy: (Math.random() - 0.5) * (120 + level * 10), r, a: 0, va: (Math.random() - 0.5) * 2, pts: Array.from({ length: 9 }, () => 0.7 + Math.random() * 0.4) });
   const field = () => { rocks = []; for (let i = 0; i < 3 + level; i++) { let rx, ry; do { rx = Math.random() * W; ry = Math.random() * H; } while (Math.hypot(rx - x, ry - y) < 140); rocks.push(mk(rx, ry, 42)); } };
   field();
-  const key = (e: KeyboardEvent, d: boolean) => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "a", "d", "w", "A", "D", "W", " "].includes(e.key)) { e.preventDefault(); if (d) keys.add(e.key.toLowerCase()); else keys.delete(e.key.toLowerCase()); } };
+  const key = (e: KeyboardEvent, d: boolean) => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "a", "d", "w", "A", "D", "W", " "].includes(e.key)) { e.preventDefault(); if (d) keys.add((e.key || "").toLowerCase()); else keys.delete((e.key || "").toLowerCase()); } };
   const kd = (e: KeyboardEvent) => key(e, true), ku = (e: KeyboardEvent) => key(e, false);
   window.addEventListener("keydown", kd); window.addEventListener("keyup", ku); canvas.focus();
   const wrap = (o: { x: number; y: number }) => { if (o.x < 0) o.x += W; if (o.x > W) o.x -= W; if (o.y < 0) o.y += H; if (o.y > H) o.y -= H; };

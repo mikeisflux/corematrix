@@ -19,7 +19,7 @@ export const runStack: GameRunner = (canvas, onScore, onEnd) => {
   };
   const kd = (e: KeyboardEvent) => {
     if (!alive) return;
-    const k = e.key.toLowerCase();
+    const k = (e.key || "").toLowerCase();
     if (["arrowleft", "a"].includes(k) && fits(cur.m, cur.x - 1, cur.y)) cur.x--;
     else if (["arrowright", "d"].includes(k) && fits(cur.m, cur.x + 1, cur.y)) cur.x++;
     else if (["arrowup", "w"].includes(k)) { const r = rot(cur.m); if (fits(r, cur.x, cur.y)) cur.m = r; else if (fits(r, cur.x - 1, cur.y)) { cur.m = r; cur.x--; } else if (fits(r, cur.x + 1, cur.y)) { cur.m = r; cur.x++; } }

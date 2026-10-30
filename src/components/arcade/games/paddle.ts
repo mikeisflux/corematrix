@@ -6,8 +6,8 @@ export const runPaddle: GameRunner = (canvas, onScore, onEnd) => {
   const W = canvas.width, H = canvas.height, PH = 70;
   let py = H / 2, ay = H / 2, bx = W / 2, by = H / 2, bvx = 260, bvy = 120, score = 0, lost = 0, won = 0, alive = true, raf = 0, last = 0, target: number | null = null;
   const keys = new Set<string>();
-  const kd = (e: KeyboardEvent) => { if (["ArrowUp", "ArrowDown", "w", "s", "W", "S"].includes(e.key)) { e.preventDefault(); keys.add(e.key.toLowerCase()); } };
-  const ku = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
+  const kd = (e: KeyboardEvent) => { if (["ArrowUp", "ArrowDown", "w", "s", "W", "S"].includes(e.key)) { e.preventDefault(); keys.add((e.key || "").toLowerCase()); } };
+  const ku = (e: KeyboardEvent) => keys.delete((e.key || "").toLowerCase());
   const pm = (e: PointerEvent) => { const r = canvas.getBoundingClientRect(); target = ((e.clientY - r.top) / r.height) * H; };
   window.addEventListener("keydown", kd); window.addEventListener("keyup", ku); canvas.addEventListener("pointermove", pm); canvas.focus();
   const serve = (toRight: boolean) => { bx = W / 2; by = H / 2; bvx = (toRight ? 1 : -1) * (240 + won * 12); bvy = (Math.random() - 0.5) * 240; };

@@ -24,7 +24,7 @@ export const runBreakout: GameRunner = (canvas, onScore, onEnd) => {
     paddle.x = Math.max(0, Math.min(W - paddle.w, ((cx - r.left) / r.width) * W - paddle.w / 2));
   };
   const keys: Record<string, boolean> = {};
-  const kd = (e: KeyboardEvent) => { keys[e.key] = true; if (e.key.startsWith("Arrow")) e.preventDefault(); };
+  const kd = (e: KeyboardEvent) => { keys[e.key] = true; if ((e.key || "").startsWith("Arrow")) e.preventDefault(); };
   const ku = (e: KeyboardEvent) => { keys[e.key] = false; };
   canvas.addEventListener("mousemove", move);
   canvas.addEventListener("touchmove", move, { passive: true });

@@ -11,7 +11,7 @@ export const runCross: GameRunner = (canvas, onScore, onEnd) => {
   build();
   const laneY = (l: number) => H - LH * (l + 1.5);
   const kd = (e: KeyboardEvent) => {
-    const k = e.key.toLowerCase(); let moved = false;
+    const k = (e.key || "").toLowerCase(); let moved = false;
     if (["arrowup", "w"].includes(k)) { lane++; moved = true; if (lane > best) { best = lane; score += 5; } }
     else if (["arrowdown", "s"].includes(k) && lane > 0) { lane--; moved = true; }
     else if (["arrowleft", "a"].includes(k)) { px = Math.max(20, px - CW); moved = true; }

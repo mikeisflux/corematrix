@@ -7,7 +7,7 @@ export const runFlap: GameRunner = (canvas, onScore, onEnd) => {
   let y = H / 2, vy = 0, score = 0, alive = true, raf = 0, last = 0, t = 0;
   let pipes: { x: number; gap: number; passed: boolean }[] = [{ x: W + 100, gap: H / 2, passed: false }];
   const flap = () => { vy = -300; };
-  const kd = (e: KeyboardEvent) => { if (e.key === " " || e.key === "ArrowUp" || e.key.toLowerCase() === "w") { e.preventDefault(); flap(); } };
+  const kd = (e: KeyboardEvent) => { if (e.key === " " || e.key === "ArrowUp" || (e.key || "").toLowerCase() === "w") { e.preventDefault(); flap(); } };
   window.addEventListener("keydown", kd); canvas.addEventListener("pointerdown", flap); canvas.focus();
   const frame = (ts: number) => {
     if (!alive) return;

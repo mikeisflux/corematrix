@@ -34,13 +34,15 @@ const keys = new Set<string>();
 const GAME_KEYS = new Set(["w", "a", "s", "d", "q", "e", "v", "shift", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "'", "/"]);
 const isDown = (k: string) => keys.has(k);
 const syncShift = (e: { shiftKey: boolean }) => { if (e.shiftKey) keys.add("shift"); else keys.delete("shift"); };
+// Chrome and Edge fire keydown/keyup with no key at all for autofill and some password managers: every handler reads
+// e.key through `|| ""` so those events are ignored instead of throwing
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {
     // these listeners outlive the hall (client-side navigation keeps the module): only act while the hall is on screen,
     // or arrow keys and space stop scrolling every other page
     if (document.body.dataset.hall !== "1") return;
     const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.tagName === "SELECT" || t?.isContentEditable) return;
-    const k = e.key.toLowerCase();
+    const k = (e.key || "").toLowerCase();
     syncShift(e);
     // claim the game keys so the browser doesn't treat them as typing (Firefox find-as-you-type, page scroll on arrows)
     if (GAME_KEYS.has(k) && !e.ctrlKey && !e.metaKey && !e.altKey && useHall.getState().mode === "walk") e.preventDefault();
@@ -50,7 +52,7 @@ if (typeof window !== "undefined") {
     keys.add(k);
   });
   window.addEventListener("keyup", (e) => {
-    const k = e.key.toLowerCase();
+    const k = (e.key || "").toLowerCase();
     if (k === "meta") { keys.clear(); return; }
     keys.delete(k);
     syncShift(e);
