@@ -19,6 +19,7 @@ export function BoothPanel() {
   const booth = useHall((s) => (s.selected ? s.booths.get(s.selected) : undefined));
   const booths = useHall((s) => s.booths);
   const me = useHall((s) => s.me);
+  const myBooths = useHall((s) => s.myBooths);
   const mode = useHall((s) => s.mode);
   const setMode = useHall((s) => s.setMode);
   const setFlyTo = useHall((s) => s.setFlyTo);
@@ -64,7 +65,7 @@ export function BoothPanel() {
 
   const rank = Array.from(booths.values()).filter((p) => p.valueCents > booth.valueCents).length + 1;
   const { price, sellerPayout } = takeoverSplitFor(booth.valueCents, booth.freeValueCents);
-  const isOwner = me && detail?.booth.isOwner;
+  const isOwner = me && (detail ? detail.booth.isOwner : myBooths.some((b) => b.id === id && b.role !== "staff"));
   if (view === "takeover" && !booth.house) return (<><PanelHeader title={`Take over booth ${space.label}`} sub={booth.name ?? ""} onBack={() => setView("view")} /><Designer boothId={id} mode="takeover" /></>);
   const ctr = detail && detail.totals.views ? ((detail.totals.clicks / detail.totals.views) * 100).toFixed(1) : "0.0";
 

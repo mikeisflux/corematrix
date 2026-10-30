@@ -1,4 +1,6 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- links out of the hall are full page loads on purpose: a client-side
+   navigation makes React dismantle the 3D scene object by object before the next page can show */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useHall } from "@/lib/hall/store";
@@ -151,48 +153,52 @@ export function Hud() {
       </div>
 
       <div className="absolute bottom-3 left-3 hidden items-center gap-2 pointer-events-auto md:flex">
+        {/* plain links, not <Link>: leaving the hall client-side makes React dismantle the whole 3D scene object by object
+            before the next page shows (19 s vs 9 s in a software-rendered test); a real page load just drops it */}
         <nav className="panel flex items-center gap-1 rounded-full px-2 py-1 text-xs">
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/directory">Exhibitors</Link>
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/rankings">Rankings</Link>
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/arcade">Arcade</Link>
-          <Link className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/how-it-works">How it works</Link>
-          {me && <Link className="rounded-full px-3 py-1.5 text-amber-300 hover:bg-white/10" href="/app/dashboard">Dashboard</Link>}
+          <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/directory">Exhibitors</a>
+          <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/rankings">Rankings</a>
+          <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/arcade">Arcade</a>
+          <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/how-it-works">How it works</a>
+          {me && <a className="rounded-full px-3 py-1.5 text-amber-300 hover:bg-white/10" href="/app/dashboard">Dashboard</a>}
         </nav>
         {me && <button onClick={() => setPanel("arcade")} className="panel rounded-full px-3 py-1.5 text-xs mono"><span className="text-amber-300">●</span> {me.coins} coins</button>}
       </div>
 
       {mode === "walk" && nearBooth && panel === "none" && (
-        <button onClick={() => useHall.getState().select(nearBooth.id)} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
+        <button onClick={() => useHall.getState().select(nearBooth.id)} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24">
           <img src={`/api/logo/${nearBooth.id}`} alt="" className="h-7 w-7 rounded-md object-cover" />
           <span><b>{nearBooth.name}</b> · booth {boothSpace(nearBooth.id)?.label}</span>
           <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">E</span>
         </button>
       )}
+      {/* on a phone the prompts below sit 13rem higher than on a desktop: the stick (bottom right) and the menu
+          (bottom left) fill the bottom of the screen, and a prompt over the stick blocks walking away from it */}
       {mode === "walk" && <Joystick />}
       {mode === "walk" && th.near && th.playing && panel === "none" && (
-        <button onClick={() => setTheaterSound(!th.sound)} className="pointer-events-auto absolute bottom-36 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
+        <button onClick={() => setTheaterSound(!th.sound)} className="pointer-events-auto absolute bottom-[22rem] left-1/2 -translate-x-1/2 md:bottom-36 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
           <span className="text-lg">🎬</span>
           <span><b>{th.title || "Now showing"}</b></span>
           <span className={`rounded-md px-1.5 text-[11px] ${th.sound ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10"}`}>{th.sound ? "🔊 sound on · off when you leave the arcade" : "🔇 tap here or click the screen for sound"}</span>
         </button>
       )}
       {mode === "walk" && panel === "none" && (seated || nearSeat) && (
-        <button onClick={() => requestSit(seated ? "stand" : nearSeat!)} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up" style={{ marginBottom: nearBooth || nearBot ? 52 : 0 }}>
+        <button onClick={() => requestSit(seated ? "stand" : nearSeat!)} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24" style={{ marginBottom: nearBooth || nearBot ? 52 : 0 }}>
           <span className="text-lg">🪑</span>
           <span>{seated ? <><b>Seated</b> · tap or move to stand up</> : nearSeatOk ? <><b>{nearSeat!.booth != null ? "Sit at your table" : "Take a seat"}</b>{nearSeat!.booth == null ? " · theater bench" : ""}</> : <><b>Crew only</b> · {me ? "ask the exhibitor to add you to their team" : "sign in if you're on the crew"}</>}</span>
           {(seated || nearSeatOk) && <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">C</span>}
         </button>
       )}
       {mode === "walk" && !nearBooth && nearBot && panel === "none" && (
-        <button onClick={() => setPanel("conbot")} className="pointer-events-auto absolute bottom-24 left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
+        <button onClick={() => setPanel("conbot")} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24">
           <span className="text-lg">🤖</span>
           <span><b>ConBot</b> wants to say hi</span>
           <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">E</span>
         </button>
       )}
       {toast && (toastAction
-        ? <button onClick={() => { const a = toastAction; setToast(null); a(); }} className="pointer-events-auto absolute bottom-16 left-1/2 -translate-x-1/2 panel rounded-full px-4 py-2 text-sm fade-up hover:bg-white/10">{toast} <span className="text-[11px] text-amber-300">· open</span></button>
-        : <div className="absolute bottom-16 left-1/2 -translate-x-1/2 panel rounded-full px-4 py-2 text-sm fade-up">{toast}</div>)}
+        ? <button onClick={() => { const a = toastAction; setToast(null); a(); }} className="pointer-events-auto absolute bottom-[17rem] left-1/2 -translate-x-1/2 md:bottom-16 panel rounded-full px-4 py-2 text-sm fade-up hover:bg-white/10">{toast} <span className="text-[11px] text-amber-300">· open</span></button>
+        : <div className="absolute bottom-[17rem] left-1/2 -translate-x-1/2 md:bottom-16 panel rounded-full px-4 py-2 text-sm fade-up">{toast}</div>)}
       {!loaded && <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg)]/70 text-sm text-slate-300">Opening the hall…</div>}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "arrows / WASD walk · drag the mouse to look · shift run · E open booth · C sit · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
     </div>
@@ -240,7 +246,7 @@ function FeaturedStrip() {
           <span>{f.reason === "winner" ? "🏆" : "★"}</span>
         </button>
       ))}
-      <Link href="/app/seasons" className="px-2 text-[11px] text-slate-400 hover:text-white">seasons →</Link>
+      <a href="/app/seasons" className="px-2 text-[11px] text-slate-400 hover:text-white">seasons →</a>
     </div>
   );
 }

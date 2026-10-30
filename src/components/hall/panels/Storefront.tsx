@@ -1,11 +1,12 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- links out of the hall are full page loads on purpose: a client-side
+   navigation makes React dismantle the 3D scene object by object before the next page can show */
 /**
  * The storefront: what you see when you click an occupied booth on the floor.
  * Hero art, the exhibitor's links, every comic cover on their table as a
  * gallery with a lightbox, who is at the booth right now, and the actions.
  */
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { track, useHall, type HallBooth } from "@/lib/hall/store";
 import { CATEGORIES, formatCount, formatMoney, BOOTH_SIZES, ZONES, takeoverSplitFor } from "@/lib/config";
 import { boothSpace } from "@/lib/hall/layout";
@@ -48,7 +49,10 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const signage = useMemo(() => ["wide", "portrait", "drape", "tower", "floor", "rollup:0", "rollup:1", "rollup:2", "rollup:3"].filter((k) => art[k]), [art]);
   const hero = art.wide ? url("wide") : art.portrait ? url("portrait") : art["rollup:0"] ? url("rollup:0") : null;
   const links = LINKS.map((l) => ({ ...l, href: (l.key === "website" ? booth.website : (detail?.booth[l.key] ?? booth[l.key])) ?? null })).filter((l) => l.href);
-  const isOwner = !!me && !!detail?.booth.isOwner;
+  // the booth list from sign-in answers "is this mine?" instantly; the detail fetch confirms it (and catches a booth
+  // sold since), so the owner's controls don't wait on a round trip
+  const listedMine = useHall((s) => s.myBooths.some((b) => b.id === id && b.role !== "staff"));
+  const isOwner = !!me && (detail ? !!detail.booth.isOwner : listedMine);
   const ownerId = detail?.booth.ownerId ?? null;
   const players = Array.from(live.players.values());
   const ownerHere = ownerId ? players.find((p) => p.uid === ownerId && p.id !== live.me) : undefined;
@@ -133,7 +137,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
             <b className="text-white">Take over this booth</b> for {formatMoney(price)} <span className="text-slate-500">· the owner gets {formatMoney(sellerPayout)}</span>
           </button>
         )}
-        <p className="text-[11px] text-slate-500">Claimed {booth.claimedAt ? timeAgo(booth.claimedAt) : "recently"}{booth.salesCount > 1 ? ` · changed hands ${booth.salesCount - 1}×` : ""} · <Link href={`/app/booth/${id}`} className="underline">public page</Link></p>
+        <p className="text-[11px] text-slate-500">Claimed {booth.claimedAt ? timeAgo(booth.claimedAt) : "recently"}{booth.salesCount > 1 ? ` · changed hands ${booth.salesCount - 1}×` : ""} · <a href={`/app/booth/${id}`} className="underline">public page</a></p>
       </div>
       {light !== null && covers[light] && (
         <Lightbox src={url(covers[light])} caption={`${booth.name} · comic ${light + 1} of ${covers.length}`} buy={buy[covers[light]] ? () => buyIt(covers[light]) : undefined} onClose={() => setLight(null)} onPrev={light > 0 ? () => setLight(light - 1) : undefined} onNext={light < covers.length - 1 ? () => setLight(light + 1) : undefined} />

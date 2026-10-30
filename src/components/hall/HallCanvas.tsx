@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
 import { social, showBubble, bumpSocial, emitChat, viewingDm } from "@/lib/hall/social";
 import { usePrefs } from "@/lib/hall/prefs";
@@ -134,7 +134,31 @@ export function HallCanvas() {
   // flat out (an uncapped 160 fps pulls full power and heat for nothing on a 60 Hz screen). 0 = the screen's own rate.
   const prefs = usePrefs();
   const [lost, setLost] = useState(false);
-  const onCreated = ({ gl, invalidate }: { gl: THREE.WebGLRenderer; invalidate: () => void }) => {
+  // Leaving the hall: the browser can only switch to the next page between our frames, and a busy GPU or a slow
+  // laptop made "Manage this booth" sit for seconds while the hall kept drawing a floor nobody would see again (12 s
+  // vs 0.7 s in a software-rendered test). Any click on a link to another page, or the page starting to unload,
+  // stops rendering at once. A navigation that never happens (blocked, offline) turns it back on after a few seconds.
+  const [leaving, setLeaving] = useState(false);
+  const stopLoop = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    let resume: ReturnType<typeof setTimeout> | undefined;
+    const leave = () => { stopLoop.current?.(); setLeaving(true); clearTimeout(resume); resume = setTimeout(() => setLeaving(false), 5000); };
+    // capture phase: Next's <Link> cancels the click itself to navigate client-side, so a bubble listener would see
+    // defaultPrevented on every internal link
+    const onClick = (e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // new tab or window: the hall stays
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+      const u = new URL(a.href, location.href);
+      if (u.origin === location.origin && u.pathname === location.pathname) return; // ?booth= and #hash stay in the hall
+      leave();
+    };
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("beforeunload", leave);
+    return () => { document.removeEventListener("click", onClick, true); window.removeEventListener("beforeunload", leave); clearTimeout(resume); };
+  }, []);
+  const onCreated = ({ gl, invalidate, setFrameloop }: { gl: THREE.WebGLRenderer; invalidate: () => void; setFrameloop: (f: "always" | "demand" | "never") => void }) => {
+    stopLoop.current = () => setFrameloop("never");
     (window as unknown as { __fccGl?: THREE.WebGLRenderer }).__fccGl = gl; // debug handle: renderer.info in the console
     // three's shader error check reads the link status straight after compiling, which makes the browser compile every
     // program synchronously on first use: the single biggest cost of opening the hall. Production skips it.
@@ -167,7 +191,7 @@ export function HallCanvas() {
     <Canvas
       style={{ touchAction: "none" }}
       shadows="percentage"
-      frameloop={prefs.fpsCap ? "demand" : "always"}
+      frameloop={leaving ? "never" : prefs.fpsCap ? "demand" : "always"}
       onCreated={onCreated}
       dpr={[1, 1.25]}
       camera={{ position: [0, 150, 180], fov: 45, near: 0.5, far: 2200 }}
