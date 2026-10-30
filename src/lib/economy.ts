@@ -5,7 +5,7 @@
  */
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
-import { MIN_BOOST_CENTS, TIERS, type Tier, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, BOOK_PRICE_CENTS, bookCapacity, takeoverSplitFor } from "@/lib/config";
+import { MIN_BOOST_CENTS, TIERS, type Tier, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, isHouseBooth, BOOK_PRICE_CENTS, bookCapacity, takeoverSplitFor } from "@/lib/config";
 import { clampStr, isHexColor, newId, normalizeUrl, now } from "@/lib/util";
 import { publish } from "@/lib/realtime";
 import { bumpSiteDaily } from "@/lib/analytics";
@@ -26,7 +26,7 @@ export function logoStamp(p: Pick<Booth, "logoUrl" | "name" | "color">): number 
   return h >>> 0;
 }
 export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>) {
-  return { art, artLinks, house: p.id === HOUSE_BOOTH_ID, bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+  return { art, artLinks, house: isHouseBooth(p.id), bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -211,7 +211,7 @@ export async function startTakeover(boothId: number, buyerId: string, draft: Boo
   const p = await getBooth(boothId);
   if (!p?.ownerId) throw new Error("That booth is unclaimed. Claim it instead.");
   if (p.ownerId === buyerId) throw new Error("You already own this booth. Boost it instead.");
-  if (boothId === HOUSE_BOOTH_ID) throw new Error("This is the show's own booth. It is never for sale.");
+  if (isHouseBooth(boothId)) throw new Error("This is the show's own booth. It is never for sale.");
   if (p.notForSaleUntil && p.notForSaleUntil > now()) throw new Error("This Headliner booth is shielded for a few more days.");
   // the seller is paid only for the part of the booth they paid for: value they got free stays with the show
   const { price, sellerPayout, platform } = takeoverSplitFor(p.valueCents, p.freeValueCents);

@@ -5,7 +5,7 @@ import { Shell } from "@/components/pages/Shell";
 import { allow } from "@/lib/throttle";
 import { getPublicBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
-import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES, ZONES, HOUSE_BOOTH_ID, takeoverSplitFor } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES, ZONES, isHouseBooth, takeoverSplitFor } from "@/lib/config";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
@@ -137,8 +137,8 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
         </div>
         <aside className="space-y-4">
           <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300">{isOwner ? "You own this" : boothId === HOUSE_BOOTH_ID ? "The show's own booth" : "Take it over"}</div>
-            {boothId === HOUSE_BOOTH_ID && !isOwner ? (
+            <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300">{isOwner ? "You own this" : isHouseBooth(boothId) ? "The show's own booth" : "Take it over"}</div>
+            {isHouseBooth(boothId) && !isOwner ? (
               <p className="mt-1 text-sm text-slate-200">Home base for the convention itself. It is never up for takeover.</p>
             ) : isOwner ? (
               <>

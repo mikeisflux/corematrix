@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { HOUSE_BOOTH_ID } from "@/lib/config";
+import { isHouseBooth } from "@/lib/config";
 import { artFlags, artLinks } from "@/lib/art";
 import { activeBillboards, claimedBooths, recentEvents, siteStats, logoStamp } from "@/lib/economy";
 import { onlineCount } from "@/lib/realtime";
@@ -27,7 +27,7 @@ export async function GET() {
         cloth: p.cloth,
         bannerHeight: p.bannerHeight,
         bookSlots: p.bookSlots,
-        house: p.id === HOUSE_BOOTH_ID,
+        house: isHouseBooth(p.id),
         art: art.get(p.id),
         artLinks: links.get(p.id),
         category: p.category,
