@@ -140,6 +140,9 @@ export function HallCanvas() {
     // program synchronously on first use: the single biggest cost of opening the hall. Production skips it.
     if (process.env.NODE_ENV === "production") gl.debug.checkShaderErrors = false;
     const el = gl.domElement;
+    // on a phone, a drag on the hall must turn the view, not scroll or zoom the page: the browser cancels the pointer
+    // the moment it claims a gesture. The Canvas style prop doesn't reach the <canvas> itself, so set it here.
+    el.style.touchAction = "none";
     el.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
       perf.contextLost++;              // the perf capture posts it with the next batch of samples

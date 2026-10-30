@@ -18,7 +18,7 @@ import { EMOTES } from "@/lib/hall/modelkit/avatar";
 import { Suspense } from "react";
 
 /** Shared input state written by the HUD joystick and read every frame (no React re-renders). */
-export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0 };
+export const input = { joy: { x: 0, y: 0 }, run: false, yawDrag: 0, pitchDrag: 0, looking: false };
 /** Where the walker is, for things that react to the player (ConBot) without going through React. */
 export const player = { x: 0, z: 0, h: 0, seated: false };
 /** The walker's animation state; the emote panel and number keys write emotes into it. */
@@ -229,19 +229,22 @@ export function Player() {
     if (mode !== "walk") return;
     const el = gl.domElement;
     let down = false, lx = 0, ly = 0, pid = -1; // one pointer looks; on a phone the other thumb is on the joystick
-    const onDown = (e: PointerEvent) => { if (down || (e.button !== 0 && e.button !== 2)) return; down = true; pid = e.pointerId; lx = e.clientX; ly = e.clientY; };
+    const onDown = (e: PointerEvent) => { if (down || (e.button !== 0 && e.button !== 2)) return; down = true; input.looking = true; pid = e.pointerId; lx = e.clientX; ly = e.clientY; };
     const onMove = (e: PointerEvent) => {
       if (!down || e.pointerId !== pid) return;
       const pr = getPrefs();
       input.yawDrag -= (e.clientX - lx) * 0.0045 * pr.sensitivity; input.pitchDrag -= (e.clientY - ly) * 0.003 * pr.sensitivity * (pr.invertY ? -1 : 1);
       lx = e.clientX; ly = e.clientY;
     };
-    const onUp = (e: PointerEvent) => { if (e.pointerId !== pid) return; down = false; pid = -1; };
-    const onBlur = () => { down = false; pid = -1; };
+    const onUp = (e: PointerEvent) => { if (e.pointerId !== pid) return; down = false; input.looking = false; pid = -1; };
+    const onBlur = () => { down = false; input.looking = false; pid = -1; };
     const onCtx = (e: Event) => e.preventDefault();
     el.addEventListener("pointerdown", onDown); window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); window.addEventListener("pointercancel", onUp); window.addEventListener("blur", onBlur); el.addEventListener("contextmenu", onCtx);
     el.style.cursor = "grab";
-    return () => { el.removeEventListener("pointerdown", onDown); window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("pointercancel", onUp); window.removeEventListener("blur", onBlur); el.removeEventListener("contextmenu", onCtx); el.style.cursor = ""; };
+    // the map's OrbitControls set touch-action back to auto when they unmount on the way into walk mode, and with it a
+    // phone scrolls instead of looking: the browser cancels the drag on its first move
+    el.style.touchAction = "none";
+    return () => { input.looking = false; el.removeEventListener("pointerdown", onDown); window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("pointercancel", onUp); window.removeEventListener("blur", onBlur); el.removeEventListener("contextmenu", onCtx); el.style.cursor = ""; };
   }, [mode, gl]);
   const motion = playerMotion;
   const near = useRef<number | null>(null);
@@ -375,7 +378,7 @@ export function Player() {
       heading.current = Math.atan2(dx, dz);
       motion.speed = run ? 2 : 1;
       // on the touch joystick the view eases toward the heading; with keys and mouse the view is yours
-      if (joy) { let diff = heading.current - yaw.current; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); yaw.current += diff * Math.min(1, d * 1.5); }
+      if (joy && !input.looking) { let diff = heading.current - yaw.current; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); yaw.current += diff * Math.min(1, d * 1.5); }
     }
     group.current.position.copy(pos.current);
     group.current.rotation.y = heading.current;

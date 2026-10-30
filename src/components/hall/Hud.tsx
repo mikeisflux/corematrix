@@ -140,8 +140,8 @@ export function Hud() {
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
       </div>
 
-      {/* mode switch + lights */}
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1 panel rounded-2xl p-1 pointer-events-auto">
+      {/* mode switch + lights: bottom right on a desktop; on a phone bottom left, leaving the right thumb the stick */}
+      <div className="absolute bottom-3 left-3 flex flex-col gap-1 panel rounded-2xl p-1 pointer-events-auto md:left-auto md:right-3">
         <RailButton label={mode === "walk" ? "Back to the map" : "Walk the floor"} active={mode === "walk"} onClick={() => { if (mode === "walk") setMode("map"); else { setMode("walk"); setPanel("none"); } }} icon={mode === "walk" ? "🗺️" : "🚶"} />
         {mode === "walk" && <RailButton label={firstPerson ? "Third person view (V)" : "First person view (V)"} active={firstPerson} onClick={toggleFirstPerson} icon={firstPerson ? "🧍" : "👁️"} />}
         <RailButton label="Your avatar" active={panel === "avatar"} onClick={() => toggle("avatar")} icon="🧑‍🎤" />
@@ -217,11 +217,11 @@ function Joystick() {
   // leaving walk mode with a thumb still on the stick must not leave the avatar walking on its own next time
   useEffect(() => () => { input.joy.x = 0; input.joy.y = 0; input.run = false; }, []);
   return (
-    <div className="pointer-events-auto absolute bottom-24 left-5 md:hidden" style={{ touchAction: "none" }}>
+    <div className="pointer-events-auto absolute bottom-24 right-5 md:hidden" style={{ touchAction: "none" }}>
       <div ref={pad} className="relative h-32 w-32 rounded-full border border-white/20 bg-white/10" onPointerDown={(e) => { active.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e); }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
-        <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/80" style={{ transform: `translate(calc(-50% + ${knob.x * 40}px), calc(-50% + ${knob.y * 40}px))` }} />
+        <div className="absolute left-1/2 top-1/2 h-14 w-14 rounded-full bg-amber-300/80" style={{ transform: `translate(calc(-50% + ${knob.x * 40}px), calc(-50% + ${knob.y * 40}px))` }} />
       </div>
-      <div className="mt-1 text-center text-[10px] text-slate-400">push to the edge to run · drag the view to look</div>
+      <div className="mt-1 text-center text-[10px] text-slate-400">push to the edge to run<br />drag the view to look</div>
     </div>
   );
 }
