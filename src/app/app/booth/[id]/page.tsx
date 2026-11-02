@@ -15,6 +15,7 @@ import { currentUser, clientIp } from "@/lib/auth";
 import { visitorId } from "@/lib/auth";
 import { ClientTrack } from "@/components/ui/ClientTrack";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { ShareBooth } from "@/components/ui/ShareBooth";
 import { pageMeta, siteOrigin, graph, breadcrumbLd } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -118,11 +119,14 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
                 {p.facebook && <a className="btn-ghost" href={p.facebook} target="_blank" rel="noopener">Facebook ↗</a>}
                 {p.globalcomix && <a className="btn-ghost" href={p.globalcomix} target="_blank" rel="noopener">GlobalComix ↗</a>}
                 <Link href={`/app?booth=${boothId}`} className="btn-ghost">See it on the floor</Link>
-                <a className="btn-ghost" target="_blank" rel="noopener" href={`https://x.com/intent/post?text=${encodeURIComponent(`${p.name} is exhibiting at ${SITE_NAME}, booth ${space.label}`)}&url=${encodeURIComponent(`${origin}/app/booth/${boothId}?src=share`)}`}>Share on X</a>
               </div>
             </div>
           </div>
           {p.description && <p className="mt-6 whitespace-pre-line text-slate-200">{p.description}</p>}
+          <div className="mt-8">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">{isOwner ? "Share your booth" : "Share this booth"}</h2>
+            <div className="mt-2 max-w-xl"><ShareBooth id={boothId} name={p.name ?? `Booth ${space.label}`} label={space.label} own={isOwner} origin={origin} /></div>
+          </div>
           {pieces.length > 0 && (
             <div className="mt-8">
               <div className="flex flex-wrap items-center justify-between gap-2">

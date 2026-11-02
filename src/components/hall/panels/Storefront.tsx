@@ -14,6 +14,7 @@ import { live } from "@/lib/hall/live";
 import { openSite } from "../Booth";
 import { openDm } from "../Avatar";
 import { timeAgo } from "@/lib/util";
+import { ShareBooth } from "@/components/ui/ShareBooth";
 
 export interface StorefrontDetail {
   booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
@@ -100,6 +101,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const setToast = useHall((s) => s.setToast);
   const [light, setLight] = useState<number | null>(null);
   const [item, setItem] = useState<number | null>(null);
+  const [sharing, setSharing] = useState(false);
   const products = detail?.products ?? [];
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 3000); return () => clearInterval(t); }, []); // who is at the booth refreshes
@@ -230,8 +232,9 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         {/* actions */}
         <div className="grid grid-cols-2 gap-2">
           <button className="btn-primary" onClick={() => { if (mode !== "walk") setMode("walk"); setFlyTo(id); useHall.getState().setPanel("none"); }}>🚶 Walk to the booth</button>
-          <button className="btn-ghost" onClick={() => { navigator.clipboard?.writeText(`${location.origin}/app/booth/${id}`); setToast("Link copied"); }}>Share</button>
+          <button className={sharing ? "btn-primary" : "btn-ghost"} onClick={() => setSharing((v) => !v)}>Share</button>
         </div>
+        {sharing && <ShareBooth id={id} name={booth.name ?? `Booth ${space?.label ?? id}`} label={space?.label ?? String(id)} own={isOwner} compact />}
         {isOwner ? (
           <a href={`/app/dashboard?booth=${id}`} className="btn-ghost block w-full text-center text-xs">Manage this booth · covers, links, boosts →</a>
         ) : booth.house ? (

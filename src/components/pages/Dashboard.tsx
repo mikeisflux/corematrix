@@ -5,6 +5,7 @@ import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
 import { GALLERY_LIMIT, gallerySlotKey, PRODUCT_LIMIT, productSlotKey, REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot, takeoverSplitFor } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
+import { ShareBooth } from "@/components/ui/ShareBooth";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; emailVerified?: boolean; promoCents?: number; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
@@ -190,6 +191,11 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />
           {p.kind === "artist" && <Portfolio p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />}
           <Shop p={p} products={detail.products ?? []} setMsg={setMsg} onChanged={(products) => setDetail((cur) => (cur && cur.booth.id === p.id ? { ...cur, products } : cur))} />
+          <div className="rounded-2xl border border-white/10 p-4">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Share your booth</div>
+            <p className="mt-1 text-[11px] text-slate-500">Your card is drawn from your own banner art and logo, so update those first. Every link here is tagged, and the visits it brings show under "Where clicks come from". Exhibitors posting their booth is the one thing that grows the show for free.</p>
+            <div className="mt-3 max-w-2xl"><ShareBooth id={p.id} name={p.name} label={p.label} own /></div>
+          </div>
           <Teams booths={booths} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">
