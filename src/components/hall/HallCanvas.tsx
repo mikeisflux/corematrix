@@ -225,7 +225,10 @@ function Precompile() {
   useEffect(() => {
     if (!loaded) return;
     let done = false;
-    const t = setTimeout(() => { gl.compileAsync(scene, camera).then(() => { if (!done) invalidate(); }).catch(() => {}); }, 50);
+    // without KHR_parallel_shader_compile (Firefox) compileAsync is the plain compile plus a console warning: ask the
+    // raw context ourselves and take the plain path quietly
+    const parallel = !!gl.getContext().getExtension("KHR_parallel_shader_compile");
+    const t = setTimeout(() => { (parallel ? gl.compileAsync(scene, camera) : Promise.resolve(gl.compile(scene, camera))).then(() => { if (!done) invalidate(); }).catch(() => {}); }, 50);
     return () => { done = true; clearTimeout(t); };
   }, [loaded, gl, scene, camera, invalidate]);
   return null;

@@ -18,9 +18,12 @@ const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toStrin
 function deviceInfo(gl: WebGLRenderingContext | WebGL2RenderingContext): PerfDevice {
   let gpu = "unknown", vendor = "unknown";
   try {
-    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    // Firefox now reports the real GPU through RENDERER and deprecates the debug extension (a console warning on every
+    // visit); Chrome still answers "WebKit WebGL" there and keeps the real name behind the extension.
+    gpu = String(gl.getParameter(gl.RENDERER)); vendor = String(gl.getParameter(gl.VENDOR));
+    const masked = /^(WebKit|Mozilla|WebGL|Google)/i.test(gpu) || gpu === "";
+    const ext = masked ? gl.getExtension("WEBGL_debug_renderer_info") : null;
     if (ext) { gpu = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)); vendor = String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)); }
-    else { gpu = String(gl.getParameter(gl.RENDERER)); vendor = String(gl.getParameter(gl.VENDOR)); }
   } catch {}
   const nav = navigator as Navigator & { deviceMemory?: number };
   return {

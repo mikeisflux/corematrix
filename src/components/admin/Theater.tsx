@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Empty, Input, ConfirmButton } from "./shared";
 import { scheduleAt } from "@/lib/theater-schedule";
 
-interface Row { id: string; title: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; status: string; hls: string | null; createdAt: number }
+interface Row { id: string; title: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; status: string; hls: string | null; webm?: boolean; createdAt: number }
 interface Resp { rows: Row[]; title: string; dir: string; maxBytes: number; encoder: boolean; target: { height: number; kbps: number }; encoding: string | null; queued: string[]; errors?: Record<string, string> }
 
 const fmtDur = (s: number) => (s > 0 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : "?");
@@ -174,7 +174,7 @@ export default function Theater() {
               <tr key={r.id} className={sched && enabled[sched.index]?.id === r.id ? "sel" : ""}>
                 <td className="admMono">{i + 1}{sched && enabled[sched.index]?.id === r.id && <> <Badge kind="ok">on screen</Badge></>}</td>
                 <td><input className="admInput" style={{ minWidth: 220 }} defaultValue={r.title} onBlur={(e) => { if (e.target.value !== r.title) void patch(r.id, { title: e.target.value }); }} /></td>
-                <td>{r.kind === "file" ? <><Badge kind="info">upload</Badge> {r.hls && <Badge kind="info">HLS</Badge>} <a href={`/api/theater/file/${r.id}`} target="_blank" rel="noreferrer">play</a></> : <><Badge kind="dim">link</Badge> <a href={r.src} target="_blank" rel="noreferrer" className="admMono" style={{ fontSize: 11 }}>{r.src.slice(0, 48)}{r.src.length > 48 ? "…" : ""}</a></>}</td>
+                <td>{r.kind === "file" ? <><Badge kind="info">upload</Badge> {r.hls && <Badge kind="info">HLS</Badge>} {r.webm && <Badge kind="dim">WebM</Badge>} <a href={`/api/theater/file/${r.id}`} target="_blank" rel="noreferrer">play</a></> : <><Badge kind="dim">link</Badge> <a href={r.src} target="_blank" rel="noreferrer" className="admMono" style={{ fontSize: 11 }}>{r.src.slice(0, 48)}{r.src.length > 48 ? "…" : ""}</a></>}</td>
                 <td className="num">{fmtDur(r.duration)}</td>
                 <td className="num">{fmtBytes(r.bytes)}{r.status === "processing" && <div><Badge kind="warn">{list.data?.encoding === r.id ? "encoding…" : "queued"}</Badge></div>}{list.data?.errors?.[r.id] && <div title={list.data.errors[r.id]}><Badge kind="bad">encode failed</Badge> <span className="admMono" style={{ fontSize: 11, wordBreak: "break-word" }}>{list.data.errors[r.id].slice(-160)}</span></div>}</td>
                 <td><input type="checkbox" checked={!!r.enabled} onChange={(e) => void patch(r.id, { enabled: e.target.checked })} /></td>

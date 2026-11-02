@@ -25,6 +25,9 @@ export function videoDir(): string {
   return dir;
 }
 export function videoPath(row: Pick<TheaterVideo, "src">): string { return path.join(videoDir(), path.basename(row.src)); }
+/** The VP9 fallback beside the file, when the encoder has made one. */
+export function webmPath(row: Pick<TheaterVideo, "id">): string { return path.join(videoDir(), `${path.basename(row.id)}.webm`); }
+export function hasWebm(row: Pick<TheaterVideo, "id">): boolean { return fs.existsSync(webmPath(row)); }
 /** The HLS folder names the encode pipeline writes; anything else is refused before it reaches the filesystem. */
 export const HLS_DIR = /^[a-z0-9]{6,40}\.hls-\d{10,16}$/;
 export function hlsDirPath(name: string): string | null { return HLS_DIR.test(name) ? path.join(videoDir(), name) : null; }
@@ -72,6 +75,7 @@ export async function deleteVideo(id: string): Promise<TheaterVideo | null> {
     try { fs.unlinkSync(videoPath(row)); } catch { /* already gone */ }
     const h = row.hls ? hlsDirPath(row.hls) : null;
     if (h) fs.rmSync(h, { recursive: true, force: true });
+    fs.rmSync(webmPath(row), { force: true });
   }
   return row;
 }
@@ -83,7 +87,7 @@ export async function playlist() {
     serverTime: Date.now(),
     // hls: the segmented, adaptive stream when the server has encoded one; url: the plain file, the fallback.
     // A film being (re)encoded keeps playing from its current file: the encode takes about as long as the film runs.
-    items: rows.filter((r) => r.enabled && (r.status === "ready" || r.status === "processing")).map((r) => ({ id: r.id, title: r.title, url: r.kind === "file" ? `/api/theater/file/${r.id}` : r.src, hls: r.kind === "file" && r.hls ? `/api/theater/hls/${r.hls}/master.m3u8` : null, duration: r.duration })),
+    items: rows.filter((r) => r.enabled && (r.status === "ready" || r.status === "processing")).map((r) => ({ id: r.id, title: r.title, url: r.kind === "file" ? `/api/theater/file/${r.id}` : r.src, hls: r.kind === "file" && r.hls ? `/api/theater/hls/${r.hls}/master.m3u8` : null, webm: r.kind === "file" && hasWebm(r) ? `/api/theater/file/${r.id}?fmt=webm` : null, duration: r.duration })),
   };
 }
 export { scheduleAt } from "@/lib/theater-schedule";

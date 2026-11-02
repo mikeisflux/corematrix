@@ -23,6 +23,7 @@ for a in "$@"; do case "$a" in --no-pull) PULL=0;; *) echo "unknown flag $a"; ex
 if [ "$(id -un)" != "$APP_USER" ]; then
   exec sudo -u "$APP_USER" -H env APP_DIR="$APP_DIR" BUILD_DIR="$BUILD_DIR" PORT="$PORT" PM2="$PM2" "$APP_DIR/scripts/deploy.sh" "$@"
 fi
+main() {
 export HOME="${HOME:-/srv/$APP_USER}"
 export PATH="$PATH:/usr/local/bin:/usr/bin"
 cd "$APP_DIR"
@@ -54,6 +55,16 @@ healthy() {
 wait_healthy() { local i; for i in $(seq 1 30); do if healthy; then return 0; fi; sleep 2; done; return 1; }
 reload() { "$PM2" startOrReload ecosystem.config.cjs --update-env; "$PM2" save >/dev/null 2>&1 || true; }
 
+# A build that dies with no message (the kernel's out-of-memory killer, usually) must say so, and say that the live
+# site was not touched: the staged build never reaches the swap.
+build_failed() {
+  echo
+  echo "✗ the staged build failed (exit $1); the live site was not touched and is still serving the previous build."
+  echo "  If there was no error above, the build was most likely killed for memory: run  dmesg -T | grep -i 'killed process'"
+  echo "  and  free -h . The staging folder is left at $BUILD_DIR."
+  exit "$1"
+}
+
 log "staging the release in $BUILD_DIR"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
@@ -68,10 +79,10 @@ fi
 if [ -d .next/cache ]; then mkdir -p "$BUILD_DIR/.next"; cp -r .next/cache "$BUILD_DIR/.next/cache"; fi   # minutes off the build
 
 log "npm ci (staged)"
-(cd "$BUILD_DIR" && npm ci --no-audit --no-fund)
+(cd "$BUILD_DIR" && npm ci --no-audit --no-fund) || build_failed $?
 
 log "next build (staged)"
-(cd "$BUILD_DIR" && npm run build)
+(cd "$BUILD_DIR" && npm run build) || build_failed $?
 
 # Migrations run automatically when the app boots (ensureMigrated); nothing to do here.
 log "swapping the build in"
@@ -103,3 +114,5 @@ if [ -d .next.prev ]; then
   if wait_healthy; then echo "rolled back: the previous build is serving again. The failed build is in .next.failed for a look."; else echo "rollback did not come up healthy either; check pm2 logs fcc"; fi
 fi
 exit 1
+}
+main "$@"

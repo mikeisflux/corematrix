@@ -7,6 +7,8 @@
  *    byte ranges of one big one. This is what the screen plays.
  *  - a streaming-friendly MP4 (H.264 at most 720p and ~2.5 Mbps, AAC, moov atom
  *    up front) as the fallback for browsers without Media Source Extensions.
+ *  - a 360p VP9/Opus WebM for browsers with no H.264 decoder at all (Firefox
+ *    without system codecs, some Linux desktops): every modern browser plays VP9.
  * Films that are already small are only remuxed for the MP4. Runs one at a time
  * in the background; the screen skips a film while it is being processed and
  * the original is kept until the new files are in.
@@ -14,7 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { getVideo, updateVideo, videoDir, videoPath, listVideos, hlsDirPath, type TheaterVideo } from "@/lib/theater";
+import { getVideo, updateVideo, videoDir, videoPath, webmPath, listVideos, hlsDirPath, type TheaterVideo } from "@/lib/theater";
 
 export const TARGET_HEIGHT = 720;
 export const TARGET_KBPS = 2500;
@@ -60,6 +62,18 @@ function run(ff: string, args: string[]): Promise<void> {
     child.on("error", reject);
     child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err.trim().slice(-1200) || `ffmpeg exit ${code}`))));
   });
+}
+
+/** The no-H.264 fallback: VP9 at 360p, encoded at the realtime deadline (it is a fallback, not the main picture). */
+async function encodeWebm(ff: string, src: string, id: string, info: Probe | null): Promise<void> {
+  const final = webmPath({ id }), tmp = `${final}.tmp`;
+  const audio = info?.audio ?? true;
+  await run(ff, ["-y", "-hide_banner", "-loglevel", "error", "-i", src,
+    "-vf", "scale=-2:'min(360,ih)'", "-c:v", "libvpx-vp9", "-b:v", "700k", "-maxrate", "900k", "-bufsize", "1800k",
+    "-deadline", "realtime", "-cpu-used", "8", "-row-mt", "1", "-g", "48",
+    ...(audio ? ["-c:a", "libopus", "-b:a", "96k", "-ac", "2"] : ["-an"]), "-f", "webm", tmp]);
+  if (!fs.existsSync(tmp) || fs.statSync(tmp).size === 0) { fs.rmSync(tmp, { force: true }); throw new Error("empty webm"); }
+  fs.renameSync(tmp, final);
 }
 
 /** One ffmpeg pass writes every rung of the ladder and the master playlist into a fresh, stamped folder. */
@@ -145,6 +159,7 @@ async function encodeOne(id: string) {
   // the stream comes from the original, not the downsampled MP4, so the 720p rung isn't a second-generation encode
   let hls: string | null = null;
   try { hls = await encodeHls(ff, src, id, info); } catch (e) { const msg = `stream (HLS) step: ${(e as Error).message}`; errors()[id] = msg; console.error("[theater] hls encode failed", id, msg); }
+  try { await encodeWebm(ff, src, id, info); } catch (e) { const msg = `WebM fallback step: ${(e as Error).message}`; errors()[id] = msg; console.error("[theater] webm encode failed", id, msg); }
   const final = `${id}.mp4`;
   fs.renameSync(out, path.join(videoDir(), final));
   if (row.src !== final) { try { fs.unlinkSync(src); } catch { /* fine */ } }

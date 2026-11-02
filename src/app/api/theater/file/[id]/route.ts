@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { NextResponse } from "next/server";
-import { getVideo, videoPath } from "@/lib/theater";
+import { getVideo, videoPath, webmPath } from "@/lib/theater";
 export const dynamic = "force-dynamic";
 
 /**
@@ -39,10 +39,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const { id } = await ctx.params;
   const row = await getVideo(id);
   if (!row || row.kind !== "file") return new NextResponse("not found", { status: 404 });
-  const file = videoPath(row);
+  // ?fmt=webm: the VP9 fallback for browsers with no H.264 decoder
+  const webm = new URL(req.url).searchParams.get("fmt") === "webm";
+  const file = webm ? webmPath(row) : videoPath(row);
   let size: number;
   try { size = fs.statSync(file).size; } catch { return new NextResponse("file missing", { status: 404 }); }
-  const type = row.mime || "video/mp4";
+  const type = webm ? "video/webm" : row.mime || "video/mp4";
   const base = { "Content-Type": type, "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600" };
   const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
   if (!range) {

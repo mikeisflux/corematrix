@@ -5,7 +5,9 @@ import { SITE_NAME } from "@/lib/config";
 import { siteOrigin, KEYWORDS, DEFAULT_OG } from "@/lib/seo";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// not preloaded: the mono face is only used for small labels, and the hall page shows none at first paint (browsers
+// warn about a preload that goes unused for a few seconds)
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], preload: false });
 const display = Syne({ variable: "--font-display", subsets: ["latin"], weight: ["600", "700", "800"] });
 
 /** Phones: no pinch zoom (it fights the look controls) and draw under the notch. */

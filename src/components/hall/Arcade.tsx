@@ -12,7 +12,7 @@ import { scheduleAt } from "@/lib/theater-schedule";
 
 /** The theater screen: 4:3 for the public-domain classics, 32 ft wide, its bottom edge a foot over the stage. */
 const SCREEN_W = 32, SCREEN_H = 24, SCREEN_Y = 2 + 1.2 + SCREEN_H / 2;
-type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; hls: string | null; duration: number }[] };
+type Playlist = { title: string; serverTime: number; items: { id: string; title: string; url: string; hls: string | null; webm: string | null; duration: number }[] };
 type HlsPlayer = import("hls.js").default;
 import { CABINET_ROWS } from "./Avatar";
 import { useHall, api, dragged } from "@/lib/hall/store";
@@ -478,8 +478,14 @@ function Theater({ night }: { night: boolean }) {
     let hls: HlsPlayer | null = null, hlsModule: Promise<typeof import("hls.js").default> | null = null, recovered = false;
     const native = !!video.canPlayType("application/vnd.apple.mpegurl");
     const plain = (url: string) => { if (hls) { hls.destroy(); hls = null; } video.src = url; video.load(); };
+    // Fallbacks, in order: the HLS stream; the plain MP4; the VP9 WebM. A browser that says it can't decode H.264 at
+    // all goes straight to the WebM; one that claims it can but fails (Firefox without system codecs) gets there via
+    // the errors.
+    const triedWebm = new Set<number>();
+    const h264 = !!video.canPlayType('video/mp4; codecs="avc1.4d401e, mp4a.40.2"');
     const setSource = async (i: number) => {
       const item = items[i];
+      if (item.webm && !h264) { triedWebm.add(i); plain(item.webm); return; }
       if (!item.hls) { plain(item.url); return; }
       if (native) { plain(item.hls); return; }
       // no point downloading the player on a browser that can't decode the stream (checked before the import, so
@@ -532,13 +538,19 @@ function Theater({ night }: { night: boolean }) {
     const AHEAD = 6;
     const ahead = () => { const b = video.buffered, t = video.currentTime; for (let k = 0; k < b.length; k++) if (b.start(k) <= t + 0.1 && b.end(k) >= t) return b.end(k) - t; return 0; };
     let waitTimer: ReturnType<typeof setInterval> | null = null;
+    // A browser that accepts the H.264 stream but has no decoder for it (Firefox without system codecs) buffers the
+    // whole thing and never produces a frame: data is loaded ahead yet readyState stays below HAVE_CURRENT_DATA and
+    // no error fires. After a few seconds of that, the WebM is the answer.
+    const toWebm = () => { const it = items[current]; if (!it?.webm || triedWebm.has(current)) return false; triedWebm.add(current); plain(it.webm); return true; };
     const playWhenBuffered = () => {
       if (waitTimer) return;
       stalled = true;
       if (video.currentTime > 0.5) lagging = true; // a stall mid-film, not the first load
+      let undecoded = 0;
       waitTimer = setInterval(() => {
         if (!alive) { clearInterval(waitTimer!); waitTimer = null; return; }
         const d = video.duration;
+        if (ahead() >= 3 && video.readyState < 2) { if (++undecoded >= 32 && toWebm()) { clearInterval(waitTimer!); waitTimer = null; stalled = false; return; } } else undecoded = 0;
         const enough = ahead() >= AHEAD || video.readyState >= 4 || (Number.isFinite(d) && d - video.currentTime < AHEAD + 1);
         if (!enough || farRef.current) return;
         clearInterval(waitTimer!); waitTimer = null; stalled = false;
@@ -554,7 +566,11 @@ function Theater({ night }: { night: boolean }) {
     const onWaiting = () => { if (!video.seeking || ahead() < 1) { video.pause(); playWhenBuffered(); } };
     const onPlaying = () => { if (alive) { setPlaying(true); theater.playing = true; theater.title = show.title; bumpTheater(); } };
     const onEnded = () => tune(); // the schedule says what is next; the same film again is a seek, not a reload
-    const onErr = () => { if (!alive) return; dead.add(current); current = -1; tune(); };
+    const onErr = () => {
+      if (!alive) return;
+      if (toWebm()) return; // last resort before giving up on the film
+      dead.add(current); current = -1; tune();
+    };
     video.addEventListener("loadedmetadata", onMeta); video.addEventListener("playing", onPlaying); video.addEventListener("ended", onEnded); video.addEventListener("error", onErr); video.addEventListener("waiting", onWaiting);
     tune();
     const sync = setInterval(tune, 4000);

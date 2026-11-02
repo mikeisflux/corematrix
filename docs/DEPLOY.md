@@ -102,9 +102,11 @@ refreshed every five minutes.
 
 Films need `ffmpeg` on the server (`sudo apt install ffmpeg`). After an upload the app encodes each film into an HLS
 stream (4-second segments, 360p ≈ 600 kbps and 720p ≈ 2 Mbps; the player picks the rung a viewer's connection can
-carry and steps up or down as it changes) plus a fallback MP4 for browsers without Media Source Extensions. Films
-uploaded before this existed show no **HLS** badge on Admin → Theater; press **Downsample** on each to encode them.
-Without ffmpeg, films play as uploaded, as one progressive MP4.
+carry and steps up or down as it changes), a fallback MP4 for browsers without Media Source Extensions, and a 360p
+VP9 WebM for browsers that cannot decode H.264 at all (Firefox on a machine without system codecs reports "No decoders
+for requested formats" and gets this one). Films uploaded before this existed show no **HLS** / **WebM** badges on
+Admin → Theater; press **Downsample** on each to encode them. Without ffmpeg, films play as uploaded, as one
+progressive MP4.
 
 Encoding runs at the lowest CPU priority and takes about as long as the film on a small server (an 80-minute feature:
 an hour or more). The film keeps playing from its current file meanwhile and shows **encoding…** on the admin page. If
