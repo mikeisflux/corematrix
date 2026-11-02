@@ -15,7 +15,8 @@ import { applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import manifest from "../../../public/models/manifest.json";
 
 /** name → file, baked in at build time: the hall used to fetch manifest.json first and only then ask for the models. */
-const MODELS: Record<string, string> = Object.fromEntries(Object.entries(manifest.models as Record<string, { file: string }>).map(([k, v]) => [k, v.file]));
+// the size is in the URL so a regenerated model (new avatar parts, say) gets past the day-long cache on the old one
+const MODELS: Record<string, string> = Object.fromEntries(Object.entries(manifest.models as Record<string, { file: string; bytes?: number }>).map(([k, v]) => [k, `${v.file}?v=${v.bytes ?? 0}`]));
 export function modelUrl(name: string): string | null { return MODELS[name] ?? null; }
 export function useModelUrl(name: string): string | null { return MODELS[name] ?? null; }
 /**

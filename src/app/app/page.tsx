@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const open = snapshot ? snapshot.stats.totalBooths - booths.length : null;
   // Resource hints: the models and the lighting map start downloading with the JavaScript instead of after the scene
   // has mounted and asked for them, which took a manifest round trip plus the whole script parse first.
-  for (const m of Object.values(manifest.models)) preload(m.file, { as: "fetch", crossOrigin: "anonymous" });
+  for (const m of Object.values(manifest.models)) preload(`${m.file}?v=${m.bytes ?? 0}`, { as: "fetch", crossOrigin: "anonymous" });
   preload("/hdri/warehouse.hdr", { as: "fetch", crossOrigin: "anonymous" });
   preload("/models/meshopt_decoder_simd.wasm", { as: "fetch", crossOrigin: "anonymous" }); // the compressed models' decoder (every current browser takes the SIMD build)
   return (
