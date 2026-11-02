@@ -22,6 +22,8 @@ import { useShop, refreshShop, sponsorsAt, claimSponsor } from "@/lib/hall/shop"
 import { itemById } from "@/lib/hall/items";
 import { useTours } from "@/lib/hall/tours";
 import { TourBar } from "./TourBar";
+import { useVoice, startVoiceTracking } from "@/lib/hall/voice";
+import { VoiceHud } from "./VoiceHud";
 
 import dynamic from "next/dynamic";
 
@@ -101,6 +103,9 @@ export function Hud() {
   // the shop: what booths are giving away (for the walk-up prompt) and what the player owns
   useEffect(() => { if (loaded) void refreshShop(); }, [loaded, me]);
   useShop();
+  // proximity voice: opens the mic (muted, push-to-talk) when walking with the Settings toggle on, releases it on the map
+  useEffect(() => { if (loaded) return startVoiceTracking(); }, [loaded]);
+  const voiceOn = useVoice().enabled;
   const questBoard = useQuests();
   const claimable = questBoard?.claimable ?? 0;
   const touring = useTours().active; // the tour bar takes the bottom-centre spot; the booth and ConBot prompts yield to it
@@ -229,6 +234,7 @@ export function Hud() {
       {/* on a phone the prompts below sit 13rem higher than on a desktop: the stick (bottom right) and the menu
           (bottom left) fill the bottom of the screen, and a prompt over the stick blocks walking away from it */}
       {mode === "walk" && <Joystick />}
+      {mode === "walk" && loaded && <VoiceHud />}
       {mode === "walk" && th.near && th.playing && panel === "none" && (
         <button onClick={() => setTheaterSound(!th.sound)} className="pointer-events-auto absolute bottom-[22rem] left-1/2 -translate-x-1/2 md:bottom-36 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
           <span className="text-lg">🎬</span>
@@ -254,7 +260,7 @@ export function Hud() {
         ? <button onClick={() => { const a = toastAction; setToast(null); a(); }} className="pointer-events-auto absolute bottom-[17rem] left-1/2 -translate-x-1/2 md:bottom-16 panel rounded-full px-4 py-2 text-sm fade-up hover:bg-white/10">{toast} <span className="text-[11px] text-amber-300">· open</span></button>
         : <div className="absolute bottom-[17rem] left-1/2 -translate-x-1/2 md:bottom-16 panel rounded-full px-4 py-2 text-sm fade-up">{toast}</div>)}
       {!loaded && <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg)]/70 text-sm text-slate-300">Opening the hall…</div>}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? "arrows / WASD walk · drag the mouse to look · shift run · E open booth · C sit · V first person · click a banner to visit the site" : "drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:block text-[10px] text-slate-400/80 mono">{mode === "walk" ? `arrows / WASD walk · drag the mouse to look · shift run · E open booth · C sit · V first person${voiceOn ? " · hold T to talk" : ""} · click a banner to visit the site` :"drag to orbit · scroll to zoom · WASD/arrows to pan · click a booth · 🚶 to walk the floor"}</div>
     </div>
   );
 }

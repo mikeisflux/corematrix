@@ -14,6 +14,7 @@ import { perf } from "@/lib/hall/perf";
 import { conbot } from "@/lib/hall/conbot";
 import { nearestSeat, seating, type Seat } from "@/lib/hall/seats";
 import { social, bumpSocial, useSocial } from "@/lib/hall/social";
+import { useVoiceSpeaking } from "@/lib/hall/voice";
 import { EMOTES } from "@/lib/hall/modelkit/avatar";
 import { Suspense } from "react";
 
@@ -577,6 +578,7 @@ function Other({ id }: { id: string }) {
   const [name, setName] = useState(() => live.players.get(id)?.n ?? "Visitor");
   const [title, setTitle] = useState<string | null>(() => live.players.get(id)?.j ?? null);
   const [away, setAway] = useState<boolean>(() => !!live.players.get(id)?.w);
+  const speaking = useVoiceSpeaking(id); // one boolean per figure: only the one talking re-renders
   const cur = useRef<{ x: number; z: number; h: number } | null>(null);
   const [near, setNear] = useState(false);
   const nearT = useRef(0);
@@ -605,7 +607,7 @@ function Other({ id }: { id: string }) {
       <OverheadNotes id={id} />
       {near && (
         <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className={`text-[9px] font-bold uppercase tracking-wider ${away ? "text-slate-400" : "text-emerald-300"}`}>{away ? "away" : "live"}</span></div>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className={`text-[9px] font-bold uppercase tracking-wider ${away ? "text-slate-400" : "text-emerald-300"}`}>{away ? "away" : "live"}</span>{speaking && <span className="text-[12px]" title="talking" data-speaking>🔊</span>}</div>
         </Html>
       )}
     </group>

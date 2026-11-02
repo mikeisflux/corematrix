@@ -6,6 +6,7 @@ import { social, showBubble, bumpSocial, emitChat, viewingDm } from "@/lib/hall/
 import { usePrefs } from "@/lib/hall/prefs";
 import { openDm, player } from "./Avatar";
 import { NOTICE_ICON } from "@/lib/hall/notices";
+import { handleSignal as handleVoiceSignal, bindVoicePosition } from "@/lib/hall/voice";
 import { perf } from "@/lib/hall/perf";
 import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -82,6 +83,7 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
     // first, private messages would miss this tab, so reconnect once the real id is known from the presence reply.
     // for debugging in the console and in tests: the live roster and social state
     (window as unknown as { __fcc?: unknown }).__fcc = { live, social, hall: useHall, player };
+    bindVoicePosition(player); // proximity voice ranges people from where the walker stands
     document.body.dataset.hall = "1"; // the walk keys only act while this is set (see Avatar.tsx)
     // crews change while people are on the floor: refresh my booths when the tab comes back and every two minutes
     const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => { if (alive) setMe(d.user, d.booths); }).catch(() => {}); };
@@ -98,6 +100,7 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
       else if (m.type === "players") { applyRoster(m.players as LivePlayer[]); friendsOnFloor(m.players as LivePlayer[]); }
       else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me && useHall.getState().panel !== "me") useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
       else if (m.type === "chat") { emitChat(m.message); if (m.message.playerId) showBubble(m.message.playerId, m.message.body); }
+      else if (m.type === "voice") handleVoiceSignal(m.signal);
       else if (m.type === "dm") {
         const msg = m.message; const d = social.dm;
         const other = msg.from === d.me ? msg.to : msg.from;

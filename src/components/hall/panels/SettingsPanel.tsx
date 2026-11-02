@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useHall } from "@/lib/hall/store";
 import { usePrefs, setPrefs, resetPrefs, type Prefs } from "@/lib/hall/prefs";
 import { perf, perfSnapshot, perfText, downloadText } from "@/lib/hall/perf";
+import { useVoice, setVoicePref } from "@/lib/hall/voice";
 import { PanelHeader } from "./common";
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -47,6 +48,8 @@ export function SettingsPanel() {
     catch { setToast("Copy failed; use Export JSON instead"); }
   };
   const secs = perf.history.length;
+  const v = useVoice();
+  const voiceHint = v.error ? `⚠ ${v.error}` : !v.pref ? "Off: text chat only" : v.enabled ? "Mic is on (muted): hold T or the 🎤 button to talk" : "Asks for your microphone when you walk the floor";
   return (
     <>
       <PanelHeader title="Settings" sub="Saved on this device" />
@@ -73,6 +76,11 @@ export function SettingsPanel() {
           <Row label="Invert vertical look"><Toggle on={p.invertY} onChange={(v) => set({ invertY: v })} /></Row>
           <Row label="First person view (V)"><Toggle on={p.firstPerson} onChange={(v) => set({ firstPerson: v })} /></Row>
           <div className="mono pt-1 text-[11px] text-slate-400">arrows / WASD walk · Q E turn · shift run · V first person · E open booth · P stats overlay</div>
+        </div>
+        <div className="py-2">
+          <div className="pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Voice chat</div>
+          <Row label="Talk to people near you" hint={voiceHint}><Toggle on={v.pref} onChange={setVoicePref} /></Row>
+          <div className="text-[11px] text-slate-400" data-voice-privacy>Push-to-talk only: nobody hears you unless you hold T or the 🎤 button, and only people within a few feet of you on the floor. Audio goes straight between browsers; nothing is recorded or sent through the show's server.</div>
         </div>
         <div className="py-2">
           <div className="pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Performance</div>
