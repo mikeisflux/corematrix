@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { track, useHall, type HallBooth } from "@/lib/hall/store";
-import { CATEGORIES, formatCount, formatMoney, BOOTH_SIZES, ZONES, takeoverSplitFor } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, BOOTH_SIZES, ZONES, takeoverSplitFor, productSlotKey } from "@/lib/config";
 import { boothSpace } from "@/lib/hall/layout";
 import { live } from "@/lib/hall/live";
 import { openSite } from "../Booth";
@@ -20,7 +20,39 @@ export interface StorefrontDetail {
   totals: { views: number; clicks: number; impressions: number; uniques: number; dwellSeconds?: number; bannerClicks?: number };
   series?: Array<{ day: string; views: number; clicks: number; dwellSeconds?: number; bannerClicks?: number }>;
   week?: { rank: number; of: number; views: number } | null; // owner only: place by visits this week
+  products?: Product[];
   history: Array<{ id: string; kind: string; amountCents: number; valueAfter: number; createdAt: number }>;
+}
+export interface Product { id: string; title: string; blurb: string | null; priceCents: number; url: string; image: number | null; clicks?: number }
+export const productImage = (boothId: number, pr: Product) => (pr.image ? `/api/art/${boothId}/${productSlotKey(pr.id)}?v=${pr.image}` : null);
+/** Buying stays on the exhibitor's own site: the press is counted for the booth and the item, the hall keeps running in this tab. */
+export const buyProduct = (boothId: number, pr: Product) => { window.open(`/app/buy/${boothId}?p=${pr.id}`, "_blank", "noopener"); };
+/** One item, full size: picture, price, the blurb, and Buy. */
+function ProductOverlay({ boothId, booth, item, onClose, onPrev, onNext }: { boothId: number; booth: string; item: Product; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); if (e.key === "ArrowLeft") onPrev?.(); if (e.key === "ArrowRight") onNext?.(); };
+    window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, onPrev, onNext]);
+  const img = productImage(boothId, item);
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 fade-up" onClick={onClose}>
+      <div className="panel flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl md:flex-row" onClick={(e) => e.stopPropagation()}>
+        <div className="flex aspect-square w-full items-center justify-center bg-white/5 md:w-1/2">{img ? <img src={img} alt={item.title} className="h-full w-full object-cover" /> : <span className="text-5xl">🛍️</span>}</div>
+        <div className="flex flex-1 flex-col gap-3 p-5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{booth} · shop</div>
+          <h3 className="text-2xl font-black leading-tight">{item.title}</h3>
+          <div className="mono text-2xl font-bold text-amber-300">{item.priceCents ? formatMoney(item.priceCents) : "See price"}</div>
+          {item.blurb && <p className="text-sm leading-relaxed text-slate-200">{item.blurb}</p>}
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+            <button className="btn-primary flex-1" onClick={() => buyProduct(boothId, item)}>🛒 Buy on the exhibitor's site ↗</button>
+            {(onPrev || onNext) && <div className="flex gap-1"><button onClick={onPrev} disabled={!onPrev} className="rounded-full bg-white/10 px-3 py-1 disabled:opacity-30">←</button><button onClick={onNext} disabled={!onNext} className="rounded-full bg-white/10 px-3 py-1 disabled:opacity-30">→</button></div>}
+          </div>
+          <p className="text-[11px] text-slate-500">Opens in a new tab; the hall stays open here.</p>
+        </div>
+        <button onClick={onClose} className="absolute right-4 top-4 rounded-full bg-white/10 px-3 py-1 text-sm text-white hover:bg-white/20">✕</button>
+      </div>
+    </div>
+  );
 }
 const secs = (n: number) => (n >= 60 ? `${Math.floor(n / 60)}m ${Math.round(n % 60)}s` : `${Math.round(n)}s`);
 /** The owner's numbers, inside the hall: this week's place, two weeks of visits, how long people stay, what they click. */
@@ -67,6 +99,8 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const setFlyTo = useHall((s) => s.setFlyTo);
   const setToast = useHall((s) => s.setToast);
   const [light, setLight] = useState<number | null>(null);
+  const [item, setItem] = useState<number | null>(null);
+  const products = detail?.products ?? [];
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 3000); return () => clearInterval(t); }, []); // who is at the booth refreshes
   const space = boothSpace(id);
@@ -136,6 +170,24 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
             </div>
           </section>
         )}
+        {/* shop */}
+        {products.length > 0 && (
+          <section>
+            <div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Shop</h3><span className="text-[11px] text-slate-500">{products.length} {products.length === 1 ? "item" : "items"} · bought on the exhibitor's site</span></div>
+            <div className="grid grid-cols-2 gap-2">
+              {products.map((pr, i) => {
+                const img = productImage(id, pr);
+                return (
+                  <button key={pr.id} onClick={() => setItem(i)} className="group overflow-hidden rounded-xl bg-white/[0.04] text-left transition hover:bg-white/[0.08]">
+                    <div className="flex aspect-square items-center justify-center bg-white/5">{img ? <img src={img} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-[1.03]" /> : <span className="text-3xl">🛍️</span>}</div>
+                    <div className="p-2"><div className="truncate text-sm font-semibold">{pr.title}</div><div className="mono text-xs text-amber-300">{pr.priceCents ? formatMoney(pr.priceCents) : "See price"}</div></div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+        {products.length === 0 && isOwner && <a href={`/app/dashboard?booth=${id}#shop`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Sell from your booth: list items with a price and a buy link →</a>}
         {covers.length === 0 && isOwner && <a href={`/app/dashboard?booth=${id}#books`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Stand comics on your table: upload covers from the dashboard →</a>}
         {/* about */}
         {detail?.booth.description && <section><h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">About</h3><p className="whitespace-pre-line text-sm leading-relaxed text-slate-200">{detail.booth.description}</p></section>}
@@ -169,6 +221,9 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         )}
         <p className="text-[11px] text-slate-500">Claimed {booth.claimedAt ? timeAgo(booth.claimedAt) : "recently"}{booth.salesCount > 1 ? ` · changed hands ${booth.salesCount - 1}×` : ""} · <a href={`/app/booth/${id}`} className="underline">public page</a></p>
       </div>
+      {item !== null && products[item] && (
+        <ProductOverlay boothId={id} booth={booth.name ?? ""} item={products[item]} onClose={() => setItem(null)} onPrev={item > 0 ? () => setItem(item - 1) : undefined} onNext={item < products.length - 1 ? () => setItem(item + 1) : undefined} />
+      )}
       {light !== null && covers[light] && (
         <Lightbox src={url(covers[light])} caption={`${booth.name} · comic ${light + 1} of ${covers.length}`} buy={buy[covers[light]] ? () => buyIt(covers[light]) : undefined} onClose={() => setLight(null)} onPrev={light > 0 ? () => setLight(light - 1) : undefined} onNext={light < covers.length - 1 ? () => setLight(light + 1) : undefined} />
       )}

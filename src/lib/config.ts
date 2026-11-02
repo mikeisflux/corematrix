@@ -87,8 +87,19 @@ export const ART_SLOTS = {
     physical: "The full 20 × 20 ft of your island (100 px per foot). The tower covers the middle 8 × 8 ft and the tables sit 2 ft inside each edge.",
     tip: "Big shapes and a bold border read best from the aisle; fine text on the floor is unreadable at avatar height.",
   },
+  product: {
+    name: "Product photo",
+    ratio: "1:1",
+    width: 800, height: 800,
+    where: "The picture on one of the items in your booth's shop.",
+    physical: "Shown as a square card in the storefront and full size when a visitor opens the item.",
+    tip: "A clean shot on a plain background; the middle 80% is what people see in the card.",
+  },
 } as const;
 export type ArtSlot = keyof typeof ART_SLOTS;
+/** Shop items: how many one booth may list. */
+export const PRODUCT_LIMIT = 8;
+export const productSlotKey = (id: string) => `product:${id}`;
 /** Slots that only exist on a 20×20 island (it has the tower and the open floor). */
 export const ISLAND_SLOTS: readonly ArtSlot[] = ["tower", "floor"];
 /** Art slot keys stored per booth: a slot name, or "book:N" for the Nth comic stand. */
@@ -96,7 +107,7 @@ export const bookSlotKey = (n: number) => `book:${n}`;
 /** An island has four roll-ups, one per side, each with its own art ("rollup:N", portrait spec). Same order as the roll-ups in Booth.tsx. */
 export const rollupSlotKey = (n: number) => `rollup:${n}`;
 export const ISLAND_SIDES = ["North · toward the entrance", "South · toward the back", "West aisle", "East aisle"] as const;
-export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : key.startsWith("rollup:") ? ART_SLOTS.portrait : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
+export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : key.startsWith("rollup:") ? ART_SLOTS.portrait : key.startsWith("product:") ? ART_SLOTS.product : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
 /** "Display a book": $5 per stand, one-time. Four stands per table, so capacity follows the table count. */
 export const BOOK_PRICE_CENTS = 500;
 export function bookCapacity(size: string, kind: string): number {

@@ -6,6 +6,7 @@ import { artFlagsFor, artLinksFor } from "@/lib/art";
 import { boothReferrerRows, boothSeries, sumSeries, trendingScores } from "@/lib/analytics";
 import { lastWeekRank } from "@/lib/seasons";
 import { claimedBooths } from "@/lib/economy";
+import { listProducts } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { subscriptionId: _sub, subscriptionStatus: _ss, tierUntil: _tu, teamId: _team, hidden: _h, lastTakeoverNudgeAt: _n, ...rest } = p as typeof p & { lastTakeoverNudgeAt?: number | null };
   const pub = { ...rest, logoUrl: p.logoUrl?.startsWith("data:") ? `/api/logo/${p.id}?v=${p.updatedAt ?? 0}` : p.logoUrl };
   const historyOut = history.map((h) => ({ id: h.id, kind: h.kind, amountCents: h.amountCents, valueBefore: h.valueBefore, valueAfter: h.valueAfter, createdAt: h.createdAt, ...(isOwner ? { sellerPayoutCents: h.sellerPayoutCents } : {}) }));
-  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank, week });
+  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank, week, products: await listProducts(boothId, isOwner) });
 }
 
 const Patch = z.object({

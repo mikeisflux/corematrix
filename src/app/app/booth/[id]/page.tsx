@@ -5,7 +5,8 @@ import { Shell } from "@/components/pages/Shell";
 import { allow } from "@/lib/throttle";
 import { getPublicBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
-import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES, ZONES, isHouseBooth, takeoverSplitFor } from "@/lib/config";
+import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES, ZONES, isHouseBooth, takeoverSplitFor, productSlotKey } from "@/lib/config";
+import { listProducts } from "@/lib/products";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
@@ -61,7 +62,7 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
   // a reload loop from one address only counts a few times
   const ip = await clientIp();
   if (allow(`pageview:${ip}:${boothId}`, 3, 10 * 60_000) && allow(`pageviews:${ip}`, 120, 10 * 60_000)) await trackBooth(boothId, "views", vid, sp.src ?? (sp.utm_source ? "share" : "direct"));
-  const [series, history, all] = await Promise.all([boothSeries(boothId, 30), boothHistory(boothId), claimedBooths()]);
+  const [series, history, all, products] = await Promise.all([boothSeries(boothId, 30), boothHistory(boothId), claimedBooths(), listProducts(boothId)]);
   const totals = sumSeries(series.slice(-7));
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
   const { price, sellerPayout } = takeoverSplitFor(p.valueCents, p.freeValueCents);
@@ -78,6 +79,12 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
     },
     { "@type": "ProfilePage", "@id": `${origin}/app/booth/${boothId}`, url: `${origin}/app/booth/${boothId}`, name: `${p.name} at ${SITE_NAME}`, mainEntity: { "@id": `${origin}/app/booth/${boothId}#exhibitor` }, isPartOf: { "@id": `${origin}/#website` }, dateCreated: p.claimedAt ? new Date(p.claimedAt).toISOString() : undefined, dateModified: p.updatedAt ? new Date(p.updatedAt).toISOString() : undefined },
     breadcrumbLd(origin, [["Home", "/"], ["Exhibitors", "/app/directory"], [catName, `/app/directory/${p.category}`], [p.name ?? `Booth ${p.label}`, `/app/booth/${boothId}`]]),
+    // what the booth sells, as products with offers, so a search for the comic finds the booth
+    ...products.map((pr) => ({
+      "@type": "Product", name: pr.title, description: pr.blurb ?? undefined, image: pr.image ? `${origin}/api/art/${boothId}/${productSlotKey(pr.id)}?v=${pr.image}` : undefined,
+      brand: { "@id": `${origin}/app/booth/${boothId}#exhibitor` },
+      offers: { "@type": "Offer", url: `${origin}/app/buy/${boothId}?p=${pr.id}`, priceCurrency: "USD", price: (pr.priceCents / 100).toFixed(2), availability: "https://schema.org/InStock", seller: { "@id": `${origin}/app/booth/${boothId}#exhibitor` } },
+    })),
   );
   return (
     <Shell>
@@ -114,6 +121,21 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
             </div>
           </div>
           {p.description && <p className="mt-6 whitespace-pre-line text-slate-200">{p.description}</p>}
+          {products.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Shop · {products.length} {products.length === 1 ? "item" : "items"}</h2>
+              <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {products.map((pr) => (
+                  <li key={pr.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                    <a href={`/app/buy/${boothId}?p=${pr.id}`} target="_blank" rel="noopener" className="block">
+                      <div className="flex aspect-square items-center justify-center bg-white/5">{pr.image ? <img src={`/api/art/${boothId}/${productSlotKey(pr.id)}?v=${pr.image}`} alt={pr.title} loading="lazy" className="h-full w-full object-cover" /> : <span className="text-3xl">🛍️</span>}</div>
+                      <div className="p-2"><div className="truncate text-sm font-semibold">{pr.title}</div><div className="mono text-xs text-amber-300">{pr.priceCents ? formatMoney(pr.priceCents) : "See price"} ↗</div></div>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
             <K label="Value" v={formatMoney(p.valueCents)} accent />
             <K label="Space" v={BOOTH_SIZES[space.size]?.short ?? p.size} />

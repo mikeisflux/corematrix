@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot, takeoverSplitFor } from "@/lib/config";
+import { PRODUCT_LIMIT, productSlotKey, REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot, takeoverSplitFor } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
@@ -16,9 +16,12 @@ interface Detail {
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number; dwellSeconds?: number; bannerClicks?: number }>;
   totals: { impressions: number; views: number; clicks: number; uniques: number };
   week?: { rank: number; of: number; views: number } | null;
+  products?: Product[];
   referrers: Array<{ source: string; views: number; clicks: number }>;
   history: Array<{ id: string; kind: string; amountCents: number; valueAfter: number; createdAt: number; sellerPayoutCents: number }>;
 }
+
+interface Product { id: string; title: string; blurb: string | null; priceCents: number; url: string; image: number | null; clicks?: number }
 
 export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   const [me, setMe] = useState<Me | null>(null);
@@ -185,6 +188,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <Edit p={p} onSaved={(d) => { patchBooth(p.id, d); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => patchBooth(p.id, { art })} />
           <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />
+          <Shop p={p} products={detail.products ?? []} setMsg={setMsg} onChanged={(products) => setDetail((cur) => (cur && cur.booth.id === p.id ? { ...cur, products } : cur))} />
           <Teams booths={booths} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -698,6 +702,75 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The booth shop: up to PRODUCT_LIMIT items with a price and the link where they are bought; the hall shows them in the storefront. */
+function Shop({ p, products, setMsg, onChanged }: { p: Detail["booth"]; products: Product[]; setMsg: (s: string) => void; onChanged: (products: Product[]) => void }) {
+  const blank = { title: "", price: "", url: "", blurb: "" };
+  const [draft, setDraft] = useState(blank);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const money = (cents: number) => (cents / 100).toFixed(2);
+  const save = async () => {
+    const priceCents = Math.round((Number(draft.price.replace(/[^0-9.]/g, "")) || 0) * 100);
+    setBusy("save");
+    try {
+      const r = await api<{ products: Product[] }>(`/api/booth/${p.id}/products`, { method: "POST", body: JSON.stringify({ ...(editing ? { id: editing } : {}), title: draft.title, blurb: draft.blurb || null, priceCents, url: draft.url }) });
+      onChanged(r.products); setDraft(blank); setEditing(null); setMsg(editing ? "Item updated." : "Item listed. It shows in your storefront right away.");
+    } catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  const remove = async (id: string) => {
+    setBusy(id);
+    try { const r = await api<{ products: Product[] }>(`/api/booth/${p.id}/products?product=${id}`, { method: "DELETE" }); onChanged(r.products); if (editing === id) { setEditing(null); setDraft(blank); } }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  const photo = async (pr: Product, file: File) => {
+    setBusy(pr.id);
+    try { await uploadArt(p.id, productSlotKey(pr.id), file, ART_SLOTS.product); const r = await api<{ products: Product[] }>(`/api/booth/${p.id}/products`); onChanged(r.products); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  return (
+    <div id="shop" className="rounded-2xl border border-white/10 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Shop · {products.length}/{PRODUCT_LIMIT} items</div>
+        <div className="text-[11px] text-slate-500">Included with every booth</div>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">List what you sell with a price and the link to buy it on your own store (Shopify, Gumroad, your site). Visitors open the item in the hall and buy on your page; every Buy press counts as a click for your booth.</p>
+      {products.length > 0 && (
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((pr) => (
+            <li key={pr.id} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
+              <label className={`relative block h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg bg-white/5 ${busy ? "pointer-events-none opacity-60" : ""}`} title="Upload a photo">
+                {pr.image ? <img src={`/api/art/${p.id}/${productSlotKey(pr.id)}?v=${pr.image}`} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-[10px] text-slate-500">{busy === pr.id ? "…" : "+ photo"}</span>}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void photo(pr, f); e.target.value = ""; }} />
+              </label>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{pr.title}</div>
+                <div className="mono text-xs text-amber-300">{pr.priceCents ? formatMoney(pr.priceCents) : "no price"}</div>
+                <div className="truncate text-[11px] text-slate-500">{pr.url.replace(/^https?:\/\//, "")}</div>
+                <div className="mt-1 flex gap-2 text-[11px]"><span className="text-slate-500">{pr.clicks ?? 0} buy {pr.clicks === 1 ? "press" : "presses"}</span><button className="text-slate-300 hover:text-white" onClick={() => { setEditing(pr.id); setDraft({ title: pr.title, price: pr.priceCents ? money(pr.priceCents) : "", url: pr.url, blurb: pr.blurb ?? "" }); }}>edit</button><button className="text-slate-500 hover:text-rose-300" disabled={busy === pr.id} onClick={() => remove(pr.id)}>remove</button></div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {(products.length < PRODUCT_LIMIT || editing) && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_120px]">
+          <input className="input" placeholder="Item name, e.g. Issue #1 (print)" maxLength={80} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          <input className="input" placeholder="Price, e.g. 4.99" inputMode="decimal" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} />
+          <input className="input sm:col-span-2" placeholder="Link to buy it: https://…" maxLength={500} value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
+          <input className="input sm:col-span-2" placeholder="One line about it (optional)" maxLength={240} value={draft.blurb} onChange={(e) => setDraft({ ...draft, blurb: e.target.value })} />
+          <div className="flex gap-2 sm:col-span-2">
+            <button className="btn-primary text-xs" disabled={busy === "save" || !draft.title.trim() || !draft.url.trim()} onClick={() => void save()}>{editing ? "Save changes" : "List this item"}</button>
+            {editing && <button className="btn-ghost text-xs" onClick={() => { setEditing(null); setDraft(blank); }}>Cancel</button>}
+          </div>
         </div>
       )}
     </div>

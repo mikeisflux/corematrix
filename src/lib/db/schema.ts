@@ -618,3 +618,21 @@ export const questDays = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.day, t.quest] })],
 );
+
+/** Items an exhibitor sells from the booth: a title, a price and the link to buy it. The picture is booth_art slot "product:<id>". */
+export const boothProducts = sqliteTable(
+  "booth_products",
+  {
+    id: text("id").primaryKey(),
+    boothId: integer("booth_id").notNull(),
+    title: text("title").notNull(),
+    blurb: text("blurb"),
+    priceCents: integer("price_cents").notNull().default(0),
+    url: text("url").notNull(), // the exhibitor's checkout or product page
+    sort: integer("sort").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0), // "Buy" presses, a subset of the booth's clicks
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("products_booth_idx").on(t.boothId, t.sort)],
+);
