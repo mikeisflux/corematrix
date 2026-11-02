@@ -6,8 +6,9 @@
  */
 import { Suspense, useEffect, useMemo, useRef, type ReactNode, Component } from "react";
 import * as THREE from "three";
-import { useGLTF } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useLoader } from "@react-three/fiber";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "@/lib/hall/meshopt-decoder";
 import type { AvatarConfig } from "@/lib/hall/store";
 import { applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 
@@ -19,11 +20,13 @@ export function modelUrl(name: string): string | null { return MODELS[name] ?? n
 export function useModelUrl(name: string): string | null { return MODELS[name] ?? null; }
 /**
  * Every GLB goes through this: the avatars and the mascot are meshopt-compressed (scripts/compress-models.mjs), so the
- * loader carries the decoder, and drei keys its cache on these flags, so all call sites must agree or a model loads twice.
+ * loader carries the decoder. three's own GLTFLoader rather than drei's useGLTF: that one imports a decoder that
+ * instantiates its WebAssembly inline the moment the bundle loads (see lib/hall/meshopt-decoder.ts).
  */
-export function useModel(url: string) { return useGLTF(url, false, true); }
+const withDecoder = (loader: GLTFLoader) => { loader.setMeshoptDecoder(MeshoptDecoder); };
+export function useModel(url: string) { return useLoader(GLTFLoader, url, withDecoder); }
 // start every download the moment this module is evaluated, well before the scene mounts and asks
-if (typeof window !== "undefined") for (const url of Object.values(MODELS)) useGLTF.preload(url, false, true);
+if (typeof window !== "undefined") for (const url of Object.values(MODELS)) useLoader.preload(GLTFLoader, url, withDecoder);
 
 /** Deep-clone a loaded scene with per-instance materials so recoloring one booth doesn't recolor them all. */
 function cloneWithMaterials(scene: THREE.Object3D, colors?: Record<string, string>, emissive?: Record<string, string>): THREE.Object3D {

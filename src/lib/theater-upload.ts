@@ -83,7 +83,8 @@ export async function finishUpload(id: string): Promise<{ row: Awaited<ReturnTyp
   for (let i = 0; i < m.chunks; i++) if (!have.has(i)) missing.push(i);
   if (missing.length) return { error: `${missing.length} chunk(s) still missing`, missing: missing.slice(0, 50) };
   const filename = `${m.id}.${m.ext}`;
-  fs.renameSync(partPath(id), path.join(videoDir(), filename));
+  // turbopackIgnore: the build's tracer would otherwise bundle the whole project as a possible target of this join
+  fs.renameSync(partPath(id), path.join(/*turbopackIgnore: true*/ videoDir(), filename));
   try { fs.unlinkSync(manifestPath(id)); } catch { /* fine */ }
   for (let i = 0; i < m.chunks; i++) { try { fs.unlinkSync(markerPath(id, i)); } catch { /* fine */ } }
   const row = await addVideo({ id: m.id, title: m.name, kind: "file", src: filename, mime: m.type, bytes: m.size, duration: m.duration });

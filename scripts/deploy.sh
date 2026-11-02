@@ -82,7 +82,16 @@ log "npm ci (staged)"
 (cd "$BUILD_DIR" && npm ci --no-audit --no-fund) || build_failed $?
 
 log "next build (staged)"
-(cd "$BUILD_DIR" && npm run build) || build_failed $?
+# The build peaks near 3.2 GB; on a 4 GB box the kernel killed it three times while other things held memory. Refuse to
+# start it with less than 2.5 GB free (RAM plus swap) rather than let it die without a word, and keep V8's heap under
+# what the box has so it collects garbage before the kernel collects the process.
+avail_mb=$(awk '/MemAvailable|SwapFree/ { s += $2 } END { print int(s / 1024) }' /proc/meminfo)
+if [ "${avail_mb:-0}" -lt 2500 ]; then
+  echo "✗ only ${avail_mb} MB free (RAM + swap); the build needs about 3.2 GB. Stop or wait out whatever is using memory"
+  echo "  (an ffmpeg encode: sudo -u $APP_USER pm2 logs fcc --lines 5; a stray build: pgrep -af next-build) and run this again."
+  echo "  The live site was not touched."; exit 1
+fi
+(cd "$BUILD_DIR" && NODE_OPTIONS="--max-old-space-size=2560 ${NODE_OPTIONS:-}" npm run build) || build_failed $?
 
 # Migrations run automatically when the app boots (ensureMigrated); nothing to do here.
 log "swapping the build in"

@@ -8,6 +8,8 @@ const ASSET_CACHE = "public, max-age=86400, stale-while-revalidate=2592000";
 const nextConfig: NextConfig = {
   devIndicators: false,
   agentRules: false,
+  // "three" in the bundle is three with its deprecated Clock replaced by a Timer-backed one; see src/lib/three-shim.ts.
+  turbopack: { resolveAlias: { three: "./src/lib/three-shim.ts" } },
   async headers() {
     return ["/models/:path*", "/hdri/:path*", "/marketing/:path*", "/icon-512.png"].map((source) => ({
       source,

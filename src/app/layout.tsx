@@ -4,11 +4,13 @@ import "./globals.css";
 import { SITE_NAME } from "@/lib/config";
 import { siteOrigin, KEYWORDS, DEFAULT_OG } from "@/lib/seo";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-// not preloaded: the mono face is only used for small labels, and the hall page shows none at first paint (browsers
-// warn about a preload that goes unused for a few seconds)
+// No font is preloaded. next/font would add a preload link for each face to every page, and on the hall page the first
+// text (the HUD) comes after the 3D scene has loaded, seconds later: browsers then warn that the preload went unused.
+// The @font-face rules are still inlined in the HTML, so a page that shows text at once (the home page) fetches the
+// face as soon as its styles are computed, a few milliseconds behind where a preload would have had it.
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"], preload: false });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], preload: false });
-const display = Syne({ variable: "--font-display", subsets: ["latin"], weight: ["600", "700", "800"] });
+const display = Syne({ variable: "--font-display", subsets: ["latin"], weight: ["600", "700", "800"], preload: false });
 
 /** Phones: no pinch zoom (it fights the look controls) and draw under the notch. */
 export const viewport = { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover" as const, themeColor: "#0b1020" };

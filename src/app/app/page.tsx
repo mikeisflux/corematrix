@@ -27,6 +27,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   // has mounted and asked for them, which took a manifest round trip plus the whole script parse first.
   for (const m of Object.values(manifest.models)) preload(m.file, { as: "fetch", crossOrigin: "anonymous" });
   preload("/hdri/warehouse.hdr", { as: "fetch", crossOrigin: "anonymous" });
+  preload("/models/meshopt_decoder_simd.wasm", { as: "fetch", crossOrigin: "anonymous" }); // the compressed models' decoder (every current browser takes the SIMD build)
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-[var(--bg)]">
       <JsonLd data={graph(appLd(origin), breadcrumbLd(origin, [["Home", "/"], ["Show floor", "/app"]]))} />

@@ -1,8 +1,9 @@
 "use client";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, PerformanceMonitor } from "@react-three/drei";
+import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 import { EffectComposer, Bloom, Vignette, SMAA, BrightnessContrast, HueSaturation, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -89,6 +90,34 @@ function step(q: Quality, d: number): Quality { return ORDER[Math.max(0, Math.mi
  * low tier (no composer) and the composer's ACES pass agree.
  */
 const KEY_OFFSET = { x: 90, y: 170, z: 70 };
+/**
+ * The warehouse lighting map. Its rows are turned over once here, in memory, so it uploads with flipY off: flipping
+ * on the way to the GPU is only meant for images and canvases, and browsers warn about it (Firefox, on every
+ * texSubImage) for raw pixel data like this. Same picture on screen either way.
+ */
+function useWarehouseHdr() {
+  const tex = useLoader(HDRLoader, "/hdri/warehouse.hdr");
+  return useMemo(() => {
+    if (!tex.userData.rowsFlipped) {
+      const img = tex.image as { data: Uint16Array | Float32Array; width: number; height: number };
+      const row = img.data.length / img.height, tmp = img.data.slice(0, row);
+      for (let a = 0, b = img.height - 1; a < b; a++, b--) {
+        tmp.set(img.data.subarray(a * row, (a + 1) * row));
+        img.data.copyWithin(a * row, b * row, (b + 1) * row);
+        img.data.set(tmp, b * row);
+      }
+      tex.flipY = false; tex.userData.rowsFlipped = true;
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.needsUpdate = true;
+    }
+    return tex;
+  }, [tex]);
+}
+function WarehouseEnvironment({ night }: { night: boolean }) {
+  const map = useWarehouseHdr();
+  return <Environment map={map} environmentIntensity={night ? 0.14 : 0.5} />;
+}
+const SHADOW_SIZE = 2048;
 function Lighting({ night }: { night: boolean }) {
   const quality = useHall((s) => s.quality);
   const gl = useThree((s) => s.gl);
@@ -103,6 +132,17 @@ function Lighting({ night }: { night: boolean }) {
     const c = l.shadow.camera;
     c.left = -160; c.right = 160; c.top = 160; c.bottom = -160; c.near = 10; c.far = 520;
     c.updateProjectionMatrix();
+    // The shadow map is built here rather than by three on first render, for one difference: NEAREST filtering on
+    // the depth-compare texture instead of LINEAR. Linear filtering of a comparison sampler is implementation-defined
+    // in WebGL (some GPUs quietly do nearest, Firefox warns), while the shader's five rotated taps per pixel give the
+    // soft edge either way. Everything else matches what three would have made (WebGLShadowMap, PCF branch).
+    if (!l.shadow.map) {
+      const depth = new THREE.DepthTexture(SHADOW_SIZE, SHADOW_SIZE, THREE.UnsignedIntType);
+      depth.name = "key.shadowMap"; depth.format = THREE.DepthFormat;
+      depth.compareFunction = THREE.LessEqualCompare;
+      depth.minFilter = THREE.NearestFilter; depth.magFilter = THREE.NearestFilter;
+      l.shadow.map = new THREE.WebGLRenderTarget(SHADOW_SIZE, SHADOW_SIZE, { depthTexture: depth });
+    }
     l.shadow.needsUpdate = true;
   }, [shadows]);
   useFrame(({ camera }) => {
@@ -118,7 +158,7 @@ function Lighting({ night }: { night: boolean }) {
   return (
     <>
       {/* own boundary: the hall, models and manifest no longer wait behind the 1.6 MB HDR */}
-      <Suspense fallback={null}><Environment files="/hdri/warehouse.hdr" environmentIntensity={night ? 0.14 : 0.5} /></Suspense>
+      <Suspense fallback={null}><WarehouseEnvironment night={night} /></Suspense>
       <ambientLight intensity={night ? 0.2 : 0.1} color={night ? "#4a4f99" : "#ffffff"} />
       <hemisphereLight intensity={night ? 0.4 : 0.65} color={night ? "#444a94" : "#f3f6ff"} groundColor={night ? "#0a0b14" : "#4b5060"} />
       <directionalLight
@@ -128,7 +168,7 @@ function Lighting({ night }: { night: boolean }) {
         intensity={night ? 0.42 : 1.35}
         color={night ? "#8d93ff" : "#fff3df"}
         castShadow={shadows}
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[SHADOW_SIZE, SHADOW_SIZE]}
         shadow-camera-left={-160}
         shadow-camera-right={160}
         shadow-camera-top={160}

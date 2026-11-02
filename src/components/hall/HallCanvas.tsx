@@ -13,6 +13,11 @@ import { Scene } from "./Scene";
 import { useHall, api, type HallBooth, type HallEvent, type HallStats, type Me, type HallBillboard, type Featured } from "@/lib/hall/store";
 import type { LiveMessage } from "@/lib/realtime";
 
+// Firefox still carries two deprecated MouseEvent getters, mozPressure and mozInputSource, and logs a deprecation the
+// first time anything reads them. react-three-fiber copies every property of each pointer event onto its own event
+// object, which reads them. Nothing here uses either, so the getters go before the first click.
+if (typeof MouseEvent !== "undefined") for (const k of ["mozPressure", "mozInputSource"]) if (k in MouseEvent.prototype) try { delete (MouseEvent.prototype as unknown as Record<string, unknown>)[k]; } catch { /* not configurable here: the warning stays, nothing breaks */ }
+
 /** Toast once when a friend shows up on the floor (and again if they come back after ten minutes away). */
 const friendSeen = new Map<string, number>();
 function friendsOnFloor(players: LivePlayer[]) {
