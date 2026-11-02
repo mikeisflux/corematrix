@@ -17,7 +17,7 @@ export interface Costume {
   colors: { costume: string; costume2: string; cape: string; shirt: string; pants: string };
 }
 
-export type CostumeId = "none" | "caped" | "vigilante" | "ranger" | "sorcerer" | "android" | "speedster" | "hunter" | "royal";
+export type CostumeId = "none" | "caped" | "vigilante" | "ranger" | "sorcerer" | "android" | "speedster" | "hunter" | "royal" | "starfall" | "nightfox" | "techknight" | "jester" | "deepsea" | "phoenix";
 export const COSTUMES: Record<CostumeId, Costume> = {
   none: { name: "No costume", blurb: "Just you.", parts: [], colors: { costume: "#888888", costume2: "#888888", cape: "#888888", shirt: "", pants: "" } },
   caped: { name: "Caped hero", blurb: "Cape, domino mask, star on the chest.", parts: ["cos_cape", "cos_mask", "cos_emblem_star", "cos_belt"], colors: { costume: "#b91c1c", costume2: "#facc15", cape: "#b91c1c", shirt: "#1d4ed8", pants: "#1d4ed8" } },
@@ -28,8 +28,17 @@ export const COSTUMES: Record<CostumeId, Costume> = {
   speedster: { name: "Speedster", blurb: "Mask and a lightning bolt.", parts: ["cos_mask", "cos_emblem_bolt", "cos_belt"], colors: { costume: "#facc15", costume2: "#dc2626", cape: "#facc15", shirt: "#dc2626", pants: "#b91c1c" } },
   hunter: { name: "Monster hunter", blurb: "Mask, leather chest rig, short cape.", parts: ["cos_mask", "cos_chest", "cos_belt", "cos_cape"], colors: { costume: "#14532d", costume2: "#84cc16", cape: "#052e16", shirt: "#166534", pants: "#1c1917" } },
   royal: { name: "Warrior royal", blurb: "Crown of antenna spikes, gold armour, crimson cape.", parts: ["cos_chest", "cos_pads", "cos_cape", "cos_belt", "cos_emblem_ring"], colors: { costume: "#d4a017", costume2: "#7f1d1d", cape: "#991b1b", shirt: "#7f1d1d", pants: "#3f0d0d" } },
+  // shop costumes (lib/hall/items.ts): bought with coins or claimed free at a sponsoring booth
+  starfall: { name: "Starfall", blurb: "Violet cape, gold star, built for a night sky.", parts: ["cos_cape", "cos_emblem_star", "cos_belt", "cos_pads"], colors: { costume: "#5b21b6", costume2: "#fbbf24", cape: "#4c1d95", shirt: "#312e81", pants: "#1e1b4b" } },
+  nightfox: { name: "Night fox", blurb: "Eared cowl and a short cape in ember orange.", parts: ["cos_cowl", "cos_cowl_eyes", "cos_cape", "cos_belt"], hideHair: true, colors: { costume: "#c2410c", costume2: "#111827", cape: "#9a3412", shirt: "#1c1917", pants: "#0c0a09" } },
+  techknight: { name: "Tech knight", blurb: "Full helmet, plated chest, neon trim.", parts: ["cos_helmet", "cos_chest", "cos_pads", "cos_belt", "cos_emblem_bolt"], hideHair: true, colors: { costume: "#1f2937", costume2: "#4ade80", cape: "#1f2937", shirt: "#0f172a", pants: "#111827" } },
+  jester: { name: "Jester", blurb: "Pointed hat, ringed belt, loud colours.", parts: ["cos_hat", "cos_belt", "cos_emblem_ring"], colors: { costume: "#db2777", costume2: "#facc15", cape: "#db2777", shirt: "#7c3aed", pants: "#facc15" } },
+  deepsea: { name: "Deep sea", blurb: "Diving helmet, shoulder guards, abyss blue.", parts: ["cos_helmet", "cos_pads", "cos_belt"], hideHair: true, colors: { costume: "#0e7490", costume2: "#a5f3fc", cape: "#0e7490", shirt: "#164e63", pants: "#082f49" } },
+  phoenix: { name: "Phoenix", blurb: "Flame cape, mask and a bolt that reads as fire.", parts: ["cos_cape", "cos_mask", "cos_emblem_bolt", "cos_belt"], colors: { costume: "#dc2626", costume2: "#fb923c", cape: "#ea580c", shirt: "#b91c1c", pants: "#450a0a" } },
 };
+/** Costumes that are in the shop rather than free for everyone. */
+export const PREMIUM_COSTUMES: readonly CostumeId[] = ["starfall", "nightfox", "techknight", "jester", "deepsea", "phoenix"];
 export const COSTUME_IDS = Object.keys(COSTUMES) as CostumeId[];
 export const isCostumeId = (v: unknown): v is CostumeId => typeof v === "string" && Object.hasOwn(COSTUMES, v); // not `in`: "constructor" or "__proto__" would pass and crash every viewer
 /** Costumes handed to crowd figures (everything but "none"). */
-export const CROWD_COSTUMES = COSTUME_IDS.filter((c) => c !== "none");
+export const CROWD_COSTUMES = COSTUME_IDS.filter((c) => c !== "none" && !PREMIUM_COSTUMES.includes(c));

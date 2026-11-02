@@ -183,6 +183,13 @@
       "when": 1793370000000,
       "tag": "0025_commissions",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1793380000000,
+      "tag": "0026_items",
+      "breakpoints": true
     }
   ]
 }

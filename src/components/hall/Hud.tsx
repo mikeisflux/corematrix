@@ -18,6 +18,8 @@ import { Tips } from "./Tips";
 import { SignupNudge } from "./SignupNudge";
 import { useQuests, startQuestTracking } from "@/lib/hall/quests";
 import { startDwellTracking } from "@/lib/hall/dwell";
+import { useShop, refreshShop, sponsorsAt, claimSponsor } from "@/lib/hall/shop";
+import { itemById } from "@/lib/hall/items";
 
 import dynamic from "next/dynamic";
 
@@ -43,6 +45,7 @@ const PANEL_LOADERS = {
   people: () => import("./panels/PeoplePanel").then((m) => m.PeoplePanel),
   dm: () => import("./panels/DmPanel").then((m) => m.DmPanel),
   quests: () => import("./panels/QuestsPanel").then((m) => m.QuestsPanel),
+  shop: () => import("./panels/ShopPanel").then((m) => m.ShopPanel),
 };
 type PanelKey = keyof typeof PANEL_LOADERS;
 /**
@@ -91,6 +94,9 @@ export function Hud() {
   // daily quests: the board loads with the hall, theater time is reported from here, and the rail badge shows what's ready to collect
   useEffect(() => { if (loaded) return startQuestTracking(); }, [loaded]);
   useEffect(() => { if (loaded) return startDwellTracking(); }, [loaded]);
+  // the shop: what booths are giving away (for the walk-up prompt) and what the player owns
+  useEffect(() => { if (loaded) void refreshShop(); }, [loaded, me]);
+  useShop();
   const questBoard = useQuests();
   const claimable = questBoard?.claimable ?? 0;
   const mode = useHall((s) => s.mode);
@@ -160,6 +166,7 @@ export function Hud() {
         <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
         <RailButton label="Hall chat" active={panel === "chat"} onClick={() => toggle("chat")} icon="💬" />
         <RailButton label="Daily quests" active={panel === "quests"} onClick={() => toggle("quests")} icon="📜" badge={claimable} />
+        <RailButton label="Shop" active={panel === "shop"} onClick={() => toggle("shop")} icon="🛍️" />
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
       </div>
       <div className="absolute right-3 top-3 hidden flex-col gap-1 panel rounded-2xl p-1 fade-up pointer-events-auto md:flex">
@@ -169,6 +176,7 @@ export function Hud() {
         <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
         <RailButton label="Arcade" active={panel === "arcade"} onClick={() => toggle("arcade")} icon="🕹️" />
         <RailButton label="Daily quests" active={panel === "quests"} onClick={() => toggle("quests")} icon="📜" badge={claimable} />
+        <RailButton label="Shop" active={panel === "shop"} onClick={() => toggle("shop")} icon="🛍️" />
         <RailButton label="Hanging banners" active={panel === "billboards"} onClick={() => toggle("billboards")} icon="🪧" />
         <RailButton label="Teams" active={panel === "teams"} onClick={() => toggle("teams")} icon="🎟️" />
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
@@ -197,6 +205,11 @@ export function Hud() {
         {me && <button onClick={() => setPanel("arcade")} className="panel rounded-full px-3 py-1.5 text-xs mono"><span className="text-amber-300">●</span> {me.coins} coins</button>}
       </div>
 
+      {mode === "walk" && nearBooth && panel === "none" && sponsorsAt(nearBooth.id).slice(0, 1).map((sp) => { const it = itemById(sp.itemId); return it && (
+        <button key={sp.id} onClick={() => { if (!me) { setPanel("me"); return; } claimSponsor(sp.id).then((r) => { setToast(`🎁 ${r.item.name} from ${r.boothName ?? nearBooth.name} is yours`, () => setPanel("avatar")); if (r.item.costume) useHall.getState().setAvatar({ costume: r.item.costume }); }).catch((e: Error) => setToast(e.message)); }} className="pointer-events-auto absolute bottom-[22rem] left-1/2 -translate-x-1/2 md:bottom-36 panel flex items-center gap-3 rounded-full border-emerald-400/40 px-4 py-2 text-sm fade-up">
+          <span className="text-lg">🎁</span>
+          <span><b>Free {it.name}</b> from {nearBooth.name} · {me ? "tap to claim" : "sign in to claim"}</span>
+        </button>); })}
       {mode === "walk" && nearBooth && panel === "none" && (
         <button onClick={() => useHall.getState().select(nearBooth.id)} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24">
           <img src={`/api/logo/${nearBooth.id}`} alt="" className="h-7 w-7 rounded-md object-cover" />

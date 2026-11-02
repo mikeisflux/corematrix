@@ -638,3 +638,31 @@ export const boothProducts = sqliteTable(
   },
   (t) => [index("products_booth_idx").on(t.boothId, t.sort)],
 );
+
+/** Shop items a player owns (costumes, reaction packs; see lib/hall/items.ts). via: coins | sponsor:<booth> | admin. */
+export const userItems = sqliteTable(
+  "user_items",
+  {
+    userId: text("user_id").notNull(),
+    itemId: text("item_id").notNull(),
+    via: text("via").notNull().default("coins"),
+    acquiredAt: integer("acquired_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.itemId] })],
+);
+
+/** An item an exhibitor sponsors: free to anyone who claims it at their booth while the window is open. */
+export const sponsoredItems = sqliteTable(
+  "sponsored_items",
+  {
+    id: text("id").primaryKey(),
+    itemId: text("item_id").notNull(),
+    boothId: integer("booth_id").notNull(),
+    startsAt: integer("starts_at").notNull(),
+    endsAt: integer("ends_at").notNull(),
+    claims: integer("claims").notNull().default(0),
+    createdBy: text("created_by"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("sponsored_ends_idx").on(t.endsAt)],
+);

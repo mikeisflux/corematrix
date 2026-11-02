@@ -5,6 +5,8 @@ import { currentUser } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
 import { dailyCheckIn } from "@/lib/arcade";
 import { staffedBooths } from "@/lib/social-graph";
+import { costumeItem } from "@/lib/hall/items";
+import { ownedItemsCached } from "@/lib/shop";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +57,11 @@ export async function PATCH(req: Request) {
   if (body.avatar && typeof body.avatar === "object") {
     const a = body.avatar as Record<string, unknown>;
     const hex = (v: unknown, d: string) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
-    set.avatar = JSON.stringify({ body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: isCostumeId(a.costume) ? a.costume : "none" });
+    // a shop costume stays on only when it is owned: the client can ask for anything, the floor shows what was paid for
+    const costume = isCostumeId(a.costume) ? a.costume : "none";
+    const needs = costumeItem(costume);
+    const wearable = !needs || (await ownedItemsCached(u.id)).has(needs);
+    set.avatar = JSON.stringify({ body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });
   }
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;

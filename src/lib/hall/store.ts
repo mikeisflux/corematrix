@@ -110,7 +110,7 @@ interface HallState {
   loaded: boolean;
   hovered: number | null;
   selected: number | null;
-  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings" | "conbot" | "emotes" | "people" | "dm" | "teams" | "quests";
+  panel: "none" | "booth" | "rankings" | "search" | "chat" | "claim" | "stats" | "arcade" | "billboards" | "me" | "avatar" | "settings" | "conbot" | "emotes" | "people" | "dm" | "teams" | "quests" | "shop";
   night: boolean;
   ride: boolean;
   flyTo: number | null;

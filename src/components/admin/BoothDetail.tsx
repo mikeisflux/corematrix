@@ -29,6 +29,7 @@ export default function BoothDetail({ id }: { id: string }) {
         <div className="admTile"><div className="admLabel">Views · 7d</div><div className="admTile__n">{views7.toLocaleString()}</div><div className="admTile__sub">{p.totalViews.toLocaleString()} lifetime</div></div>
         <div className="admTile"><div className="admLabel">Clicks · 7d</div><div className="admTile__n">{clicks7.toLocaleString()}</div><div className="admTile__sub">{p.totalClicks.toLocaleString()} lifetime</div></div>
       </div>
+      <SponsorCard boothId={p.id} />
       <div className="admSplit">
         <div className="admCard">
           <div className="admCard__hd"><h2 className="admH2">Listing</h2>{p.hidden && <Badge kind="dim">hidden</Badge>}</div>
@@ -71,5 +72,33 @@ export default function BoothDetail({ id }: { id: string }) {
         {d.data!.txs.length === 0 ? <Empty>None.</Empty> : <div className="admTableWrap"><table className="admTable"><thead><tr><th>Kind</th><th>Status</th><th>Amount</th><th>When</th></tr></thead><tbody>{d.data!.txs.map((t) => <tr key={t.id}><td><Link href={`/admin/transactions/${t.id}`}>{t.kind}</Link></td><td><Badge>{t.status}</Badge></td><td className="num"><Money cents={t.amountCents} /></td><td><DateTime value={t.createdAt} /></td></tr>)}</tbody></table></div>}
       </div>
     </>
+  );
+}
+
+/** An item the booth gives away: pick one from the shop catalogue and a window; visitors claim it standing at the booth. */
+function SponsorCard({ boothId }: { boothId: number }) {
+  const d = useJson<{ sponsors: Array<{ id: string; itemId: string; endsAt: number; claims: number }>; items: Array<{ id: string; name: string; coins: number }> }>(`/api/admin/shop/sponsors?booth=${boothId}`);
+  const [itemId, setItemId] = useState("");
+  const [days, setDays] = useState(7);
+  const toast = useToast();
+  const add = async (e: React.FormEvent) => { e.preventDefault(); try { await api("/api/admin/shop/sponsors", { method: "POST", json: { boothId, itemId, days } }); toast.ok("Giveaway is live. It shows in the shop and at the booth."); d.reload(); } catch (err) { toast.err((err as Error).message); } };
+  const end = async (id: string) => { try { await api("/api/admin/shop/sponsors", { method: "POST", json: { action: "end", id } }); toast.ok("Ended."); d.reload(); } catch (err) { toast.err((err as Error).message); } };
+  const items = d.data?.items ?? [];
+  return (
+    <div className="admCard" style={{ marginBottom: 16 }}>
+      {toast.node}
+      <div className="admCard__hd"><h2 className="admH2">Sponsored item</h2><Badge kind="dim">free at this booth</Badge></div>
+      <p className="admMuted">A costume or reaction pack from the shop, free to anyone who walks up to this booth and claims it while the window is open. It is announced on the live feed and listed under 🛍️ Shop.</p>
+      <form className="admForm" onSubmit={add}>
+        <Field label="Item"><select className="admInput" value={itemId} onChange={(e) => setItemId(e.target.value)}><option value="">Pick an item…</option>{items.map((it) => <option key={it.id} value={it.id}>{it.name} · {it.coins} coins</option>)}</select></Field>
+        <Field label="Days"><Input type="number" min={1} max={90} value={days} onChange={(e) => setDays(Number(e.target.value))} /></Field>
+        <div className="span2"><button className="admBtn admBtn--primary" disabled={!itemId}>Start giveaway</button></div>
+      </form>
+      {d.data?.sponsors.length ? (
+        <ul className="admList" style={{ marginTop: 12 }}>
+          {d.data.sponsors.map((s) => <li key={s.id} className="admRow"><span>{items.find((it) => it.id === s.itemId)?.name ?? s.itemId}</span><span className="admMuted">{s.claims} claimed · ends <DateTime value={s.endsAt} /></span><ConfirmButton className="admBtn admBtn--danger" message="End this giveaway now?" onConfirm={() => end(s.id)}>End</ConfirmButton></li>)}
+        </ul>
+      ) : <Empty>No giveaway running.</Empty>}
+    </div>
   );
 }

@@ -1,3 +1,5 @@
+import { ALL_REACTIONS, BASE_REACTIONS, costumeItem, reactionsFor } from "@/lib/hall/items";
+import { ownedItemsCached } from "@/lib/shop";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { COSTUME_IDS } from "@/lib/hall/costumes";
@@ -42,7 +44,7 @@ const Body = z.object({
   // everything here is rendered by every other client: only known values, so a crafted name can't break their view
   a: z.object({ body: z.enum(["a", "b"]), skin: HEX, hair: z.enum(["short", "long", "buzz", "bun", "curly", "bald"]), hairColor: HEX, shirt: HEX, pants: HEX, costume: z.enum(COSTUME_IDS as [string, ...string[]]).optional() }).optional().catch(undefined), // a bad look is dropped, the player still shows
   e: z.object({ n: z.enum(["wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"]), t: z.number().finite() }).nullable().optional().catch(null),
-  r: z.object({ k: z.enum(["👋", "❤️", "😂", "🔥", "👏", "🎉", "😮", "👍"]), t: z.number().finite() }).nullable().optional().catch(null),
+  r: z.object({ k: z.enum(ALL_REACTIONS as [string, ...string[]]), t: z.number().finite() }).nullable().optional().catch(null),
 });
 
 /** Where I am on the floor. The player id is derived from the private visitor cookie, so nobody can move somebody else. */
@@ -56,6 +58,14 @@ export async function POST(req: Request) {
   // a script without cookies mints a fresh player per request: new players are limited per address and the floor is capped
   if (!hasPlayer(id) && (playerCount() >= 600 || !allow(`newplayer:${await clientIp()}`, 30, 60_000))) return NextResponse.json({ error: "The floor is full right now" }, { status: 429 });
   const u = await currentUser().catch(() => null);
+  // shop costumes and reaction packs show only for players who own them (a minute-stale cache; guests own nothing)
+  const costumeNeeds = costumeItem(b.a?.costume);
+  const packReaction = b.r && !(BASE_REACTIONS as readonly string[]).includes(b.r.k);
+  if (costumeNeeds || packReaction) {
+    const owned = await ownedItemsCached(u?.id);
+    if (costumeNeeds && !owned.has(costumeNeeds) && b.a) b.a = { ...b.a, costume: "none" };
+    if (packReaction && b.r && !reactionsFor(owned).includes(b.r.k)) b.r = null;
+  }
   // sitting inside a claimed booth is for its owner and crew; anyone else is shown standing there
   if (b.s === 3 && !(await maySitAt(b.x, b.z, u?.id ?? null, u?.email ?? ""))) b.s = 0;
   // an emote or reaction stamped in the future would stay "fresh" forever: clamp the time to now

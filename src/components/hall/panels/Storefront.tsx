@@ -15,6 +15,8 @@ import { openSite } from "../Booth";
 import { openDm } from "../Avatar";
 import { timeAgo } from "@/lib/util";
 import { ShareBooth } from "@/components/ui/ShareBooth";
+import { useShop, sponsorsAt, claimSponsor } from "@/lib/hall/shop";
+import { itemById } from "@/lib/hall/items";
 
 export interface StorefrontDetail {
   booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
@@ -102,6 +104,10 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const [light, setLight] = useState<number | null>(null);
   const [item, setItem] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
+  useShop();
+  const near = useHall((s) => s.near);
+  const setPanel = useHall((s) => s.setPanel);
+  const gifts = sponsorsAt(id);
   const products = detail?.products ?? [];
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 3000); return () => clearInterval(t); }, []); // who is at the booth refreshes
@@ -176,6 +182,13 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
             </div>
           </section>
         )}
+        {/* a sponsored item: free to anyone who claims it here */}
+        {gifts.slice(0, 1).map((g) => { const it = itemById(g.itemId); return it && (
+          <div key={g.id} className="flex items-center gap-3 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm">
+            <span className="text-2xl">🎁</span>
+            <span className="min-w-0 flex-1"><b>Free {it.name}</b> for anyone who comes by<span className="block text-[11px] text-slate-300">{it.blurb} Claim it standing at the booth; it goes in Your avatar.</span></span>
+            {near === id && mode === "walk" ? <button className="btn-primary text-xs" onClick={() => { if (!me) { setPanel("me"); return; } claimSponsor(g.id).then((r) => { setToast(`🎁 ${r.item.name} is yours`); if (r.item.costume) useHall.getState().setAvatar({ costume: r.item.costume }); }).catch((e: Error) => setToast(e.message)); }}>Claim</button> : <button className="btn-ghost text-xs" onClick={() => { if (mode !== "walk") setMode("walk"); setFlyTo(id); setPanel("none"); }}>Walk up</button>}
+          </div>); })}
         {/* portfolio (artist tables) */}
         {pieces.length > 0 && (
           <section>

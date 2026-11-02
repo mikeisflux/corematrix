@@ -2,12 +2,16 @@
 /** Emotes the walker can play (everyone nearby sees them) and quick reactions that pop over the head. */
 import { useHall } from "@/lib/hall/store";
 import { EMOTES } from "@/lib/hall/modelkit/avatar";
-import { fireEmote, fireReaction, REACTIONS } from "@/lib/hall/social";
+import { fireEmote, fireReaction } from "@/lib/hall/social";
+import { useShop, myReactions } from "@/lib/hall/shop";
 import { PanelHeader } from "./common";
 
 export function EmotesPanel() {
   const mode = useHall((s) => s.mode);
   const setMode = useHall((s) => s.setMode);
+  const setPanel = useHall((s) => s.setPanel);
+  useShop();
+  const reactions = myReactions();
   return (
     <>
       <PanelHeader title="Emotes" sub="Everyone on the floor sees them" />
@@ -23,10 +27,10 @@ export function EmotesPanel() {
         <div>
           <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Reactions</div>
           <div className="flex flex-wrap gap-1.5">
-            {REACTIONS.map((r) => <button key={r} onClick={() => fireReaction(r)} disabled={mode !== "walk"} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xl hover:border-amber-300/60 hover:bg-white/10 disabled:opacity-40">{r}</button>)}
+            {reactions.map((r) => <button key={r} onClick={() => fireReaction(r)} disabled={mode !== "walk"} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xl hover:border-amber-300/60 hover:bg-white/10 disabled:opacity-40">{r}</button>)}
           </div>
         </div>
-        <p className="text-[11px] text-slate-500">Keys 1–8 play emotes while you walk. Moving cancels one. Click a person with a green triangle to message them.</p>
+        <p className="text-[11px] text-slate-500">More reactions come in packs from the <button className="underline" onClick={() => setPanel("shop")}>shop</button>. Keys 1–8 play emotes while you walk. Moving cancels one. Click a person with a green triangle to message them.</p>
       </div>
     </>
   );
