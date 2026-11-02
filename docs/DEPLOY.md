@@ -111,6 +111,18 @@ an hour or more). The film keeps playing from its current file meanwhile and sho
 an encode fails, its reason appears beside the film there; the full ffmpeg output is in `/srv/fcc/logs/err.log` under
 `[theater]`.
 
+## How a deploy works
+
+`scripts/deploy.sh` never builds in the live folder. It pulls, then installs and builds the release in `/srv/fcc/app.build`
+while the site keeps serving from the old build. The finished `.next` and `node_modules` are swapped into place with two
+renames (under a second), pm2 reloads, and the script checks that `/`, `/app` and `/api/hall` answer 200. If they don't
+within a minute, it swaps the previous build back and reloads again, and leaves the bad one in `.next.failed` to look at.
+The old script built in place, which left the running server reading a half-replaced `.next` for the length of the build:
+anyone opening a page it hadn't loaded yet got "This page couldn't load".
+
+A browser tab opened before a deploy asks for files that no longer exist when it next opens a panel; the hall reloads
+itself onto the new build once instead of showing an error.
+
 ## Checks after a deploy
 
 ```bash

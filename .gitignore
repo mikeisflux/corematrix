@@ -15,6 +15,10 @@
 
 # next.js
 /.next/
+/.next.prev/
+/.next.failed/
+/node_modules.prev/
+/node_modules.failed/
 /out/
 
 # production

@@ -42,7 +42,28 @@ const PANEL_LOADERS = {
   dm: () => import("./panels/DmPanel").then((m) => m.DmPanel),
 };
 type PanelKey = keyof typeof PANEL_LOADERS;
-const Panels = Object.fromEntries(Object.entries(PANEL_LOADERS).map(([k, load]) => [k, dynamic(load, { ssr: false, loading: () => <div className="p-4 text-xs text-slate-400">Loading…</div> })])) as Record<PanelKey, React.ComponentType>;
+/**
+ * A tab opened before a deploy asks for panel chunks that no longer exist on the server. Rather than a dead panel, retry
+ * once (a network blip), and if the chunk is really gone, reload the page onto the new build, at most once every two
+ * minutes so a persistent failure can't loop.
+ */
+function withRecovery<T>(load: () => Promise<T>): () => Promise<T> {
+  return async () => {
+    try { return await load(); } catch { /* retry below */ }
+    try { return await load(); } catch (e) {
+      const err = e as Error;
+      const gone = err?.name === "ChunkLoadError" || /chunk|dynamically imported module|import\(\)/i.test(String(err?.message ?? e));
+      let last = 0; try { last = Number(sessionStorage.getItem("fcc_chunk_reload") || 0); } catch { /* storage off */ }
+      if (gone && Date.now() - last > 120_000) {
+        try { sessionStorage.setItem("fcc_chunk_reload", String(Date.now())); } catch { /* storage off */ }
+        location.reload();
+        await new Promise<never>(() => {}); // the page is going away
+      }
+      throw e;
+    }
+  };
+}
+const Panels = Object.fromEntries((Object.entries(PANEL_LOADERS) as Array<[PanelKey, () => Promise<React.ComponentType>]>).map(([k, load]) => [k, dynamic(withRecovery(load), { ssr: false, loading: () => <div className="p-4 text-xs text-slate-400">Loading…</div> })])) as Record<PanelKey, React.ComponentType>;
 export function prefetchPanels() { for (const load of Object.values(PANEL_LOADERS)) void load().catch(() => {}); }
 
 export function Hud() {
