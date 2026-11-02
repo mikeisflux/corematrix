@@ -13,6 +13,7 @@ export type LiveMessage =
   | { type: "team"; name: string; from: { id: string; name: string }; quiet?: boolean } // quiet: just refresh which booths I can sit at
   | { type: "chat"; message: { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number; playerId?: string } }
   | { type: "dm"; message: { id: string; from: string; fromName: string; to: string; body: string; createdAt: number } }
+  | { type: "voice"; signal: { from: string; to: string; kind: "offer" | "answer" | "ice" | "bye"; data?: unknown } } // a WebRTC handshake relayed to one person; the audio itself never touches the server
   | { type: "stats"; totalSalesCents: number; totalViews: number; claimed: number };
 
 type Listener = (m: LiveMessage) => void;
