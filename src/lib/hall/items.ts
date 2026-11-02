@@ -8,9 +8,10 @@ import { COSTUMES, PREMIUM_COSTUMES, type CostumeId } from "@/lib/hall/costumes"
 export type ItemKind = "costume" | "reactions";
 export interface ShopItem { id: string; kind: ItemKind; name: string; blurb: string; icon: string; coins: number; costume?: CostumeId; reactions?: readonly string[] }
 
-const COSTUME_PRICES: Partial<Record<CostumeId, number>> = { starfall: 120, nightfox: 120, techknight: 150, jester: 90, deepsea: 110, phoenix: 150 };
+const COSTUME_PRICES: Partial<Record<CostumeId, number>> = { starfall: 120, nightfox: 120, techknight: 150, jester: 90, deepsea: 110, phoenix: 150, lightknight: 150, darklord: 150, ghostcatcher: 130, wizardstudent: 130 };
+const COSTUME_ICONS: Partial<Record<CostumeId, string>> = { lightknight: "⚔️", darklord: "🌑", ghostcatcher: "👻", wizardstudent: "🪄" };
 export const ITEMS: readonly ShopItem[] = [
-  ...PREMIUM_COSTUMES.map((c): ShopItem => ({ id: `costume:${c}`, kind: "costume", name: COSTUMES[c].name, blurb: COSTUMES[c].blurb, icon: "🦸", coins: COSTUME_PRICES[c] ?? 100, costume: c })),
+  ...PREMIUM_COSTUMES.map((c): ShopItem => ({ id: `costume:${c}`, kind: "costume", name: COSTUMES[c].name, blurb: COSTUMES[c].blurb, icon: COSTUME_ICONS[c] ?? "🦸", coins: COSTUME_PRICES[c] ?? 100, costume: c })),
   { id: "reactions:party", kind: "reactions", name: "Party pack", blurb: "🥳 🎊 🍕 🎸 for the reaction row.", icon: "🥳", coins: 40, reactions: ["🥳", "🎊", "🍕", "🎸"] },
   { id: "reactions:spooky", kind: "reactions", name: "Spooky pack", blurb: "🎃 👻 💀 🦇 for the reaction row.", icon: "👻", coins: 40, reactions: ["🎃", "👻", "💀", "🦇"] },
   { id: "reactions:hearts", kind: "reactions", name: "Hearts pack", blurb: "💖 💜 💙 💚 for the reaction row.", icon: "💖", coins: 40, reactions: ["💖", "💜", "💙", "💚"] },

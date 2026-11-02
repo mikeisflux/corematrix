@@ -158,7 +158,7 @@ function PrimitiveAvatar({ config, motion }: { config: AvatarConfig; motion: Mot
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       const name = (m.material as THREE.Material).name;
-      if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); m.material = mm; }
+      if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); if (name === "glow") { mm.emissive.set(colors[name]); mm.emissiveIntensity = 1.5; } m.material = mm; }
     });
     return c;
   }, [body, skin, hairColor, shirt, pants, hair, costume]);

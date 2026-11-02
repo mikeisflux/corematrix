@@ -162,6 +162,7 @@ export const DOCS: DocSection[] = [
       { h: "Emotes and reactions", p: "🙌 Emotes: eight emotes everyone nearby sees (also keys 1 to 8 while walking), and reactions that pop over your head. Moving cancels an emote." },
       { h: "The shop", bullets: [
         `🛍️ Shop on the rail. Costumes: ${ITEMS.filter((i) => i.kind === "costume").map((i) => `${i.name} (${i.coins})`).join(", ")} coins. Reaction packs: ${ITEMS.filter((i) => i.kind === "reactions").map((i) => `${i.name} (${i.coins})`).join(", ")} coins.`,
+        "Some costumes carry a prop in the right hand that everyone sees: a glowing blade, a wand, a blaster with a proton-style pack on the back.",
         "Bought items are yours for good and show on your account anywhere. A costume you don't own shows 🔒 in the avatar panel and takes you to the shop.",
         "**Giveaways**: a booth may sponsor an item for a few days. It is announced on the live feed and listed at the top of the shop with the booth's name. Walk up to that booth and claim it there; it must be claimed standing at the booth.",
       ] },

@@ -139,6 +139,8 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const costume = mat("costume", "#b91c1c", { roughness: 0.45, metalness: 0.15 }), costume2 = mat("costume2", "#facc15", { roughness: 0.4, metalness: 0.2, emissive: "#000000" });
   const cape = mat("cape", "#b91c1c", { roughness: 0.9, side: THREE.DoubleSide });
   const lens = mat("lens", "#f8fafc", { roughness: 0.3, metalness: 0, emissive: "#ffffff", emissiveIntensity: 0.35 }); // the white eyes of a cowl
+  // carried props: the metal/wood of hilts, wands and packs (recoloured per preset) and the glowing parts (emissive)
+  const prop = mat("prop", "#4b5563", { roughness: 0.5, metalness: 0.55 }), glow = mat("glow", "#60a5fa", { roughness: 0.3, emissive: "#60a5fa", emissiveIntensity: 1.5 });
 
   const node = (name: string, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.name = name; g.position.set(x, y, z); return g; };
   const mesh = (name: string, geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const me = new THREE.Mesh(geo, m); me.name = name; me.position.set(x, y, z); me.castShadow = true; return me; };
@@ -284,11 +286,40 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const bolt = new THREE.Shape(); bolt.moveTo(0.06, 0.36); bolt.lineTo(-0.2, 0.02); bolt.lineTo(-0.02, 0.02); bolt.lineTo(-0.12, -0.36); bolt.lineTo(0.2, 0.06); bolt.lineTo(0.02, 0.06); bolt.lineTo(0.06, 0.36);
   torso.add(mesh("cos_emblem_bolt", new THREE.ShapeGeometry(bolt).translate(0, emblemY, emblemZ), costume2));
   torso.add(mesh("cos_emblem_ring", new THREE.RingGeometry(0.16, 0.3, 24).translate(0, emblemY, emblemZ), costume2));
+  // hood: a loose shell over the crown, back and sides, open at the face, with a collar that drapes to the shoulders
+  const hoodShell = new THREE.SphereGeometry(HEAD_R + 0.14, 22, 14, Math.PI / 2 + 0.75, Math.PI * 2 - 1.5, 0, 1.9).scale(...HEAD_SCALE).translate(0, hc + 0.06, -0.04);
+  const hoodCollar = new THREE.CylinderGeometry(HEAD_R + 0.1, 1.05, 0.95, 18, 1, true).translate(0, hc - 0.72, -0.1);
+  head.add(mesh("cos_hood", merge(hoodShell, hoodCollar), costume));
+  // robe: a full skirt from the waist to the shins, so the legs read as cloth
+  const robePts = [new THREE.Vector2(0.98, -0.25), new THREE.Vector2(1.02, -0.9), new THREE.Vector2(1.12, -1.7), new THREE.Vector2(1.28, -2.55)];
+  torso.add(mesh("cos_robe", new THREE.LatheGeometry(robePts, 20).scale(1, 1, 0.8), cape));
+  // scarf: a ring at the neck and two strips hanging down the chest
+  const scarfRing = new THREE.TorusGeometry(0.4, 0.13, 7, 18).rotateX(Math.PI / 2).scale(1, 1, 0.82).translate(0, 1.6, 0.02);
+  const scarfStrips = [-1, 1].map((s) => new THREE.BoxGeometry(0.3, 1.1, 0.1).translate(s * 0.17, 1.02, zF(1.02) + 0.1));
+  torso.add(mesh("cos_scarf", merge(scarfRing, ...scarfStrips), costume2));
+  // proton-style pack on the back: a box, a tank on its side and a hose stub
+  const packBox = new THREE.BoxGeometry(1.05, 1.35, 0.5).translate(0, 0.62, -0.92);
+  const packTank = new THREE.CylinderGeometry(0.2, 0.2, 0.95, 10).rotateZ(Math.PI / 2).translate(0, -0.1, -1.05);
+  const packCore = new THREE.CylinderGeometry(0.17, 0.17, 0.32, 10).rotateX(Math.PI / 2).translate(0.3, 0.9, -1.28);
+  const packStraps = [-1, 1].map((s) => new THREE.BoxGeometry(0.16, 1.3, 0.08).translate(s * 0.42, 0.95, zF(0.95) + 0.08));
+  torso.add(mesh("cos_pack", merge(packBox, packTank, packCore, ...packStraps), prop));
+  // carried in the right hand, pointing forward and a little down (the arm hangs): a hilt with a glowing blade, a wand, a blaster
+  const handR = root.getObjectByName("hand_r")!;
+  const carry = (g: THREE.BufferGeometry) => g.rotateX(0.55).translate(0, -0.22, 0.14);
+  const hilt = new THREE.CylinderGeometry(0.075, 0.07, 0.75, 10).rotateX(Math.PI / 2).translate(0, 0, 0.1);
+  const emitter = new THREE.CylinderGeometry(0.09, 0.075, 0.1, 10).rotateX(Math.PI / 2).translate(0, 0, 0.5);
+  handR.add(mesh("cos_saber", carry(merge(hilt, emitter)), prop));
+  const blade = new THREE.CapsuleGeometry(0.05, 2.5, 3, 8).rotateX(Math.PI / 2).translate(0, 0, 1.8);
+  handR.add(mesh("cos_saber_blade", carry(blade), glow));
+  handR.add(mesh("cos_wand", carry(new THREE.CylinderGeometry(0.022, 0.04, 1.15, 7).rotateX(Math.PI / 2).translate(0, 0, 0.55)), prop));
+  const blasterBody = new THREE.BoxGeometry(0.14, 0.16, 0.9).translate(0, 0.02, 0.45), blasterGrip = new THREE.BoxGeometry(0.1, 0.3, 0.12).translate(0, -0.2, 0.1), blasterBarrel = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8).rotateX(Math.PI / 2).translate(0, 0.03, 1.1);
+  handR.add(mesh("cos_blaster", carry(merge(blasterBody, blasterGrip, blasterBarrel)), prop));
+  handR.add(mesh("cos_blaster_tip", carry(sphere(0.07, 8, 6).translate(0, 0.03, 1.36)), glow));
   return root;
 }
 
 /** Materials recoloured per figure at runtime (by material name). */
-export const RECOLOR_MATERIALS = ["skin", "hair", "shirt", "pants", "costume", "costume2", "cape"] as const;
+export const RECOLOR_MATERIALS = ["skin", "hair", "shirt", "pants", "costume", "costume2", "cape", "prop", "glow"] as const;
 export interface AvatarLook { body: "a" | "b"; skin: string; hair: string; hairColor: string; shirt: string; pants: string; costume?: string }
 /**
  * Shows the right hair and costume parts on a built or loaded avatar and returns
@@ -303,6 +334,8 @@ export function applyAvatarLook(root: THREE.Object3D, look: AvatarLook): Record<
     if ((HAIR_NODES as readonly string[]).includes(o.name)) o.visible = !costume.hideHair && o.name === `hair_${look.hair}`;
     else if ((COSTUME_PARTS as readonly string[]).includes(o.name)) o.visible = parts.has(o.name);
     else if (o.name === "cos_helmet_visor") o.visible = parts.has("cos_helmet");
+    else if (o.name === "cos_saber_blade") o.visible = parts.has("cos_saber");
+    else if (o.name === "cos_blaster_tip") o.visible = parts.has("cos_blaster");
     else if (o.name === "badge" || o.name === "lanyard_m") o.visible = !hasChest; // the emblem or plate takes the badge's place
   });
   const dressed = look.costume && look.costume !== "none";
@@ -311,6 +344,7 @@ export function applyAvatarLook(root: THREE.Object3D, look: AvatarLook): Record<
     shirt: dressed && costume.colors.shirt ? costume.colors.shirt : look.shirt,
     pants: dressed && costume.colors.pants ? costume.colors.pants : look.pants,
     costume: costume.colors.costume, costume2: costume.colors.costume2, cape: costume.colors.cape,
+    prop: costume.colors.prop ?? "#4b5563", glow: costume.colors.glow ?? "#60a5fa",
   };
 }
 
