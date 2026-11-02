@@ -184,9 +184,19 @@ export const DOCS: DocSection[] = [
   },
   {
     slug: "tours", title: "Guided tours", icon: "🧭", audience: "visitors",
-    summary: "ConBot leads you booth to booth with a route line on the floor.",
+    summary: "Don't know where to start? Pick a tour and ConBot leads you around the hall, stop by stop, with a line on the floor showing the way.",
     blocks: [
-      { p: "Open 🧭 Guided tours on the rail, or ask ConBot (the robot in the arcade) to show you around. Pick a tour: Headliners, New this week, Artists' Alley, the arcade and theater, or a category. ConBot walks ahead to each stop, a line on the floor shows the way, and a bar at the bottom of the screen names the stop with Open booth, Next stop and End. Tours can be started from a link: /app?tour=headliners." },
+      { steps: [
+        "Open **Guided tours** with the compass button (🧭) in the side rail, or ask ConBot \"Show me around\". The list shows each tour with its stops: Headliners (the featured and biggest booths), New this week (the newest exhibitors), Artists' Alley (artist tables with a portfolio first), The arcade & theater, and one tour per category that has at least three booths. Each tour has up to six stops.",
+        "Press **Start**. You switch to walking, the panel closes, and ConBot sets off for the first stop. An amber dashed line on the floor runs from you to the stop, and a glowing ring marks the spot to stand. Follow the line or follow ConBot.",
+        "The bar at the bottom of the screen shows which stop you are on (\"Tour · stop 2 of 6 · name\"). Within about 12 ft of the stop the bar shows a line about it, and you can press **Open booth** to look at that exhibitor or **Next stop** to move on. Before you arrive the same button reads Skip.",
+        "On the last stop, Next stop becomes **Finish**; press it to end the tour. **End** stops a tour at any point. While a tour runs the usual \"press E\" booth prompt gives way to the tour bar.",
+      ] },
+      { bullets: [
+        "Share a tour with a link: add ?tour=headliners, ?tour=new, ?tour=artists, ?tour=arcade or ?tour=cat:comics (any category key) to the hall address. It opens in walking mode with the tour running; an unknown id opens the tours list.",
+        "ConBot stays with you between stops; fall far behind and he waits and calls out. Tours are worked out from what is on the floor right now, so the stops change as booths are claimed.",
+        "Switching to the map keeps the tour running; the line and ring are drawn there too.",
+      ] },
     ],
   },
   {
