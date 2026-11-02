@@ -15,6 +15,7 @@ export function ConBotPanel() {
     { q: "Hi ConBot!", run: () => { const n = useHall.getState().me?.displayName; say(`Hey${n ? ` ${n}` : ""}! Welcome to ForeverComicCon, the show that never closes.`, "Wave"); } },
     { q: "What is this place?", run: () => { const st = useHall.getState().stats; say(`A comic con that's open 24/7: ${st?.totalBooths ?? 1042} booths, an arcade in the middle, and real people walking the floor with you. Click any banner to visit that exhibitor.`, "Yes"); } },
     { q: "How do I get a booth?", run: () => { botSay("Pick any open space on the plan and it's yours from $5. Here's the floor plan!"); setPanel("claim"); } },
+    { q: "Show me around", run: () => { botSay("Pick a tour and I'll lead the way, stop by stop."); setPanel("tours"); } },
     { q: "Take me to the arcade", run: () => {
       if (mode !== "walk") { say("Switch to walking first (the 🚶 button) and I'll lead the way.", "No"); return; }
       botCommand({ kind: "lead", x: ARCADE.x, z: ARCADE.z - 26, text: "Follow me to the arcade!", arrive: "Here we are. Grab a cabinet and set a high score!" });

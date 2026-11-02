@@ -13,6 +13,7 @@ import { EmptyBooths } from "./EmptyBooths";
 import { Arcade, flyoverCurve } from "./Arcade";
 import { Player, Crowd, Others, player } from "./Avatar";
 import { Mascot } from "./Mascot";
+import { TourRoute } from "./TourRoute";
 import { TwoSided } from "./Booth";
 import { signTexture } from "./textures";
 import { useHall, track, guessQuality, type HallBooth, type Quality, dragged } from "@/lib/hall/store";
@@ -59,6 +60,7 @@ export function Scene() {
       <EntranceBanner billboards={billboards} night={night} />
       <Crowd count={mode === "walk" ? crowd[1] : crowd[0]} cap={Math.max(crowd[0], crowd[1])} />
       <Mascot />
+      <TourRoute />
       <Player />
       <Others />
       <CameraRig />

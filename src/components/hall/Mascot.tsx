@@ -10,6 +10,7 @@ import { useModelUrl, useModel } from "./models";
 import { useHall, dragged } from "@/lib/hall/store";
 import { player } from "./Avatar";
 import { conbot, botSay, useConBot, GREETINGS, TRICKS_ALL, pick } from "@/lib/hall/conbot";
+import { tours } from "@/lib/hall/tours";
 
 /** ConBot: the CC0 RobotExpressive robot on its rounds of the arcade plaza. Waves at passers-by, comes over when you open its panel (E nearby, or click it), answers, emotes, and leads the way. */
 export function Mascot() {
@@ -165,7 +166,8 @@ function Robot({ url }: { url: string }) {
         if (near > 30) { play("Idle"); face(s, g, player.x, player.z); if (t > s.nextNag) { s.nextNag = t + 8; botSay("Keep up! This way."); } break; }
         play("Walking");
         const dist = stepTo(s, g, s.tx, s.tz, dt, 7.5);
-        if (dist === 0) { botSay(s.arrive); s.mode = "emote"; s.after = talking ? "talk" : "walk"; s.until = t + clipSeconds("ThumbsUp"); face(s, g, player.x, player.z); play("ThumbsUp"); }
+        // on a guided tour he stays with the walker between stops ("talk" follows them) instead of heading back to the plaza
+        if (dist === 0) { botSay(s.arrive); s.mode = "emote"; s.after = talking || tours.active ? "talk" : "walk"; s.until = t + clipSeconds("ThumbsUp"); face(s, g, player.x, player.z); play("ThumbsUp"); }
         break;
       }
       default: {
