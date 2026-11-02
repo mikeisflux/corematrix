@@ -71,6 +71,8 @@ export const booths = sqliteTable(
     xUrl: text("x_url"),
     facebook: text("facebook"),
     globalcomix: text("globalcomix"),
+    commissions: text("commissions"), // artists: where to ask for a commission (a link or an email)
+    commissionNote: text("commission_note"), // "Open for commissions from $40", shown with the portfolio
     logoUrl: text("logo_url"),
     color: text("color").notNull().default("#5b8def"),
     accent: text("accent").notNull().default("#ffffff"),

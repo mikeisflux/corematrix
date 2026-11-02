@@ -51,6 +51,8 @@ const Patch = z.object({
   xUrl: z.string().max(300).optional(),
   facebook: z.string().max(300).optional(),
   globalcomix: z.string().max(300).optional(),
+  commissions: z.string().max(300).optional(),
+  commissionNote: z.string().max(120).optional(),
   logoUrl: z.string().max(1_500_000).nullable().optional(),
   color: z.string().max(9).optional(),
   accent: z.string().max(9).optional(),

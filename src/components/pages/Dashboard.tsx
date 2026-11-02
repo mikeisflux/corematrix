@@ -3,14 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
 import { api } from "@/lib/hall/store";
-import { PRODUCT_LIMIT, productSlotKey, REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot, takeoverSplitFor } from "@/lib/config";
+import { GALLERY_LIMIT, gallerySlotKey, PRODUCT_LIMIT, productSlotKey, REFERRAL_CREDIT_CENTS, REFERRAL_COINS, REFERRAL_QUALIFY_CENTS, BANNER_STYLES, CATEGORIES, formatCount, formatMoney, splitTakeover, TIERS, BOOTH_SIZES, BANNER, bannerWidth, bannerUpgradeCents, ART_SLOTS, ISLAND_SLOTS, ISLAND_SIDES, rollupSlotKey, ART_FORMATS, ART_MAX_UPLOAD, PAYOUT_MIN_CENTS, BOOK_PRICE_CENTS, bookCapacity, bookSlotKey, type ArtSlot, takeoverSplitFor } from "@/lib/config";
 import { Bars } from "@/components/ui/Sparkline";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; emailVerified?: boolean; promoCents?: number; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
 interface Detail {
-  booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number; dwellSeconds?: number; bannerClicks?: number }>;
@@ -188,6 +188,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
           <Edit p={p} onSaved={(d) => { patchBooth(p.id, d); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => patchBooth(p.id, { art })} />
           <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />
+          {p.kind === "artist" && <Portfolio p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />}
           <Shop p={p} products={detail.products ?? []} setMsg={setMsg} onChanged={(products) => setDetail((cur) => (cur && cur.booth.id === p.id ? { ...cur, products } : cur))} />
           <Teams booths={booths} setMsg={setMsg} />
 
@@ -504,7 +505,7 @@ const LEAVE_MSG = "You have unsaved changes to your booth. Leave without saving?
 const okToLeave = () => !unsaved.current || window.confirm(LEAVE_MSG);
 
 function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial<Detail["booth"]>) => void; setMsg: (s: string) => void }) {
-  const fromBooth = () => ({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
+  const fromBooth = () => ({ name: p.name, tagline: p.tagline ?? "", description: p.description ?? "", website: p.website ?? "", commissions: (p.commissions ?? "").replace(/^mailto:/, ""), commissionNote: p.commissionNote ?? "", artstation: p.artstation ?? "", deviantart: p.deviantart ?? "", instagram: p.instagram ?? "", xUrl: p.xUrl ?? "", facebook: p.facebook ?? "", globalcomix: p.globalcomix ?? "", logoUrl: p.logoUrl ?? "", color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category });
   const [d, setD] = useState(fromBooth);
   const [saved, setSaved] = useState(fromBooth); // what's on the floor now: the form is "dirty" when it differs
   const dirty = JSON.stringify(d) !== JSON.stringify(saved);
@@ -566,6 +567,10 @@ function Edit({ p, onSaved, setMsg }: { p: Detail["booth"]; onSaved: (d: Partial
         <div><label className="label">X</label><input className="input" placeholder="@handle" value={d.xUrl} onChange={(e) => setD({ ...d, xUrl: e.target.value })} /></div>
         <div><label className="label">Facebook</label><input className="input" placeholder="page name or link" value={d.facebook} onChange={(e) => setD({ ...d, facebook: e.target.value })} /></div>
         <div><label className="label">GlobalComix</label><input className="input" placeholder="username or link" value={d.globalcomix} onChange={(e) => setD({ ...d, globalcomix: e.target.value })} /></div>
+        {p.kind === "artist" && <>
+          <div><label className="label">Commissions · link or email</label><input className="input" placeholder="you@studio.com or https://…/commissions" value={d.commissions} onChange={(e) => setD({ ...d, commissions: e.target.value })} /></div>
+          <div><label className="label">Commission note</label><input className="input" maxLength={120} placeholder="Open for commissions from $40 · 2 week turnaround" value={d.commissionNote} onChange={(e) => setD({ ...d, commissionNote: e.target.value })} /></div>
+        </>}
         <div className="md:col-span-2"><label className="label">Tagline</label><input className="input" maxLength={90} value={d.tagline} onChange={(e) => setD({ ...d, tagline: e.target.value })} /></div>
         <div className="md:col-span-2"><label className="label">Description</label><textarea className="input" rows={3} maxLength={600} value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></div>
         <div>
@@ -704,6 +709,58 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/** An artist's portfolio: up to GALLERY_LIMIT pieces that hang on the table's drape (three at a time, flipping as people walk up) and fill the storefront gallery. */
+function Portfolio({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>, artLinks?: Record<string, string>) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [links, setLinks] = useState<Record<string, string>>(p.artLinks ?? {});
+  useEffect(() => { setLinks(p.artLinks ?? {}); }, [p.artLinks]);
+  const pieces = Array.from({ length: GALLERY_LIMIT }, (_, n) => gallerySlotKey(n));
+  const have = pieces.filter((k) => p.art?.[k]).length;
+  const upload = async (slot: string, file: File) => {
+    setBusy(slot);
+    try { onChanged(await uploadArt(p.id, slot, file, ART_SLOTS.gallery)); setMsg("Piece added. It's on your table's drape and in your gallery."); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  const remove = async (slot: string) => {
+    setBusy(slot);
+    try { const r = await api<{ art: Record<string, number>; artLinks: Record<string, string> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, url: null }) }); onChanged(r.art, r.artLinks); }
+    catch (e) { setMsg((e as Error).message); }
+    setBusy(null);
+  };
+  const saveLink = async (slot: string) => {
+    const link = (links[slot] ?? "").trim();
+    if ((p.artLinks?.[slot] ?? "") === link) return;
+    try { const r = await api<{ art: Record<string, number>; artLinks: Record<string, string> }>(`/api/booth/${p.id}/art`, { method: "POST", body: JSON.stringify({ slot, link: link || null }) }); onChanged(r.art, r.artLinks); setMsg(link ? "Print link saved." : "Print link removed."); }
+    catch (e) { setMsg((e as Error).message); }
+  };
+  return (
+    <div id="portfolio" className="rounded-2xl border border-white/10 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Portfolio · {have}/{GALLERY_LIMIT} pieces</div>
+        <div className="text-[11px] text-slate-500">Included with every Artists' Alley table</div>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">{ART_SLOTS.gallery.where} {ART_SLOTS.gallery.tip} Add a link under a piece to sell it as a print. Set where commissions go in Edit booth above; the gallery gets a Commission me button.</p>
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+        {pieces.map((slot, n) => {
+          const v = p.art?.[slot];
+          if (!v && n > have) return null; // one empty frame after the last piece, not twelve
+          return (
+            <div key={slot} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+              <div className="mx-auto aspect-[4/5] w-full overflow-hidden rounded-md border border-white/10 bg-slate-900">
+                {v ? <img src={`/api/art/${p.id}/${slot}?v=${v}`} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-[10px] text-slate-500">#{n + 1}</div>}
+              </div>
+              <label className={`btn-ghost mt-2 block cursor-pointer text-[11px] ${busy ? "pointer-events-none opacity-60" : ""}`}>{busy === slot ? "…" : v ? "Replace" : "Add piece"}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(slot, f); e.target.value = ""; }} /></label>
+              {v && <input className="input mt-1.5 px-2 py-1 text-[11px]" placeholder="Print link https://…" value={links[slot] ?? ""} onChange={(e) => setLinks({ ...links, [slot]: e.target.value })} onBlur={() => void saveLink(slot)} />}
+              {v && <button className="mt-1 text-[11px] text-slate-500 hover:text-rose-300" onClick={() => remove(slot)}>remove</button>}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

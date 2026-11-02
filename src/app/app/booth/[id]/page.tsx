@@ -7,6 +7,7 @@ import { getPublicBooth, boothHistory, claimedBooths } from "@/lib/economy";
 import { boothSeries, sumSeries, trackBooth } from "@/lib/analytics";
 import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES, ZONES, isHouseBooth, takeoverSplitFor, productSlotKey } from "@/lib/config";
 import { listProducts } from "@/lib/products";
+import { artFlagsFor, artLinksFor } from "@/lib/art";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
 import { timeAgo } from "@/lib/util";
 import { Bars } from "@/components/ui/Sparkline";
@@ -62,7 +63,8 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
   // a reload loop from one address only counts a few times
   const ip = await clientIp();
   if (allow(`pageview:${ip}:${boothId}`, 3, 10 * 60_000) && allow(`pageviews:${ip}`, 120, 10 * 60_000)) await trackBooth(boothId, "views", vid, sp.src ?? (sp.utm_source ? "share" : "direct"));
-  const [series, history, all, products] = await Promise.all([boothSeries(boothId, 30), boothHistory(boothId), claimedBooths(), listProducts(boothId)]);
+  const [series, history, all, products, artFlags, artLinks] = await Promise.all([boothSeries(boothId, 30), boothHistory(boothId), claimedBooths(), listProducts(boothId), artFlagsFor(boothId), artLinksFor(boothId)]);
+  const pieces = Object.keys(artFlags).filter((k) => k.startsWith("gallery:")).sort((a, b) => Number(a.slice(8)) - Number(b.slice(8)));
   const totals = sumSeries(series.slice(-7));
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
   const { price, sellerPayout } = takeoverSplitFor(p.valueCents, p.freeValueCents);
@@ -121,6 +123,22 @@ export default async function BoothPage({ params, searchParams }: { params: Prom
             </div>
           </div>
           {p.description && <p className="mt-6 whitespace-pre-line text-slate-200">{p.description}</p>}
+          {pieces.length > 0 && (
+            <div className="mt-8">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Portfolio · {pieces.length} {pieces.length === 1 ? "piece" : "pieces"}</h2>
+                {p.commissions && <a href={p.commissions} target="_blank" rel="noopener" className="btn-primary text-xs">🎨 Commission me{p.commissionNote ? ` · ${p.commissionNote}` : ""} ↗</a>}
+              </div>
+              <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {pieces.map((k, i) => (
+                  <li key={k} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                    {artLinks[k] ? <a href={artLinks[k]} target="_blank" rel="noopener" className="block"><img src={`/api/art/${boothId}/${k}?v=${artFlags[k]}`} alt={`${p.name}, piece ${i + 1}`} loading="lazy" className="aspect-[4/5] w-full object-cover" /><div className="p-2 text-xs text-amber-300">Buy a print ↗</div></a>
+                      : <img src={`/api/art/${boothId}/${k}?v=${artFlags[k]}`} alt={`${p.name}, piece ${i + 1}`} loading="lazy" className="aspect-[4/5] w-full object-cover" />}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {products.length > 0 && (
             <div className="mt-8">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Shop · {products.length} {products.length === 1 ? "item" : "items"}</h2>

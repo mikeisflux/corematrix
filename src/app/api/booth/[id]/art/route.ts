@@ -21,9 +21,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success || !isArtSlot(parsed.data.slot)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const { slot, url, link } = parsed.data;
-  // a buy link for a cover, on its own
+  // a buy link for a cover (or a print link for a portfolio piece), on its own
   if (url === undefined) {
-    if (link === undefined || !slot.startsWith("book:")) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+    if (link === undefined || !(slot.startsWith("book:") || slot.startsWith("gallery:"))) return NextResponse.json({ error: "Bad request" }, { status: 400 });
     const clean = link ? normalizeUrl(link) : null;
     if (link && !clean) return NextResponse.json({ error: "Enter a full link, starting with https://" }, { status: 400 });
     await setArtLink(boothId, slot, clean ?? null);
@@ -31,6 +31,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     publish({ type: "booth", booth: { ...liveBooth(p), art, artLinks } });
     return NextResponse.json({ ok: true, art, artLinks });
   }
+  if (slot.startsWith("gallery:") && p.kind !== "artist") return NextResponse.json({ error: "Portfolios hang on Artists' Alley tables" }, { status: 400 });
   if (slot.startsWith("book:")) {
     const n = Number(slot.slice(5));
     if (!(n < Math.min(p.bookSlots, bookCapacity(p.size, p.kind)))) return NextResponse.json({ error: `Platform ${n + 1} isn't unlocked yet. Display a book for ${BOOK_PRICE_CENTS / 100} dollars first.` }, { status: 400 });

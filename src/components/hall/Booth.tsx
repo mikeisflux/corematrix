@@ -1,6 +1,6 @@
 "use client";
 import { TABLE_STANDS, DRAPE_PANEL_MAX_W, DRAPE } from "@/lib/hall/modelkit/props";
-import { memo, useMemo, useRef } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -127,6 +127,9 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
     for (const part of bookKey.split("|").filter(Boolean)) { const [k, v] = part.split("="); m.set(Number(k.slice(5)), logoTexture(`/api/art/${booth.id}/${k}?v=${v}`)); }
     return m;
   }, [bookKey, booth.id]);
+  // an artist's portfolio pieces (gallery:N), shown three at a time on the matted prints
+  const galleryKey = Object.entries(booth.art ?? {}).filter(([k]) => k.startsWith("gallery:")).sort((a, b) => Number(a[0].slice(8)) - Number(b[0].slice(8))).map(([k, v]) => `${k}=${v}`).join("|");
+  const gallery = useMemo(() => galleryKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return logoTexture(`/api/art/${booth.id}/${k}?v=${v}`); }), [galleryKey, booth.id]);
   const banner = useMemo(() => {
     const t = wideUrl ? logoTexture(wideUrl) : bannerTexture({ name: booth.name ?? "", tagline: booth.tagline, color: booth.color, accent: booth.accent, style: booth.style, label: booth.label, wide: booth.size === "20x10" || booth.size === "20x20" });
     if (booth.house) { t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; }
@@ -145,7 +148,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const cubeLogo = useMemo(() => (booth.house ? framedLogoTexture(`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, booth.cloth || "#0b0f1a", 1.5) : null), [booth.house, booth.id, booth.logoVersion, booth.cloth]); // 5 wide × 7.5 tall faces
   // logo and art textures are cached by URL (the version is in it): free the ones this booth no longer uses, or every
   // logo change or art upload left the old copy on the GPU for the rest of the visit
-  const usedUrls = [`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, wideUrl, portraitUrl, floorUrl, towerUrl, ...bookKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return `/api/art/${booth.id}/${k}?v=${v}`; }), ...rollupKey.split("|").map((v, i) => (Number(v) ? `/api/art/${booth.id}/rollup:${i}?v=${v}` : null))].filter(Boolean).join(" ");
+  const usedUrls = [`/api/logo/${booth.id}?v=${booth.logoVersion ?? 0}`, wideUrl, portraitUrl, floorUrl, towerUrl, ...bookKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return `/api/art/${booth.id}/${k}?v=${v}`; }), ...rollupKey.split("|").map((v, i) => (Number(v) ? `/api/art/${booth.id}/rollup:${i}?v=${v}` : null)), ...galleryKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return `/api/art/${booth.id}/${k}?v=${v}`; })].filter(Boolean).join(" ");
   const prevUrls = useRef(usedUrls);
   useEffect(() => {
     const now = new Set(usedUrls.split(" "));
@@ -253,7 +256,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* low drape behind the table, with three matted prints pinned to it */}
         <PipeAndDrape w={w} d={d} drape={drape} low />
         <mesh geometry={PRINT_MATS} material={MAT_WHITE} position={[-w / 2 + 0.45, 2.3, 0]} />
-        <mesh geometry={PRINT_ART} position={[-w / 2 + 0.45, 2.3, 0]}><meshStandardMaterial color={booth.accent} roughness={0.7} /></mesh>
+        {gallery.length ? <PrintWall x={-w / 2 + 0.45} pieces={gallery} active={hovered || selected} boothId={booth.id} /> : <mesh geometry={PRINT_ART} position={[-w / 2 + 0.45, 2.3, 0]}><meshStandardMaterial color={booth.accent} roughness={0.7} /></mesh>}
         <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} />
         {/* retractable banner stand */}
         <group position={[-w / 2 + 1.1, 0, 0]} rotation={[0, Math.PI / 2, 0]}><RollUp bw={3} bh={6} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
@@ -344,6 +347,28 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: n
           <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
           <mesh position={[0, 0.54, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 1.08]} /><meshStandardMaterial map={tex} roughness={0.55} /></mesh>
         </group>
+      ))}
+    </group>
+  );
+}
+/**
+ * The three matted prints on an artist's drape show the portfolio. With more than three pieces they flip through it,
+ * one print every 2.5 s, while someone is at the table (walked up to it, hovering it or has it open), so the whole
+ * portfolio gets seen without a click. Still otherwise: a hall of flipping prints would be noise.
+ */
+function PrintWall({ x, pieces, active, boothId }: { x: number; pieces: THREE.Texture[]; active: boolean; boothId: number }) {
+  const near = useHall((s) => s.near === boothId);
+  const [offset, setOffset] = useState(0);
+  const flipping = (active || near) && pieces.length > 3;
+  useEffect(() => {
+    if (!flipping) return;
+    const t = setInterval(() => setOffset((o: number) => (o + 1) % pieces.length), 2500);
+    return () => clearInterval(t);
+  }, [flipping, pieces.length]);
+  return (
+    <group position={[x + 0.03, 2.3, 0]}>
+      {[-3.2, 0, 3.2].map((z, i) => (
+        <mesh key={z} position={[0, 0, z]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[1.2, 1.5]} /><meshStandardMaterial map={pieces[(offset + i) % pieces.length]} roughness={0.7} /></mesh>
       ))}
     </group>
   );

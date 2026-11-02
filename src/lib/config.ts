@@ -87,6 +87,14 @@ export const ART_SLOTS = {
     physical: "The full 20 × 20 ft of your island (100 px per foot). The tower covers the middle 8 × 8 ft and the tables sit 2 ft inside each edge.",
     tip: "Big shapes and a bold border read best from the aisle; fine text on the floor is unreadable at avatar height.",
   },
+  gallery: {
+    name: "Portfolio piece",
+    ratio: "4:5",
+    width: 960, height: 1200,
+    where: "Your portfolio: the matted prints pinned to the drape behind an Artists' Alley table flip through it as people walk up, and the storefront shows the whole gallery.",
+    physical: "The three prints on the drape are 1.2 × 1.5 ft; the gallery shows each piece full size when opened.",
+    tip: "Finished pieces at 4:5. A wider or taller piece is cropped to fit; upload a crop you like instead of trusting the automatic one.",
+  },
   product: {
     name: "Product photo",
     ratio: "1:1",
@@ -99,6 +107,9 @@ export const ART_SLOTS = {
 export type ArtSlot = keyof typeof ART_SLOTS;
 /** Shop items: how many one booth may list. */
 export const PRODUCT_LIMIT = 8;
+/** Portfolio: pieces an artist table may show. */
+export const GALLERY_LIMIT = 12;
+export const gallerySlotKey = (n: number) => `gallery:${n}`;
 export const productSlotKey = (id: string) => `product:${id}`;
 /** Slots that only exist on a 20×20 island (it has the tower and the open floor). */
 export const ISLAND_SLOTS: readonly ArtSlot[] = ["tower", "floor"];
@@ -107,7 +118,7 @@ export const bookSlotKey = (n: number) => `book:${n}`;
 /** An island has four roll-ups, one per side, each with its own art ("rollup:N", portrait spec). Same order as the roll-ups in Booth.tsx. */
 export const rollupSlotKey = (n: number) => `rollup:${n}`;
 export const ISLAND_SIDES = ["North · toward the entrance", "South · toward the back", "West aisle", "East aisle"] as const;
-export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : key.startsWith("rollup:") ? ART_SLOTS.portrait : key.startsWith("product:") ? ART_SLOTS.product : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
+export const specForSlot = (key: string) => (key.startsWith("book:") ? ART_SLOTS.book : key.startsWith("rollup:") ? ART_SLOTS.portrait : key.startsWith("product:") ? ART_SLOTS.product : key.startsWith("gallery:") ? ART_SLOTS.gallery : (ART_SLOTS as Record<string, (typeof ART_SLOTS)[ArtSlot]>)[key]);
 /** "Display a book": $5 per stand, one-time. Four stands per table, so capacity follows the table count. */
 export const BOOK_PRICE_CENTS = 500;
 export function bookCapacity(size: string, kind: string): number {

@@ -16,7 +16,7 @@ import { openDm } from "../Avatar";
 import { timeAgo } from "@/lib/util";
 
 export interface StorefrontDetail {
-  booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
+  booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
   totals: { views: number; clicks: number; impressions: number; uniques: number; dwellSeconds?: number; bannerClicks?: number };
   series?: Array<{ day: string; views: number; clicks: number; dwellSeconds?: number; bannerClicks?: number }>;
   week?: { rank: number; of: number; views: number } | null; // owner only: place by visits this week
@@ -109,6 +109,10 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const buyIt = (slot: string) => { const l = buy[slot]; if (!l) return; track({ kind: "clicks", boothId: id, source: "comic" }); window.open(l, "_blank", "noopener"); };
   const url = (slot: string) => `/api/art/${id}/${slot}?v=${art[slot] ?? 0}`;
   const covers = useMemo(() => Object.keys(art).filter((k) => k.startsWith("book:")).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))), [art]);
+  const pieces = useMemo(() => Object.keys(art).filter((k) => k.startsWith("gallery:")).sort((a, b) => Number(a.slice(8)) - Number(b.slice(8))), [art]);
+  const [piece, setPiece] = useState<number | null>(null);
+  const commissions = detail?.booth.commissions ?? null;
+  const askCommission = () => { if (!commissions) return; track({ kind: "clicks", boothId: id, source: "commission" }); window.open(commissions, "_blank", "noopener"); };
   const signage = useMemo(() => ["wide", "portrait", "drape", "tower", "floor", "rollup:0", "rollup:1", "rollup:2", "rollup:3"].filter((k) => art[k]), [art]);
   const hero = art.wide ? url("wide") : art.portrait ? url("portrait") : art["rollup:0"] ? url("rollup:0") : null;
   const links = LINKS.map((l) => ({ ...l, href: (l.key === "website" ? booth.website : (detail?.booth[l.key] ?? booth[l.key])) ?? null })).filter((l) => l.href);
@@ -170,6 +174,24 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
             </div>
           </section>
         )}
+        {/* portfolio (artist tables) */}
+        {pieces.length > 0 && (
+          <section>
+            <div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Portfolio</h3><span className="text-[11px] text-slate-500">{pieces.length} {pieces.length === 1 ? "piece" : "pieces"} · tap to view</span></div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {pieces.map((k, i) => (
+                <button key={k} onClick={() => setPiece(i)} className="group relative overflow-hidden rounded-lg bg-white/5 transition hover:-translate-y-0.5">
+                  <img src={url(k)} alt={`Piece ${i + 1}`} loading="lazy" className="aspect-[4/5] w-full object-cover" />
+                  {buy[k] && <span className="absolute bottom-1 left-1 rounded bg-amber-300 px-1 text-[10px] font-bold text-slate-950 shadow">print</span>}
+                </button>
+              ))}
+            </div>
+            {commissions ? (
+              <button onClick={askCommission} className="btn-primary mt-2 w-full">🎨 Commission me{detail?.booth.commissionNote ? <span className="ml-1 font-normal opacity-80">· {detail.booth.commissionNote}</span> : null} ↗</button>
+            ) : isOwner ? <a href={`/app/dashboard?booth=${id}`} className="mt-2 block text-center text-[11px] text-slate-400 hover:text-white">Add where commissions go (Edit booth) to get a Commission me button →</a> : null}
+          </section>
+        )}
+        {pieces.length === 0 && isOwner && space?.kind === "artist" && <a href={`/app/dashboard?booth=${id}#portfolio`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Hang your portfolio on the table: upload pieces from the dashboard →</a>}
         {/* shop */}
         {products.length > 0 && (
           <section>
@@ -221,6 +243,9 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         )}
         <p className="text-[11px] text-slate-500">Claimed {booth.claimedAt ? timeAgo(booth.claimedAt) : "recently"}{booth.salesCount > 1 ? ` · changed hands ${booth.salesCount - 1}×` : ""} · <a href={`/app/booth/${id}`} className="underline">public page</a></p>
       </div>
+      {piece !== null && pieces[piece] && (
+        <Lightbox src={url(pieces[piece])} caption={`${booth.name} · piece ${piece + 1} of ${pieces.length}`} buy={buy[pieces[piece]] ? () => { track({ kind: "clicks", boothId: id, source: "print" }); window.open(buy[pieces[piece]], "_blank", "noopener"); } : undefined} buyLabel="🖼️ Buy a print ↗" commission={commissions ? askCommission : undefined} onClose={() => setPiece(null)} onPrev={piece > 0 ? () => setPiece(piece - 1) : undefined} onNext={piece < pieces.length - 1 ? () => setPiece(piece + 1) : undefined} />
+      )}
       {item !== null && products[item] && (
         <ProductOverlay boothId={id} booth={booth.name ?? ""} item={products[item]} onClose={() => setItem(null)} onPrev={item > 0 ? () => setItem(item - 1) : undefined} onNext={item < products.length - 1 ? () => setItem(item + 1) : undefined} />
       )}
@@ -231,7 +256,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   );
 }
 
-function Lightbox({ src, caption, buy, onClose, onPrev, onNext }: { src: string; caption: string; buy?: () => void; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
+function Lightbox({ src, caption, buy, buyLabel = "🛒 Buy this comic ↗", commission, onClose, onPrev, onNext }: { src: string; caption: string; buy?: () => void; buyLabel?: string; commission?: () => void; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); if (e.key === "ArrowLeft") onPrev?.(); if (e.key === "ArrowRight") onNext?.(); };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
@@ -244,7 +269,7 @@ function Lightbox({ src, caption, buy, onClose, onPrev, onNext }: { src: string;
         <span>{caption}</span>
         <button onClick={onNext} disabled={!onNext} className="rounded-full bg-white/10 px-3 py-1 disabled:opacity-30">→</button>
       </div>
-      {buy && <button onClick={(e) => { e.stopPropagation(); buy(); }} className="btn-primary mt-3">🛒 Buy this comic ↗</button>}
+      {(buy || commission) && <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>{buy && <button onClick={buy} className="btn-primary">{buyLabel}</button>}{commission && <button onClick={commission} className="btn-ghost">🎨 Commission me ↗</button>}</div>}
       <button onClick={onClose} className="absolute right-4 top-4 rounded-full bg-white/10 px-3 py-1 text-sm text-white hover:bg-white/20">✕</button>
     </div>
   );

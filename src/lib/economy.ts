@@ -41,6 +41,8 @@ export interface BoothDraft {
   xUrl?: string;
   facebook?: string;
   globalcomix?: string;
+  commissions?: string; // a link or an email where commissions are asked for
+  commissionNote?: string;
   logoUrl?: string;
   color?: string;
   accent?: string;
@@ -49,6 +51,13 @@ export interface BoothDraft {
   category?: string;
 }
 
+/** Where to ask for a commission: an email becomes a mailto: link, anything else must be a web address. */
+function commissionTarget(v: string | undefined): string | null {
+  const s = (v ?? "").trim().replace(/^mailto:/i, "");
+  if (!s) return null;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return `mailto:${s}`;
+  return normalizeUrl(s);
+}
 /** A full URL or a bare handle ("@mike", "mike") for a profile site; empty stays empty. */
 function profileUrl(v: string | undefined, base: string): string | null {
   const s = (v ?? "").trim();
@@ -85,6 +94,8 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
     xUrl: (profileUrl(d.xUrl, "https://x.com/") ?? null) as string | undefined,
     facebook: (profileUrl(d.facebook, "https://www.facebook.com/") ?? null) as string | undefined,
     globalcomix: (profileUrl(d.globalcomix, "https://globalcomix.com/a/") ?? null) as string | undefined,
+    commissions: (commissionTarget(d.commissions) ?? null) as string | undefined,
+    commissionNote: (clampStr(d.commissionNote, 120) ?? null) as string | undefined,
     logoUrl: logo as string | undefined,
     color: d.color && isHexColor(d.color) ? d.color : "#5b8def",
     accent: d.accent && isHexColor(d.accent) ? d.accent : "#ffffff",
