@@ -201,10 +201,29 @@ export const DOCS: DocSection[] = [
     ],
   },
   {
-    slug: "voice", title: "Voice chat", icon: "🎙️", audience: "everyone",
-    summary: "Push-to-talk voice with people within a few feet, off by default.",
+    slug: "voice", title: "Voice chat (push to talk)", icon: "🎙️", audience: "everyone",
+    summary: "Talk out loud to the people standing next to you on the floor. Off until you turn it on; push-to-talk only; nobody hears you unless you hold the key, and only people within a few feet.",
     blocks: [
-      { p: "Turn voice chat on in ⚙️ Settings. The browser asks for the microphone once. Then hold T (or press and hold the talk button) to speak to people within a few feet of you; release to stop. Nobody hears you unless you hold the key. Audio goes straight between browsers, not through the server, and nothing is recorded. People who are talking show a 🔊 next to their name. Text chat always works as well." },
+      { h: "What it is", p: "Walk up to someone on the floor and you can talk to them, like leaning over to the next table at a convention. Voice is off by default. When it is on, the hall opens your microphone (muted) while you walk and connects you to the nearest few people within about 14 feet. The closer someone stands, the louder they are; past 14 feet you can't hear each other at all. Up to four people at a time, the nearest ones. Text chat and private messages work exactly as before, with or without voice." },
+      { h: "Where to find it", p: "⚙️ Settings → Voice chat → \"Talk to people near you\". The choice is saved on this device. The first time you walk the floor with it on, the browser asks for permission to use your microphone. While you are walking with voice on, a microphone button appears: bottom right beside the mode buttons on a computer, bottom left beside the mode buttons on a phone." },
+      { h: "How to use it", bullets: [
+        "**Hold T** to talk, or press and hold the microphone button. Let go and you are muted again. There is no open mic.",
+        "The microphone button lights up green while you are transmitting.",
+        "The list next to the button shows who is in range: 🎧 connected, ⋯ still connecting, 🔊 next to whoever is talking. A 🔊 also shows over that person's head in the hall.",
+        "Both of you need voice turned on. If someone near you has it off, they don't appear in your list.",
+        "Leaving walk mode (back to the map) or turning the toggle off releases the microphone at once.",
+      ] },
+      { h: "Privacy", bullets: [
+        "Push-to-talk only: nobody hears you unless you are holding T or the button.",
+        "Only people within a few feet of your avatar can hear you, and only while they also have voice on.",
+        "Audio goes directly between browsers (WebRTC, peer to peer). The server only passes the short connection handshake between two people standing near each other; it never receives, stores or records audio.",
+        "Your microphone is open only while you are in walk mode with the toggle on, and muted unless you are holding the key.",
+      ] },
+      { h: "Limits and troubleshooting", bullets: [
+        "Up to 4 people at once (the nearest), within about 14 feet; full volume up to 4 feet, fading to silence at 14.",
+        "If the browser blocks the microphone, Settings shows the reason under the toggle. Browsers without WebRTC or microphone support say so; text chat still works.",
+        "Voice needs a direct connection between the two browsers; on some very restrictive networks two people may not connect even when standing together. Text chat always works.",
+      ] },
     ],
   },
   {
