@@ -601,3 +601,18 @@ export const codeRedemptions = sqliteTable(
   },
   (t) => [index("code_redemptions_code_idx").on(t.codeId)],
 );
+
+/** Daily quests: one row per (player, day, quest). Progress is bumped by the thing itself (a booth opened, a round
+ *  played, time at the theater); claimed_at is set when the coins are paid. */
+export const questDays = sqliteTable(
+  "quest_days",
+  {
+    userId: text("user_id").notNull(),
+    day: text("day").notNull(), // YYYY-MM-DD (UTC)
+    quest: text("quest").notNull(), // visit | theater | arcade | bonus
+    progress: integer("progress").notNull().default(0),
+    claimedAt: integer("claimed_at"),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day, t.quest] })],
+);

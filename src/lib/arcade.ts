@@ -11,6 +11,7 @@ import { publish } from "@/lib/realtime";
 import { REFERRAL_COINS } from "@/lib/config";
 import { allow } from "@/lib/throttle";
 import { notify } from "@/lib/notify";
+import { bumpQuest } from "@/lib/quest-progress";
 
 export const GAMES = {
   snake: { name: "Serpent Ave.", blurb: "Classic snake. Eat, grow, don't crash.", cost: 2, prizeAt: 400, prize: 25 },
@@ -133,6 +134,7 @@ export async function finishPlay(userId: string, playId: string, score: number, 
   // an impossible score is thrown out, not trimmed down to the most a fast player could have reached
   const s = impossible ? 0 : Math.max(0, Math.floor(score));
   await db.insert(schema.gameScores).values({ id: newId(), gameId: p.gameId, userId, playerName, boothId, score: s, day: dayKey(), createdAt: now() });
+  await bumpQuest(userId, "arcade", 1, 1); // the daily "play a round" quest counts a finished round, whatever the score
   let prize = 0;
   // prizes pay a few times per game per day, however many winning scores come in
   const [won] = s >= g.prizeAt ? await db.select({ n: sql<number>`count(*)` }).from(schema.coinLedger)

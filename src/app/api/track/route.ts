@@ -6,6 +6,7 @@ import { getOrSetVisitor } from "@/lib/visitor";
 import { ensureMigrated } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { exploreReward } from "@/lib/arcade";
+import { bumpQuest } from "@/lib/quest-progress";
 import { takeoverNudge } from "@/lib/nudges";
 import { boothSpace } from "@/lib/hall/layout";
 import { allow } from "@/lib/throttle";
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
       const u = await currentUser();
       if (u) {
         const coins = await exploreReward(u.id, b.boothId);
-        if (coins) return NextResponse.json({ ok: true, coins }, { headers: res.headers });
+        if (coins) { await bumpQuest(u.id, "visit", 1, 3); return NextResponse.json({ ok: true, coins }, { headers: res.headers }); }
       }
     }
   }

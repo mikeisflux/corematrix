@@ -16,6 +16,7 @@ import { Minimap } from "./Minimap";
 import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { Tips } from "./Tips";
 import { SignupNudge } from "./SignupNudge";
+import { useQuests, startQuestTracking } from "@/lib/hall/quests";
 
 import dynamic from "next/dynamic";
 
@@ -40,6 +41,7 @@ const PANEL_LOADERS = {
   teams: () => import("./panels/TeamsPanel").then((m) => m.TeamsPanel),
   people: () => import("./panels/PeoplePanel").then((m) => m.PeoplePanel),
   dm: () => import("./panels/DmPanel").then((m) => m.DmPanel),
+  quests: () => import("./panels/QuestsPanel").then((m) => m.QuestsPanel),
 };
 type PanelKey = keyof typeof PANEL_LOADERS;
 /**
@@ -85,6 +87,10 @@ export function Hud() {
     if (w.requestIdleCallback) { const id = w.requestIdleCallback(prefetchPanels, { timeout: 8000 }); return () => w.cancelIdleCallback?.(id); }
     const t = setTimeout(prefetchPanels, 3000); return () => clearTimeout(t);
   }, [loaded]);
+  // daily quests: the board loads with the hall, theater time is reported from here, and the rail badge shows what's ready to collect
+  useEffect(() => { if (loaded) return startQuestTracking(); }, [loaded]);
+  const questBoard = useQuests();
+  const claimable = questBoard?.claimable ?? 0;
   const mode = useHall((s) => s.mode);
   const setMode = useHall((s) => s.setMode);
   const near = useHall((s) => s.near);
@@ -151,6 +157,7 @@ export function Hud() {
       <div className="absolute right-2 top-2 flex gap-1 panel rounded-2xl p-1 pointer-events-auto md:hidden">
         <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
         <RailButton label="Hall chat" active={panel === "chat"} onClick={() => toggle("chat")} icon="💬" />
+        <RailButton label="Daily quests" active={panel === "quests"} onClick={() => toggle("quests")} icon="📜" badge={claimable} />
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
       </div>
       <div className="absolute right-3 top-3 hidden flex-col gap-1 panel rounded-2xl p-1 fade-up pointer-events-auto md:flex">
@@ -159,6 +166,7 @@ export function Hud() {
         <RailButton label="Hall chat" active={panel === "chat"} onClick={() => toggle("chat")} icon="💬" />
         <RailButton label="People & messages" active={panel === "people" || panel === "dm"} onClick={() => toggle("people")} icon="👥" badge={soc.dm.unread} />
         <RailButton label="Arcade" active={panel === "arcade"} onClick={() => toggle("arcade")} icon="🕹️" />
+        <RailButton label="Daily quests" active={panel === "quests"} onClick={() => toggle("quests")} icon="📜" badge={claimable} />
         <RailButton label="Hanging banners" active={panel === "billboards"} onClick={() => toggle("billboards")} icon="🪧" />
         <RailButton label="Teams" active={panel === "teams"} onClick={() => toggle("teams")} icon="🎟️" />
         <RailButton label={me ? "Account" : "Sign in"} active={panel === "me"} onClick={() => toggle("me")} icon={me ? "👤" : "➜"} badge={me?.unread} />
