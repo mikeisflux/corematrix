@@ -61,6 +61,7 @@ export async function trackBooth(boothId: number, metric: BoothMetric, visitor: 
     views: metric === "views" ? 1 : 0,
     clicks: metric === "clicks" ? 1 : 0,
     uniques: isNewUnique,
+    bannerClicks: metric === "clicks" && source === "banner" ? 1 : 0,
   };
   await db
     .insert(schema.boothDaily)
@@ -73,6 +74,7 @@ export async function trackBooth(boothId: number, metric: BoothMetric, visitor: 
         views: sql`${schema.boothDaily.views} + ${inc.views}`,
         clicks: sql`${schema.boothDaily.clicks} + ${inc.clicks}`,
         uniques: sql`${schema.boothDaily.uniques} + ${inc.uniques}`,
+        bannerClicks: sql`${schema.boothDaily.bannerClicks} + ${inc.bannerClicks}`,
       },
     });
   const totals: Record<string, unknown> = {};
@@ -92,6 +94,14 @@ export async function trackBooth(boothId: number, metric: BoothMetric, visitor: 
         },
       });
   }
+}
+
+/** Seconds a visitor spent at a booth (reported by the hall when they walk away or close the storefront). */
+export async function trackDwell(boothId: number, seconds: number) {
+  const s = Math.max(0, Math.min(300, Math.floor(seconds)));
+  if (!s) return;
+  await db.insert(schema.boothDaily).values({ boothId, day: dayKey(), dwellSeconds: s })
+    .onConflictDoUpdate({ target: [schema.boothDaily.boothId, schema.boothDaily.day], set: { dwellSeconds: sql`${schema.boothDaily.dwellSeconds} + ${s}` } });
 }
 
 /** Bulk impressions from the floor (visible booths reported by the client). */
@@ -135,6 +145,8 @@ export interface DailyRow {
   uniques: number;
   conversions: number;
   conversionValueCents: number;
+  dwellSeconds: number;
+  bannerClicks: number;
 }
 
 export async function boothSeries(boothId: number, days: number): Promise<DailyRow[]> {
@@ -158,6 +170,8 @@ export async function boothSeries(boothId: number, days: number): Promise<DailyR
       uniques: r?.uniques ?? 0,
       conversions: r?.conversions ?? 0,
       conversionValueCents: r?.conversionValueCents ?? 0,
+      dwellSeconds: r?.dwellSeconds ?? 0,
+      bannerClicks: r?.bannerClicks ?? 0,
     });
   }
   return out;
@@ -171,8 +185,10 @@ export function sumSeries(rows: DailyRow[]) {
       views: a.views + r.views,
       clicks: a.clicks + r.clicks,
       uniques: a.uniques + r.uniques,
+      dwellSeconds: a.dwellSeconds + r.dwellSeconds,
+      bannerClicks: a.bannerClicks + r.bannerClicks,
     }),
-    { impressions: 0, hovers: 0, views: 0, clicks: 0, uniques: 0 },
+    { impressions: 0, hovers: 0, views: 0, clicks: 0, uniques: 0, dwellSeconds: 0, bannerClicks: 0 },
   );
 }
 

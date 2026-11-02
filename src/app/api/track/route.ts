@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { trackImpressions, trackBooth } from "@/lib/analytics";
+import { trackImpressions, trackBooth, trackDwell } from "@/lib/analytics";
 import { trackBillboard } from "@/lib/economy";
 import { getOrSetVisitor } from "@/lib/visitor";
 import { ensureMigrated } from "@/lib/db";
@@ -17,6 +17,7 @@ const Body = z.union([
   z.object({ kind: z.enum(["hovers", "views", "clicks"]), boothId: z.number().int().positive(), source: z.string().max(40).optional() }),
   z.object({ kind: z.literal("billboard"), id: z.string().max(40), metric: z.enum(["seen", "opens", "clicks"]) }),
   z.object({ kind: z.literal("takeover_view"), boothId: z.number().int().positive() }),
+  z.object({ kind: z.literal("dwell"), boothId: z.number().int().positive(), seconds: z.number().min(1).max(600) }),
 ]);
 
 export async function POST(req: Request) {
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
   // only booths that exist on the floor get rows
   if ("boothId" in b && !boothSpace(b.boothId)) return res;
   if (b.kind === "impressions") await trackImpressions(b.boothIds.filter((id) => boothSpace(id)), visitor);
+  else if (b.kind === "dwell") { if (allow(`dwell:${visitor}`, 30, 60_000)) await trackDwell(b.boothId, b.seconds); }
   else if (b.kind === "takeover_view") {
     const u = await currentUser();
     await takeoverNudge(b.boothId, u?.id ?? null);

@@ -13,8 +13,9 @@ interface Detail {
   booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
-  series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number }>;
+  series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number; dwellSeconds?: number; bannerClicks?: number }>;
   totals: { impressions: number; views: number; clicks: number; uniques: number };
+  week?: { rank: number; of: number; views: number } | null;
   referrers: Array<{ source: string; views: number; clicks: number }>;
   history: Array<{ id: string; kind: string; amountCents: number; valueAfter: number; createdAt: number; sellerPayoutCents: number }>;
 }
@@ -53,7 +54,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(null), 4000); return () => clearTimeout(t); }, [msg]);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const series = useMemo(() => (detail ? detail.series.slice(-range) : []), [detail, range]);
-  const sums = useMemo(() => series.reduce((a, r) => ({ impressions: a.impressions + r.impressions, views: a.views + r.views, clicks: a.clicks + r.clicks, uniques: a.uniques + r.uniques, conversions: a.conversions + (r.conversions ?? 0), value: a.value + (r.conversionValueCents ?? 0) }), { impressions: 0, views: 0, clicks: 0, uniques: 0, conversions: 0, value: 0 }), [series]);
+  const sums = useMemo(() => series.reduce((a, r) => ({ impressions: a.impressions + r.impressions, views: a.views + r.views, clicks: a.clicks + r.clicks, uniques: a.uniques + r.uniques, conversions: a.conversions + (r.conversions ?? 0), value: a.value + (r.conversionValueCents ?? 0), dwell: a.dwell + (r.dwellSeconds ?? 0), banner: a.banner + (r.bannerClicks ?? 0) }), { impressions: 0, views: 0, clicks: 0, uniques: 0, conversions: 0, value: 0, dwell: 0, banner: 0 }), [series]);
   const prev = useMemo(() => {
     if (!detail) return null;
     const p = detail.series.slice(-range * 2, -range);
@@ -132,12 +133,15 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
             <div className="flex rounded-xl bg-white/5 p-0.5">{([7, 30, 90] as const).map((r) => <button key={r} onClick={() => setRange(r)} className={`rounded-lg px-3 py-1 text-xs ${range === r ? "bg-amber-300 text-slate-950 font-semibold" : ""}`}>{r}d</button>)}</div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+          {detail.week && <p className="text-sm text-slate-300">This week you're <b className="text-amber-300">#{detail.week.rank} of {detail.week.of}</b> booths by visits ({detail.week.views} since Monday). The top three every Monday win coins and a week on the home page.</p>}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
             <K label="Impressions" v={formatCount(sums.impressions)} sub="seen on the show floor" />
             <K label="Unique visitors" v={formatCount(sums.uniques)} />
             <K label="Booth visits" v={formatCount(sums.views)} sub={prev ? `${delta(sums.views, prev.views)} vs prior` : undefined} />
             <K label="Website clicks" v={formatCount(sums.clicks)} sub={prev ? `${delta(sums.clicks, prev.clicks)} vs prior` : undefined} accent />
             <K label="CTR" v={`${sums.views ? ((sums.clicks / sums.views) * 100).toFixed(1) : "0.0"}%`} sub="clicks ÷ views" />
+            <K label="Avg time at booth" v={sums.views ? (sums.dwell / sums.views >= 60 ? `${Math.floor(sums.dwell / sums.views / 60)}m ${Math.round((sums.dwell / sums.views) % 60)}s` : `${Math.round(sums.dwell / sums.views)}s`) : "–"} sub="per visit, walking up or browsing" />
+            <K label="Banner clicks" v={formatCount(sums.banner)} sub="clicked the banner itself" />
             <K label="Conversions" v={String(sums.conversions)} sub={sums.value ? `${formatMoney(sums.value)} reported` : "add the pixel ↓"} />
           </div>
 

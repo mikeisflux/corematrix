@@ -3,7 +3,7 @@ import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { getBooth, boothHistory, updateBooth } from "@/lib/economy";
 import { artFlagsFor, artLinksFor } from "@/lib/art";
-import { boothReferrerRows, boothSeries, sumSeries } from "@/lib/analytics";
+import { boothReferrerRows, boothSeries, sumSeries, trendingScores } from "@/lib/analytics";
 import { lastWeekRank } from "@/lib/seasons";
 import { claimedBooths } from "@/lib/economy";
 
@@ -24,12 +24,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const all = await claimedBooths();
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
   const prevRank = await lastWeekRank(boothId);
+  // the owner's "#12 of 300 this week": place by visits over the last 7 days among every claimed booth
+  let week: { rank: number; of: number; views: number } | null = null;
+  if (isOwner) {
+    const trend = await trendingScores(7);
+    const mine = trend.get(boothId)?.views ?? 0;
+    week = { rank: 1 + Array.from(trend.values()).filter((v) => v.views > mine).length, of: all.length, views: mine };
+  }
   // a visitor sees the shop window, not the books: no payment, customer or subscription details
   // (and no 1.5 MB logo blob on every storefront open: /api/logo/<id> serves it)
   const { subscriptionId: _sub, subscriptionStatus: _ss, tierUntil: _tu, teamId: _team, hidden: _h, lastTakeoverNudgeAt: _n, ...rest } = p as typeof p & { lastTakeoverNudgeAt?: number | null };
   const pub = { ...rest, logoUrl: p.logoUrl?.startsWith("data:") ? `/api/logo/${p.id}?v=${p.updatedAt ?? 0}` : p.logoUrl };
   const historyOut = history.map((h) => ({ id: h.id, kind: h.kind, amountCents: h.amountCents, valueBefore: h.valueBefore, valueAfter: h.valueAfter, createdAt: h.createdAt, ...(isOwner ? { sellerPayoutCents: h.sellerPayoutCents } : {}) }));
-  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank });
+  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank, week });
 }
 
 const Patch = z.object({

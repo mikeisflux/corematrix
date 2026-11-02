@@ -160,6 +160,8 @@ export const boothDaily = sqliteTable(
     uniques: integer("uniques").notNull().default(0),
     conversions: integer("conversions").notNull().default(0), // owner-reported via pixel
     conversionValueCents: integer("conversion_value_cents").notNull().default(0),
+    dwellSeconds: integer("dwell_seconds").notNull().default(0), // time visitors spent at the booth (walking up to it or with its storefront open)
+    bannerClicks: integer("banner_clicks").notNull().default(0), // outbound clicks that came from the banner itself, a subset of clicks
   },
   (t) => [uniqueIndex("booth_daily_pk").on(t.boothId, t.day)],
 );

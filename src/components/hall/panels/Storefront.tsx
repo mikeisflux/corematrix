@@ -17,8 +17,37 @@ import { timeAgo } from "@/lib/util";
 
 export interface StorefrontDetail {
   booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
-  totals: { views: number; clicks: number; impressions: number; uniques: number };
+  totals: { views: number; clicks: number; impressions: number; uniques: number; dwellSeconds?: number; bannerClicks?: number };
+  series?: Array<{ day: string; views: number; clicks: number; dwellSeconds?: number; bannerClicks?: number }>;
+  week?: { rank: number; of: number; views: number } | null; // owner only: place by visits this week
   history: Array<{ id: string; kind: string; amountCents: number; valueAfter: number; createdAt: number }>;
+}
+const secs = (n: number) => (n >= 60 ? `${Math.floor(n / 60)}m ${Math.round(n % 60)}s` : `${Math.round(n)}s`);
+/** The owner's numbers, inside the hall: this week's place, two weeks of visits, how long people stay, what they click. */
+function OwnerNumbers({ id, detail }: { id: number; detail: StorefrontDetail }) {
+  const rows = (detail.series ?? []).slice(-14);
+  const sum = rows.reduce((a, r) => ({ views: a.views + r.views, clicks: a.clicks + r.clicks, dwell: a.dwell + (r.dwellSeconds ?? 0), banner: a.banner + (r.bannerClicks ?? 0) }), { views: 0, clicks: 0, dwell: 0, banner: 0 });
+  const max = Math.max(1, ...rows.map((r) => r.views));
+  const w = detail.week;
+  return (
+    <section className="rounded-xl border border-amber-300/30 bg-amber-300/[0.06] p-3">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">Your numbers · 14 days</h3>
+        <a href={`/app/dashboard?booth=${id}`} className="text-[11px] text-slate-400 hover:text-white">full analytics →</a>
+      </div>
+      {w && <p className="mt-1 text-sm"><b className="text-white">#{w.rank} of {w.of}</b> booths by visits this week <span className="text-slate-400">· {w.views} {w.views === 1 ? "visit" : "visits"} since Monday</span></p>}
+      <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
+        {[["Visits", String(sum.views)], ["Avg stay", sum.views ? secs(sum.dwell / sum.views) : "–"], ["Banner", String(sum.banner)], ["Link-outs", String(sum.clicks)]].map(([l, v]) => (
+          <div key={l} className="rounded-lg bg-white/[0.05] px-1 py-1.5"><div className="mono text-sm font-bold">{v}</div><div className="text-[9px] uppercase tracking-wider text-slate-400">{l}</div></div>
+        ))}
+      </div>
+      {/* visits per day: one series, so the title is the legend; each bar says its day and count on hover */}
+      <div className="mt-2 flex h-10 items-end gap-[2px]" role="img" aria-label={`Visits per day over the last 14 days, ${sum.views} in all`}>
+        {rows.map((r) => <div key={r.day} title={`${r.day.slice(5)} · ${r.views} ${r.views === 1 ? "visit" : "visits"}${r.dwellSeconds ? ` · ${secs(r.dwellSeconds)} total stay` : ""}`} className="flex-1 rounded-t-sm bg-amber-300" style={{ height: `${Math.max(4, (r.views / max) * 100)}%`, opacity: r.views ? 0.85 : 0.25 }} />)}
+      </div>
+      <div className="mt-0.5 flex justify-between text-[9px] text-slate-500 mono"><span>{rows[0]?.day.slice(5)}</span><span>today</span></div>
+    </section>
+  );
 }
 
 const LINKS: Array<{ key: "website" | "globalcomix" | "artstation" | "deviantart" | "instagram" | "facebook" | "xUrl"; label: string; glyph: string; cls: string }> = [
@@ -117,6 +146,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
             <div className="flex gap-1.5 overflow-x-auto pb-1 scroll">{signage.map((k) => <img key={k} src={url(k)} alt="" loading="lazy" className="h-14 w-auto max-w-[160px] rounded-md object-cover" />)}</div>
           </section>
         )}
+        {isOwner && detail && <OwnerNumbers id={id} detail={detail} />}
         {/* numbers */}
         <div className="grid grid-cols-3 gap-2">
           {[["Value", formatMoney(booth.valueCents)], ["Rank", `#${rank}`], ["Visits · 7 d", formatCount(detail?.totals.views ?? 0)]].map(([l, v]) => (

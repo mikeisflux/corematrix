@@ -17,6 +17,7 @@ import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { Tips } from "./Tips";
 import { SignupNudge } from "./SignupNudge";
 import { useQuests, startQuestTracking } from "@/lib/hall/quests";
+import { startDwellTracking } from "@/lib/hall/dwell";
 
 import dynamic from "next/dynamic";
 
@@ -89,6 +90,7 @@ export function Hud() {
   }, [loaded]);
   // daily quests: the board loads with the hall, theater time is reported from here, and the rail badge shows what's ready to collect
   useEffect(() => { if (loaded) return startQuestTracking(); }, [loaded]);
+  useEffect(() => { if (loaded) return startDwellTracking(); }, [loaded]);
   const questBoard = useQuests();
   const claimable = questBoard?.claimable ?? 0;
   const mode = useHall((s) => s.mode);
