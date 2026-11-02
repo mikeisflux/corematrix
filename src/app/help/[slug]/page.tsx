@@ -8,8 +8,8 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { pageMeta, siteOrigin, graph, breadcrumbLd } from "@/lib/seo";
 import { SITE_NAME } from "@/lib/config";
 
-export const revalidate = 3600;
-export function generateStaticParams() { return DOCS.map((d) => ({ slug: d.slug })); }
+// rendered per request: prerendering sixteen pages at once locked the SQLite file the site origin is read from
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;

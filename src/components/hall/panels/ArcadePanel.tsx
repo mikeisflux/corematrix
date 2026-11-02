@@ -1,4 +1,6 @@
 "use client";
+/* eslint-disable @next/next/no-html-link-for-pages -- links out of the hall are full page loads on purpose: a client-side
+   navigation makes React dismantle the 3D scene object by object before the next page can show */
 import { useState } from "react";
 import { api, useHall } from "@/lib/hall/store";
 import { formatMoney } from "@/lib/config";

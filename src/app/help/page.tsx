@@ -12,7 +12,8 @@ export const metadata = pageMeta({
   path: "/help",
 });
 
-export const revalidate = 3600;
+// rendered per request: prerendering sixteen pages at once locked the SQLite file the site origin is read from
+export const dynamic = "force-dynamic";
 
 /** The whole guide on one page, with a section index; each section also has its own page at /help/<slug>. */
 export default async function HelpPage() {
