@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { preload } from "react-dom";
 import { HallShell } from "@/components/hall/HallShell";
-import { hallSnapshot } from "@/lib/hall-snapshot";
+import { hallSnapshot, type HallSnapshot } from "@/lib/hall-snapshot";
 import manifest from "../../../public/models/manifest.json";
 import { RefCapture } from "@/components/ui/RefCapture";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -18,8 +18,11 @@ export const metadata = pageMeta({
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const [origin, snapshot] = await Promise.all([siteOrigin(), hallSnapshot()]);
-  const booths = snapshot.booths;
+  // The floor's state is rendered into the page so the first frame is populated. If assembling it fails (a data
+  // problem on the server), the page must still open: the hall then fetches /api/hall itself, as it always could.
+  const [origin, snapshot] = await Promise.all([siteOrigin(), hallSnapshot().catch((e: unknown): HallSnapshot | null => { console.error("[hall] snapshot failed; the hall will fetch /api/hall instead", e); return null; })]);
+  const booths = snapshot?.booths ?? [];
+  const open = snapshot ? snapshot.stats.totalBooths - booths.length : null;
   // Resource hints: the models and the lighting map start downloading with the JavaScript instead of after the scene
   // has mounted and asked for them, which took a manifest round trip plus the whole script parse first.
   for (const m of Object.values(manifest.models)) preload(m.file, { as: "fetch", crossOrigin: "anonymous" });
@@ -34,8 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <p>
           A 3D exhibit hall laid out like a real comic convention, open 24/7: Halls A to H of numbered booths, publisher islands,
           an Artists&apos; Alley, an arcade and a theater in the middle of the floor. Walk with the arrow keys or WASD, or the
-          on-screen joystick on a phone. {booths.length} exhibitors are on the floor and {snapshot.stats.totalBooths - booths.length} spaces are open,
-          from {PRICE_FROM}.
+          on-screen joystick on a phone. {snapshot ? `${booths.length} exhibitors are on the floor and ${open} spaces are open, from ${PRICE_FROM}.` : `Booths from ${PRICE_FROM}.`}
         </p>
         <h2>Exhibitors on the floor</h2>
         <ul>{booths.slice(0, 200).map((b) => <li key={b.id}><Link href={`/app/booth/${b.id}`}>{b.name ?? `Booth ${b.label}`}, {b.kind === "artist" ? "table" : "booth"} {b.label}, Hall {b.hall}</Link></li>)}</ul>
@@ -49,7 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           {LANDING_LINKS.map(([slug, label]) => <li key={slug}><Link href={`/${slug}`}>{label}</Link></li>)}
         </ul>
       </section>
-      <HallShell clean={sp.clean === "1"} initial={snapshot} />
+      <HallShell clean={sp.clean === "1"} initial={snapshot ?? undefined} />
       <RefCapture />
     </main>
   );
