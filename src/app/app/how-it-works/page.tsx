@@ -61,6 +61,7 @@ export default function HowItWorks() {
         </section>
         <section className="space-y-2">
           <h2 className="text-2xl font-bold">7. Rules & refunds</h2>
+          <p className="text-sm text-slate-400">The full guide to every feature, for visitors and exhibitors, is at <Link className="text-amber-300 underline" href="/help">/help</Link>.</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>Full refund within 24 hours of a claim if your booth has had no clicks or takeovers.</li>
             <li>Plans renew every 30 days and can be canceled any time; perks run to the end of the period.</li>

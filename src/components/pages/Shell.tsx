@@ -17,6 +17,7 @@ export async function Shell({ children, wide }: { children: React.ReactNode; wid
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/app/directory">Directory</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/app/arcade">Arcade</Link>
             <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/app/how-it-works">How it works</Link>
+            <Link className="rounded-lg px-3 py-1.5 hover:bg-white/5 hover:text-white" href="/help">Help</Link>
           </nav>
           <div className="ml-auto flex items-center gap-2 text-sm">
             {user ? (
@@ -37,7 +38,7 @@ export async function Shell({ children, wide }: { children: React.ReactNode; wid
           {LANDING_LINKS.map(([slug, label]) => <Link key={slug} className="hover:text-white" href={`/${slug}`}>{label}</Link>)}
           {Object.entries(CATEGORIES).map(([k, c]) => <Link key={k} className="hover:text-white" href={`/app/directory/${k}`}>{c.name}</Link>)}
         </nav>
-        <div>{SITE_NAME} · the virtual comic con that never closes · <Link className="hover:text-white" href="/app/how-it-works">rules & refunds</Link></div>
+        <div>{SITE_NAME} · the virtual comic con that never closes · <Link className="hover:text-white" href="/help">guide</Link> · <Link className="hover:text-white" href="/help/rules">rules & refunds</Link></div>
       </footer>
     </div>
   );

@@ -46,6 +46,7 @@ const PANEL_LOADERS = {
   dm: () => import("./panels/DmPanel").then((m) => m.DmPanel),
   quests: () => import("./panels/QuestsPanel").then((m) => m.QuestsPanel),
   shop: () => import("./panels/ShopPanel").then((m) => m.ShopPanel),
+  help: () => import("./panels/HelpPanel").then((m) => m.HelpPanel),
 };
 type PanelKey = keyof typeof PANEL_LOADERS;
 /**
@@ -190,6 +191,7 @@ export function Hud() {
         <RailButton label="Emotes" active={panel === "emotes"} onClick={() => toggle("emotes")} icon="🙌" />
         <RailButton label={night ? "House lights up" : "After hours"} onClick={toggleNight} icon={night ? "💡" : "🌙"} />
         <RailButton label="Settings" active={panel === "settings"} onClick={() => toggle("settings")} icon="⚙️" />
+        <RailButton label="Help" active={panel === "help"} onClick={() => toggle("help")} icon="❓" />
       </div>
 
       <div className="absolute bottom-3 left-3 hidden items-center gap-2 pointer-events-auto md:flex">
@@ -199,7 +201,7 @@ export function Hud() {
           <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/directory">Exhibitors</a>
           <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/rankings">Rankings</a>
           <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/arcade">Arcade</a>
-          <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/app/how-it-works">How it works</a>
+          <a className="rounded-full px-3 py-1.5 hover:bg-white/10" href="/help">Help</a>
           {me && <a className="rounded-full px-3 py-1.5 text-amber-300 hover:bg-white/10" href="/app/dashboard">Dashboard</a>}
         </nav>
         {me && <button onClick={() => setPanel("arcade")} className="panel rounded-full px-3 py-1.5 text-xs mono"><span className="text-amber-300">●</span> {me.coins} coins</button>}

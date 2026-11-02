@@ -1,3 +1,4 @@
+import { DOCS } from "@/lib/docs";
 import type { MetadataRoute } from "next";
 import { siteOrigin } from "@/lib/seo";
 import { claimedBooths } from "@/lib/economy";
@@ -29,6 +30,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     page("/app/seasons", 0.5, "weekly"),
     page("/app/arcade", 0.6, "weekly"),
     ...Object.keys(GAMES).map((g) => page(`/app/arcade/${g}`, 0.4, "monthly")),
+    page("/help", 0.7, "weekly"),
+    ...DOCS.map((d) => page(`/help/${d.slug}`, 0.5, "weekly")),
     ...booths.map((b) => page(`/app/booth/${b.id}`, 0.6, "weekly", new Date(b.updatedAt ?? b.claimedAt ?? CONTENT_UPDATED.getTime()))),
   ];
 }

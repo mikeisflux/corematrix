@@ -14,7 +14,8 @@ import { addEvent } from "@/lib/economy";
 import { sendSeasonResult } from "@/lib/emails";
 import { notify } from "@/lib/notify";
 
-export const SEASON_PRIZES = [300, 150, 75] as const;
+import { SEASON_PRIZES } from "@/lib/rules";
+export { SEASON_PRIZES };
 export const FEATURED_DAYS = 7;
 
 export interface SeasonRow {

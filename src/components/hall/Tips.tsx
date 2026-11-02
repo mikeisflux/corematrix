@@ -39,6 +39,7 @@ export function Tips() {
         <li>🤖 <b>ConBot</b> in the arcade answers questions and leads the way.</li>
       </ul>
       <button onClick={dismiss} className="btn-primary mt-3 w-full text-xs">Got it</button>
+      <button onClick={() => { dismiss(); useHall.getState().setPanel("help"); }} className="mt-1.5 w-full text-center text-[11px] text-slate-400 hover:text-white">The full guide is under ❓ Help</button>
     </div>
   );
 }

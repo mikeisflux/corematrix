@@ -9,12 +9,8 @@ import { dayKey, now } from "@/lib/util";
 import { addCoins } from "@/lib/arcade";
 import { bumpQuest, type QuestId } from "@/lib/quest-progress";
 
-export const QUESTS: Record<QuestId, { title: string; detail: string; icon: string; goal: number; coins: number; unit?: string }> = {
-  visit: { title: "Open three booths", detail: "Booths you haven't opened today count. Walk up and press E, or click one on the map.", icon: "🏪", goal: 3, coins: 10 },
-  theater: { title: "Watch five minutes in the theater", detail: "Stand or sit near the arcade screen while a film plays.", icon: "🎬", goal: 300, coins: 10, unit: "s" },
-  arcade: { title: "Play one arcade round", detail: "Any machine. A finished round counts, however it went.", icon: "🕹️", goal: 1, coins: 10 },
-};
-export const BONUS_COINS = 15;
+import { QUESTS, BONUS_COINS } from "@/lib/rules";
+export { QUESTS, BONUS_COINS };
 export const THEATER_REPORT_CAP = 40; // seconds one report may add (the client reports every 30 s)
 
 export interface QuestBoard {
