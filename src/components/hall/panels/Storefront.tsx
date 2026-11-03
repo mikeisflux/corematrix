@@ -127,8 +127,10 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   // the booth list from sign-in answers "is this mine?" instantly; the detail fetch confirms it (and catches a booth
   // sold since), so the owner's controls don't wait on a round trip
   const listedMine = useHall((s) => s.myBooths.some((b) => b.id === id && b.role !== "staff"));
-  // "isOwner" here means "may manage it": the owner, or a team manager the owner appointed (the detail says which)
-  const isOwner = !!me && (detail ? !!(detail.booth.isOwner || detail.booth.canManage) : listedMine);
+  // "isOwner" here means "may manage it": the owner, or a team manager the owner appointed. The account's booth list
+  // is pushed live when a role changes, so it counts as well as the detail: the controls appear the moment the owner
+  // ticks the box, without a reload
+  const isOwner = !!me && (listedMine || !!(detail?.booth?.isOwner || detail?.booth?.canManage));
   const ownerId = detail?.booth.ownerId ?? null;
   const players = Array.from(live.players.values());
   const ownerHere = ownerId ? players.find((p) => p.uid === ownerId && p.id !== live.me) : undefined;

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, track, useHall } from "@/lib/hall/store";
 import { CATEGORIES, formatCount, formatMoney, BOOTH_SIZES, ZONES, takeoverSplitFor } from "@/lib/config";
 import { boothSpace, describeSpace } from "@/lib/hall/layout";
@@ -32,9 +32,21 @@ export function BoothPanel() {
     track({ kind: "views", boothId: id, source: mode === "walk" ? "walk" : "map" });
     // clicking A then B quickly: only B's storefront may land (A's links and art on B's covers otherwise)
     let on = true;
-    api<Detail>(`/api/booth/${id}`).then((d) => { if (on) setDetail(d); }).catch(() => null);
+    // only a real detail lands: a non-JSON 200 (a deploy swap, a proxy page) parses to {} and must not reach the panel
+    api<Detail>(`/api/booth/${id}`).then((d) => { if (on && d?.booth) setDetail(d); }).catch(() => null);
     return () => { on = false; };
   }, [id, booth?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // my role on this booth can change while the panel is open (an owner ticks "manager" for me, or unticks it): the
+  // live account refresh changes myBooths, and the detail is fetched again so the controls follow at once
+  const myRole = myBooths.find((b) => b.id === id)?.role ?? "none";
+  const firstRole = useRef(myRole);
+  useEffect(() => {
+    if (!id || !booth || firstRole.current === myRole) return;
+    firstRole.current = myRole;
+    let on = true;
+    api<Detail>(`/api/booth/${id}`).then((d) => { if (on && d?.booth) setDetail(d); }).catch(() => null);
+    return () => { on = false; };
+  }, [myRole, id, booth]);
 
   if (!id) return null;
   const space = boothSpace(id);
@@ -65,7 +77,7 @@ export function BoothPanel() {
 
   const rank = Array.from(booths.values()).filter((p) => p.valueCents > booth.valueCents).length + 1;
   const { price, sellerPayout } = takeoverSplitFor(booth.valueCents, booth.freeValueCents);
-  const isOwner = me && (detail ? detail.booth.isOwner : myBooths.some((b) => b.id === id && b.role !== "staff"));
+  const isOwner = me && (detail?.booth ? detail.booth.isOwner : myBooths.some((b) => b.id === id && b.role !== "staff"));
   if (view === "takeover" && !booth.house) return (<><PanelHeader title={`Take over booth ${space.label}`} sub={booth.name ?? ""} onBack={() => setView("view")} /><Designer boothId={id} mode="takeover" /></>);
   const ctr = detail && detail.totals.views ? ((detail.totals.clicks / detail.totals.views) * 100).toFixed(1) : "0.0";
 

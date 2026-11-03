@@ -33,7 +33,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   const [msg, setMsg] = useState<string | null>(null);
 
   // the booth detail starts loading at once, alongside /api/me, instead of waiting for it
-  useEffect(() => { if (initialBooth) api<Detail>(`/api/booth/${initialBooth}`).then((d) => setDetail((cur) => cur ?? d)).catch(() => {}); }, [initialBooth]);
+  useEffect(() => { if (initialBooth) api<Detail>(`/api/booth/${initialBooth}`).then((d) => { if (d?.booth) setDetail((cur) => cur ?? d); }).catch(() => {}); }, [initialBooth]);
   const load = useCallback(async () => {
     const d = await api<{ user: Me; booths: MyBooth[] }>("/api/me");
     setMe(d.user);
@@ -47,7 +47,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
     if (sel === initialBooth && detail?.booth.id === sel) return; // already fetched in parallel above
     // switching booths quickly: only the booth still selected may land
     let live = true;
-    api<Detail>(`/api/booth/${sel}`).then((d) => { if (live) setDetail(d); }).catch(() => { if (live) setDetail(null); });
+    api<Detail>(`/api/booth/${sel}`).then((d) => { if (live) setDetail(d?.booth ? d : null); }).catch(() => { if (live) setDetail(null); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
