@@ -91,8 +91,8 @@ export const ART_SLOTS = {
     name: "Portfolio piece",
     ratio: "4:5",
     width: 960, height: 1200,
-    where: "Your portfolio: the matted prints pinned to the drape behind an Artists' Alley table flip through it as people walk up, and the storefront shows the whole gallery.",
-    physical: "The three prints on the drape are 1.2 × 1.5 ft; the gallery shows each piece full size when opened.",
+    where: "Your portfolio: the matted prints pinned to the drape behind an Artists' Alley table, or standing on an exhibitor table switched to prints, flip through it as people walk up, and the storefront shows the whole gallery.",
+    physical: "The three prints on an artist's drape are 1.2 × 1.5 ft; a print on a table stand is 0.9 × 1.1 ft; the gallery shows each piece full size when opened.",
     tip: "Finished pieces at 4:5. A wider or taller piece is cropped to fit; upload a crop you like instead of trusting the automatic one.",
   },
   product: {

@@ -132,6 +132,14 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const galleryKey = Object.entries(booth.art ?? {}).filter(([k]) => k.startsWith("gallery:")).sort((a, b) => Number(a[0].slice(8)) - Number(b[0].slice(8))).map(([k, v]) => `${k}=${v}`).join("|");
   const galleryUrls = useMemo(() => galleryKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return `/api/art/${booth.id}/${k}?v=${v}`; }), [galleryKey, booth.id]);
   const gallery = useMemo(() => galleryUrls.map((u) => logoTexture(u)), [galleryUrls]);
+  // an exhibitor table switched to prints: the portfolio stands on the stands instead of comic covers
+  const printsOnTable = space?.kind !== "artist" && booth.tableMode === "prints" && gallery.length > 0;
+  const standCount = space?.size === "20x20" ? TABLE_STANDS * 4 : (space?.d ?? 10) >= 20 ? TABLE_STANDS * 2 : TABLE_STANDS; // stands are numbered per edge/table, closed island edges included
+  const nearMe = useHall((s) => s.near === booth.id);
+  const printOffset = useFlip(printsOnTable && gallery.length > standCount && (hovered || selected || nearMe), gallery.length);
+  const printClick = (e: { stopPropagation: () => void }) => { if (dragged(e)) return; e.stopPropagation(); if (!preview) select(booth.id); };
+  const printHover = (k: number, over: boolean) => { if (!over) { cancelPreview(); return; } holdPreview(galleryUrls[k], `${booth.name ?? "Booth"} · piece ${k + 1} of ${gallery.length}`); };
+  const prints = printsOnTable ? { pieces: gallery, offset: printOffset, total: standCount, onClick: printClick, onHover: printHover } : undefined;
   const banner = useMemo(() => {
     const t = wideUrl ? logoTexture(wideUrl) : bannerTexture({ name: booth.name ?? "", tagline: booth.tagline, color: booth.color, accent: booth.accent, style: booth.style, label: booth.label, wide: booth.size === "20x10" || booth.size === "20x20" });
     if (booth.house) { t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; }
@@ -240,7 +248,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
         {/* one table per edge, each turned so its aisle side (local +x: stands, drape print) faces out of the island: north -z, south +z, west -x, east +x */}
         {/* only edges that face an aisle: the side pressed against the next row of booths gets no table, chair or roll-up */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} onHover={bookHover} wide />)}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} onHover={bookHover} prints={prints} wide />)}
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
@@ -303,7 +311,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       )}
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
-      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} onHover={bookHover} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} />}
+      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} prints={prints} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} onHover={bookHover} prints={prints} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} prints={prints} />}
       {/* a chair behind each table, facing the aisle */}
       {(wide ? [-5, 5] : [0]).map((z, i) => <Chair key={z} booth={booth.id} n={i} x={w / 2 - 4.6} z={z + 1.6} rot={Math.PI / 2} fallback={chairFallback} />)}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
@@ -343,13 +351,24 @@ function RollUp({ bw, bh, portrait, glow, onClick }: { bw: number; bh: number; p
 }
 
 /** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by stand, this table owning stands first..first+3 (four stands per table). */
-function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void; onHover?: (n: number, over: boolean) => void }) {
+function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover, prints }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void; onHover?: (n: number, over: boolean) => void; prints?: TablePrints }) {
   const len = wide ? 8 : 6;
   const n = TABLE_STANDS;
   return (
     <group position={[x, 0, z]} rotation={[0, rot, 0]}>
       <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} />} />
-      {books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
+      {prints ? Array.from({ length: n }, (_, i) => {
+        // more pieces than stands: the set rotates through them (offset); otherwise stand k simply shows piece k
+        const k = prints.pieces.length > prints.total ? (prints.offset + first + i) % prints.pieces.length : first + i;
+        const tex = prints.pieces[k]; if (!tex) return null;
+        return (
+          // a matted 4:5 print leaning on the easel like a cover would
+          <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={prints.onClick} onPointerOver={() => prints.onHover(k, true)} onPointerOut={() => prints.onHover(k, false)}>
+            <mesh position={[-0.05, 0.55, 0]} material={MAT_WHITE}><boxGeometry args={[0.06, 1.1, 0.9]} /></mesh>
+            <mesh position={[0, 0.55, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 0.9]} /><meshStandardMaterial map={tex} roughness={0.6} /></mesh>
+          </group>
+        );
+      }) : books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
         // stand i sits at x 0.35, top at y 3.03; the book leans back against the easel and faces the aisle (+x)
         <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={(e) => onBook?.(first + i, e)} onPointerOver={() => onHover?.(first + i, true)} onPointerOut={() => onHover?.(first + i, false)}>
           <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
@@ -359,6 +378,16 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover 
     </group>
   );
 }
+/** The portfolio pieces standing on an exhibitor's table stands (table mode "prints"); `total` is the booth's stand count. */
+type TablePrints = { pieces: THREE.Texture[]; offset: number; total: number; onClick: (e: { stopPropagation: () => void }) => void; onHover: (k: number, over: boolean) => void };
+
+/** A rotating offset into a set of `count` pieces: advances one every 2.5 s while `on`, so a set bigger than its frames gets seen. */
+function useFlip(on: boolean, count: number) {
+  const [offset, setOffset] = useState(0);
+  useEffect(() => { if (!on || count < 2) return; const t = setInterval(() => setOffset((o: number) => (o + 1) % count), 2500); return () => clearInterval(t); }, [on, count]);
+  return count ? offset % count : 0;
+}
+
 /**
  * The three matted prints on an artist's drape show the portfolio. With more than three pieces they flip through it,
  * one print every 2.5 s, while someone is at the table (walked up to it, hovering it or has it open), so the whole
@@ -366,13 +395,7 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover 
  */
 function PrintWall({ x, pieces, urls, active, boothId, name }: { x: number; pieces: THREE.Texture[]; urls: string[]; active: boolean; boothId: number; name: string }) {
   const near = useHall((s) => s.near === boothId);
-  const [offset, setOffset] = useState(0);
-  const flipping = (active || near) && pieces.length > 3;
-  useEffect(() => {
-    if (!flipping) return;
-    const t = setInterval(() => setOffset((o: number) => (o + 1) % pieces.length), 2500);
-    return () => clearInterval(t);
-  }, [flipping, pieces.length]);
+  const offset = useFlip((active || near) && pieces.length > 3, pieces.length);
   return (
     <group position={[x + 0.03, 2.3, 0]}>
       {[-3.2, 0, 3.2].map((z, i) => (

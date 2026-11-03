@@ -209,7 +209,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
             ) : isOwner ? <a href={`/app/dashboard?booth=${id}`} className="mt-2 block text-center text-[11px] text-slate-400 hover:text-white">Add where commissions go (Edit booth) to get a Commission me button →</a> : null}
           </section>
         )}
-        {pieces.length === 0 && isOwner && space?.kind === "artist" && <a href={`/app/dashboard?booth=${id}#portfolio`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Hang your portfolio on the table: upload pieces from the dashboard →</a>}
+        {pieces.length === 0 && isOwner && (space?.kind === "artist" || booth.tableMode === "prints") && <a href={`/app/dashboard?booth=${id}#portfolio`} className="block rounded-xl border border-dashed border-white/15 p-3 text-center text-xs text-slate-400 hover:border-amber-300/50">Hang your portfolio on the table: upload pieces from the dashboard →</a>}
         {/* shop */}
         {products.length > 0 && (
           <section>

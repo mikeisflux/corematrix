@@ -27,7 +27,7 @@ export function logoStamp(p: Pick<Booth, "logoUrl" | "name" | "color">): number 
   return h >>> 0;
 }
 export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>) {
-  return { art, artLinks, house: isHouseBooth(p.id), bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+  return { art, artLinks, house: isHouseBooth(p.id), bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, tableMode: p.tableMode, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -50,6 +50,7 @@ export interface BoothDraft {
   style?: string; // banner style
   cloth?: string; // table cloth / drape color
   category?: string;
+  tableMode?: string; // "books": comic covers on the stands; "prints": the portfolio pieces instead (for exhibitors without books)
 }
 
 /** Where to ask for a commission: an email becomes a mailto: link, anything else must be a web address. */
@@ -103,6 +104,7 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
     style: BANNER_STYLES.includes((d.style ?? "") as never) ? d.style : "classic",
     cloth: d.cloth && isHexColor(d.cloth) ? d.cloth : "#111827",
     category: d.category && CATEGORIES[d.category] ? d.category : "comics",
+    tableMode: d.tableMode === "prints" ? "prints" : "books",
   };
 }
 

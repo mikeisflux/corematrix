@@ -32,7 +32,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     publish({ type: "booth", booth: { ...liveBooth(p), art, artLinks } });
     return NextResponse.json({ ok: true, art, artLinks });
   }
-  if (slot.startsWith("gallery:") && p.kind !== "artist") return NextResponse.json({ error: "Portfolios hang on Artists' Alley tables" }, { status: 400 });
   if (slot.startsWith("book:")) {
     const n = Number(slot.slice(5));
     if (!(n < Math.min(p.bookSlots, bookCapacity(p.size, p.kind)))) return NextResponse.json({ error: `Platform ${n + 1} isn't unlocked yet. Display a book for ${BOOK_PRICE_CENTS / 100} dollars first.` }, { status: 400 });

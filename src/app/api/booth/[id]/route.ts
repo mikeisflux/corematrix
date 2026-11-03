@@ -62,6 +62,7 @@ const Patch = z.object({
   style: z.string().max(20).optional(),
   cloth: z.string().max(9).optional(),
   category: z.string().max(30).optional(),
+  tableMode: z.enum(["books", "prints"]).optional(),
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {

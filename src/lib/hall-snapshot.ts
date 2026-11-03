@@ -29,6 +29,7 @@ export async function hallSnapshot() {
         cloth: p.cloth,
         bannerHeight: p.bannerHeight,
         bookSlots: p.bookSlots,
+        tableMode: p.tableMode,
         house: isHouseBooth(p.id),
         art: art.get(p.id),
         artLinks: links.get(p.id),

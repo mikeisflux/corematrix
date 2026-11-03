@@ -11,7 +11,7 @@ import { timeAgo } from "@/lib/util";
 interface Me { id: string; email: string; emailVerified?: boolean; promoCents?: number; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
 interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "manager" | "staff"; team?: string }
 interface Detail {
-  booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
+  booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; tableMode?: string; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
   prevRank: number | null;
   series: Array<{ day: string; impressions: number; hovers: number; views: number; clicks: number; uniques: number; conversions?: number; conversionValueCents?: number; dwellSeconds?: number; bannerClicks?: number }>;
@@ -195,8 +195,9 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
 
           <Edit p={p} onSaved={(d) => { patchBooth(p.id, d); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => patchBooth(p.id, { art })} />
+          {p.kind !== "artist" && <TableMode p={p} setMsg={setMsg} onChanged={(tableMode) => patchBooth(p.id, { tableMode })} />}
           <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />
-          {p.kind === "artist" && <Portfolio p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />}
+          {(p.kind === "artist" || p.tableMode === "prints") && <Portfolio p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />}
           <Shop p={p} products={detail.products ?? []} setMsg={setMsg} onChanged={(products) => setDetail((cur) => (cur && cur.booth.id === p.id ? { ...cur, products } : cur))} />
           <div className="rounded-2xl border border-white/10 p-4">
             <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Share your booth</div>
@@ -657,6 +658,38 @@ async function uploadArt(boothId: number, slot: string, file: File, want: { widt
   return saved.art;
 }
 
+/** What stands on an exhibitor's table: comic covers on the paid stands, or the portfolio pieces for someone who has art but no books. */
+function TableMode({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (tableMode: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const saved = p.tableMode === "prints" ? "prints" : "books";
+  const [mode, setMode] = useState<"books" | "prints">(saved); // the pick shows at once; it reverts if saving fails
+  const [seen, setSeen] = useState(saved);
+  if (seen !== saved) { setSeen(saved); setMode(saved); } // a save elsewhere (another tab, a manager) resets the pick
+  const set = async (tableMode: "books" | "prints") => {
+    if (tableMode === mode || busy) return;
+    setBusy(true); setMode(tableMode);
+    try { await api(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ tableMode }) }); onChanged(tableMode); setMsg(tableMode === "prints" ? "Your table shows your portfolio now. Add pieces below." : "Your table shows comic covers again."); }
+    catch (e) { setMode(saved); setMsg((e as Error).message); }
+    setBusy(false);
+  };
+  const opt = (v: "books" | "prints", title: string, sub: string) => (
+    <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm transition ${mode === v ? "border-amber-300/60 bg-amber-300/10" : "border-white/10 hover:border-white/25"}`}>
+      <input type="radio" name={`table-mode-${p.id}`} className="mt-0.5" checked={mode === v} disabled={busy} onChange={() => void set(v)} />
+      <span><b>{title}</b><span className="block text-[11px] text-slate-400">{sub}</span></span>
+    </label>
+  );
+  return (
+    <div className="rounded-2xl border border-white/10 p-4">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400">On the table</div>
+      <p className="mt-1 text-[11px] text-slate-500">Pick what stands on your table. No books to show? Put your art there instead: the stands hold framed prints from your portfolio and flip through it while someone is at the booth.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {opt("books", "Comic covers", "The books you unlock below, one cover per stand, with a buy link each.")}
+        {opt("prints", "Art prints from your portfolio", `Up to ${GALLERY_LIMIT} pieces, free, with a print link each. Switch back any time; nothing is lost.`)}
+      </div>
+    </div>
+  );
+}
+
 /** "Display a book": $5 per platform; each unlocked platform takes a 2:3 cover that stands on the table. */
 function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>, artLinks?: Record<string, string>) => void }) {
   const [links, setLinks] = useState<Record<string, string>>(p.artLinks ?? {});
@@ -736,7 +769,7 @@ function Portfolio({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: s
   const have = pieces.filter((k) => p.art?.[k]).length;
   const upload = async (slot: string, file: File) => {
     setBusy(slot);
-    try { onChanged(await uploadArt(p.id, slot, file, ART_SLOTS.gallery)); setMsg("Piece added. It's on your table's drape and in your gallery."); }
+    try { onChanged(await uploadArt(p.id, slot, file, ART_SLOTS.gallery)); setMsg(p.kind === "artist" ? "Piece added. It's on your table's drape and in your gallery." : "Piece added. It's on your table and in your gallery."); }
     catch (e) { setMsg((e as Error).message); }
     setBusy(null);
   };
@@ -756,7 +789,7 @@ function Portfolio({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: s
     <div id="portfolio" className="rounded-2xl border border-white/10 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Portfolio · {have}/{GALLERY_LIMIT} pieces</div>
-        <div className="text-[11px] text-slate-500">Included with every Artists' Alley table</div>
+        <div className="text-[11px] text-slate-500">{p.kind === "artist" ? "Included with every Artists' Alley table" : "Included with your booth"}</div>
       </div>
       <p className="mt-1 text-[11px] text-slate-500">{ART_SLOTS.gallery.where} {ART_SLOTS.gallery.tip} Add a link under a piece to sell it as a print. Set where commissions go in Edit booth above; the gallery gets a Commission me button.</p>
       <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
