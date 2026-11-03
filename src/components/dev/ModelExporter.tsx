@@ -48,6 +48,7 @@ export function ModelExporter() {
   const propObj = useMemo(() => PROP_BUILDERS[prop]?.(), [prop]);
   const done = useRef(false);
   useEffect(() => {
+    (window as unknown as { __buildAvatar: typeof buildAvatar }).__buildAvatar = buildAvatar; // for measuring parts from a script
     (window as unknown as { __exportModels: () => Promise<Export> }).__exportModels = async () => { setStatus("exporting…"); const r = await exportAll(); setStatus(`exported ${Object.keys(r).length} models`); done.current = true; return r; };
   }, []);
   return (

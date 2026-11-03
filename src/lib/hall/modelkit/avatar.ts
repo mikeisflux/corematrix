@@ -286,10 +286,17 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const bolt = new THREE.Shape(); bolt.moveTo(0.06, 0.36); bolt.lineTo(-0.2, 0.02); bolt.lineTo(-0.02, 0.02); bolt.lineTo(-0.12, -0.36); bolt.lineTo(0.2, 0.06); bolt.lineTo(0.02, 0.06); bolt.lineTo(0.06, 0.36);
   torso.add(mesh("cos_emblem_bolt", new THREE.ShapeGeometry(bolt).translate(0, emblemY, emblemZ), costume2));
   torso.add(mesh("cos_emblem_ring", new THREE.RingGeometry(0.16, 0.3, 24).translate(0, emblemY, emblemZ), costume2));
-  // hood: a loose shell over the crown, back and sides, open at the face, with a collar that drapes to the shoulders
-  const hoodShell = new THREE.SphereGeometry(HEAD_R + 0.14, 22, 14, Math.PI / 2 + 0.75, Math.PI * 2 - 1.5, 0, 1.9).scale(...HEAD_SCALE).translate(0, hc + 0.06, -0.04);
-  const hoodCollar = new THREE.CylinderGeometry(HEAD_R + 0.1, 1.05, 0.95, 18, 1, true).translate(0, hc - 0.72, -0.1);
-  head.add(mesh("cos_hood", merge(hoodShell, hoodCollar), costume));
+  // hood: a deep cowl. A sphere a size up from the head with the face cut out, then tipped forward (rotateX) so the crown
+  // hangs ahead of the brow and the opening faces forward and down: the rim ends up at eyebrow height about a third of a
+  // head in front of the face and the opening is a slot just wider than the face, so the cheeks and ears stay covered. Below it a mantle drapes over the shoulders, open at the
+  // chest like a cloak, so nothing reads as a collar at the neck.
+  const hoodR = HEAD_R + 0.22, hoodTilt = 0.5;
+  const hoodS: [number, number, number] = [HEAD_SCALE[0] * 1.03, HEAD_SCALE[1], HEAD_SCALE[2] * 1.06];
+  const hoodCrownGeo = new THREE.SphereGeometry(hoodR, 26, 12, 0, Math.PI * 2, 0, 0.9).rotateX(hoodTilt).scale(...hoodS).translate(0, hc + 0.08, 0.08);
+  const hoodSidesGeo = new THREE.SphereGeometry(hoodR, 26, 14, Math.PI / 2 + 0.55, Math.PI * 2 - 1.1, 0.88, 1.62).rotateX(hoodTilt).scale(...hoodS).translate(0, hc + 0.08, 0.08);
+  const mantlePts = [new THREE.Vector2(0.98, hc - 0.4), new THREE.Vector2(1.08, hc - 0.7), new THREE.Vector2(1.22, hc - 1.0), new THREE.Vector2(1.35, hc - 1.35), new THREE.Vector2(1.42, hc - 1.65)];
+  const mantle = new THREE.LatheGeometry(mantlePts, 22, 0.6, Math.PI * 2 - 1.2).scale(1, 1, 0.9).translate(0, 0, 0.04);
+  head.add(mesh("cos_hood", merge(hoodCrownGeo, hoodSidesGeo, mantle), costume));
   // robe: a full skirt from the waist to the shins, so the legs read as cloth
   const robePts = [new THREE.Vector2(0.98, -0.25), new THREE.Vector2(1.02, -0.9), new THREE.Vector2(1.12, -1.7), new THREE.Vector2(1.28, -2.55)];
   torso.add(mesh("cos_robe", new THREE.LatheGeometry(robePts, 20).scale(1, 1, 0.8), cape));
