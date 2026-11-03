@@ -133,9 +133,9 @@ export const ART_FORMATS = "PNG, JPG, WebP or PDF (first page)";
 
 /** The house booth: the first 20×20 island inside the main entrance (label 1702), owned by the superadmin. */
 export const HOUSE_BOOTH_ID = 442;
-/** Every booth the show keeps for itself: 1702 plus the island at 1914 (id 476) in Hall E. Each gets the flagship
- *  tower, the landmark perks and is never for sale; the superadmin owns them all. */
-export const HOUSE_BOOTH_IDS: readonly number[] = [HOUSE_BOOTH_ID, 476];
+/** Every booth the show keeps for itself: 1702, the island at 1502 (id 400) in Hall D and the island at 1914 (id 476)
+ *  in Hall E. Each gets the flagship tower, the landmark perks and is never for sale; the superadmin owns them all. */
+export const HOUSE_BOOTH_IDS: readonly number[] = [HOUSE_BOOTH_ID, 400, 476];
 export const isHouseBooth = (id: number) => HOUSE_BOOTH_IDS.includes(id);
 export const bannerWidth = (height: number) => Math.round((height / 2) * 10) / 10;
 export const bannerUpgradeCents = (from: number, to: number) => Math.max(0, to - from) * BANNER.perFootCents;

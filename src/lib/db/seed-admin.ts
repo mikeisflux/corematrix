@@ -78,7 +78,7 @@ async function warnRemovedOwned(db: LibSQLDatabase<typeof schema>): Promise<void
 
 /**
  * The house booths: the first 20×20 island inside the entrance (1702) and the
- * island at 1914 belong to the show itself. Headliner tier, 16 ft banners, shielded from takeovers. Written
+ * islands at 1502 and 1914 belong to the show itself. Headliner tier, 16 ft banners, shielded from takeovers. Written
  * on every boot so it is always maxed out; a booth someone else already owns
  * is left alone.
  */
