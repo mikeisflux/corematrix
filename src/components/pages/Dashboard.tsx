@@ -658,21 +658,22 @@ async function uploadArt(boothId: number, slot: string, file: File, want: { widt
   return saved.art;
 }
 
-/** What stands on an exhibitor's table: comic covers on the paid stands, or the portfolio pieces for someone who has art but no books. */
+/** What stands on an exhibitor's table: comic covers on the paid stands, the portfolio pieces for someone who has art but no books, or nothing. */
+type TableModeId = "books" | "prints" | "none";
 function TableMode({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (tableMode: string) => void }) {
   const [busy, setBusy] = useState(false);
-  const saved = p.tableMode === "prints" ? "prints" : "books";
-  const [mode, setMode] = useState<"books" | "prints">(saved); // the pick shows at once; it reverts if saving fails
+  const saved: TableModeId = p.tableMode === "prints" || p.tableMode === "none" ? p.tableMode : "books";
+  const [mode, setMode] = useState<TableModeId>(saved); // the pick shows at once; it reverts if saving fails
   const [seen, setSeen] = useState(saved);
   if (seen !== saved) { setSeen(saved); setMode(saved); } // a save elsewhere (another tab, a manager) resets the pick
-  const set = async (tableMode: "books" | "prints") => {
+  const set = async (tableMode: TableModeId) => {
     if (tableMode === mode || busy) return;
     setBusy(true); setMode(tableMode);
-    try { await api(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ tableMode }) }); onChanged(tableMode); setMsg(tableMode === "prints" ? "Your table shows your portfolio now. Add pieces below." : "Your table shows comic covers again."); }
+    try { await api(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ tableMode }) }); onChanged(tableMode); setMsg(tableMode === "prints" ? "Your table shows your portfolio now. Add pieces below." : tableMode === "none" ? "Your table is bare now. Your covers and pieces are kept." : "Your table shows comic covers again."); }
     catch (e) { setMode(saved); setMsg((e as Error).message); }
     setBusy(false);
   };
-  const opt = (v: "books" | "prints", title: string, sub: string) => (
+  const opt = (v: TableModeId, title: string, sub: string) => (
     <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm transition ${mode === v ? "border-amber-300/60 bg-amber-300/10" : "border-white/10 hover:border-white/25"}`}>
       <input type="radio" name={`table-mode-${p.id}`} className="mt-0.5" checked={mode === v} disabled={busy} onChange={() => void set(v)} />
       <span><b>{title}</b><span className="block text-[11px] text-slate-400">{sub}</span></span>
@@ -681,10 +682,11 @@ function TableMode({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: s
   return (
     <div className="rounded-2xl border border-white/10 p-4">
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">On the table</div>
-      <p className="mt-1 text-[11px] text-slate-500">Pick what stands on your table. No books to show? Put your art there instead: the stands hold framed prints from your portfolio and flip through it while someone is at the booth.</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <p className="mt-1 text-[11px] text-slate-500">Pick what stands on your table. No books to show? Put your art there instead: the stands hold framed prints from your portfolio and flip through it while someone is at the booth. Or leave the table bare. The storefront lists your comics and portfolio either way.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
         {opt("books", "Comic covers", "The books you unlock below, one cover per stand, with a buy link each.")}
         {opt("prints", "Art prints from your portfolio", `Up to ${GALLERY_LIMIT} pieces, free, with a print link each. Switch back any time; nothing is lost.`)}
+        {opt("none", "Off", "A bare table: no stands, nothing on it. Your covers and pieces are kept for when you switch back.")}
       </div>
     </div>
   );

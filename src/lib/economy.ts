@@ -50,7 +50,7 @@ export interface BoothDraft {
   style?: string; // banner style
   cloth?: string; // table cloth / drape color
   category?: string;
-  tableMode?: string; // "books": comic covers on the stands; "prints": the portfolio pieces instead (for exhibitors without books)
+  tableMode?: string; // "books": comic covers on the stands; "prints": the portfolio pieces instead (for exhibitors without books); "none": a bare table
 }
 
 /** Where to ask for a commission: an email becomes a mailto: link, anything else must be a web address. */
@@ -104,7 +104,7 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
     style: BANNER_STYLES.includes((d.style ?? "") as never) ? d.style : "classic",
     cloth: d.cloth && isHexColor(d.cloth) ? d.cloth : "#111827",
     category: d.category && CATEGORIES[d.category] ? d.category : "comics",
-    tableMode: d.tableMode === "prints" ? "prints" : "books",
+    tableMode: d.tableMode === "prints" || d.tableMode === "none" ? d.tableMode : "books",
   };
 }
 

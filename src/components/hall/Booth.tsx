@@ -134,6 +134,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const gallery = useMemo(() => galleryUrls.map((u) => logoTexture(u)), [galleryUrls]);
   // an exhibitor table switched to prints: the portfolio stands on the stands instead of comic covers
   const printsOnTable = space?.kind !== "artist" && booth.tableMode === "prints" && gallery.length > 0;
+  // table mode "none": a bare table, no stands and nothing on them (the covers stay uploaded for when it is switched back)
+  const bare = space?.kind !== "artist" && booth.tableMode === "none";
   const standCount = space?.size === "20x20" ? TABLE_STANDS * 4 : (space?.d ?? 10) >= 20 ? TABLE_STANDS * 2 : TABLE_STANDS; // stands are numbered per edge/table, closed island edges included
   const nearMe = useHall((s) => s.near === booth.id);
   const printOffset = useFlip(printsOnTable && gallery.length > standCount && (hovered || selected || nearMe), gallery.length);
@@ -248,7 +250,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
         {/* one table per edge, each turned so its aisle side (local +x: stands, drape print) faces out of the island: north -z, south +z, west -x, east +x */}
         {/* only edges that face an aisle: the side pressed against the next row of booths gets no table, chair or roll-up */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} onHover={bookHover} prints={prints} wide />)}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} onHover={bookHover} prints={prints} bare={bare} wide />)}
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
@@ -311,7 +313,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       )}
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
-      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} prints={prints} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} onHover={bookHover} prints={prints} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} prints={prints} />}
+      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} prints={prints} bare={bare} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} onHover={bookHover} prints={prints} bare={bare} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} prints={prints} bare={bare} />}
       {/* a chair behind each table, facing the aisle */}
       {(wide ? [-5, 5] : [0]).map((z, i) => <Chair key={z} booth={booth.id} n={i} x={w / 2 - 4.6} z={z + 1.6} rot={Math.PI / 2} fallback={chairFallback} />)}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
@@ -351,13 +353,13 @@ function RollUp({ bw, bh, portrait, glow, onClick }: { bw: number; bh: number; p
 }
 
 /** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by stand, this table owning stands first..first+3 (four stands per table). */
-function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover, prints }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void; onHover?: (n: number, over: boolean) => void; prints?: TablePrints }) {
+function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover, prints, bare }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void; onHover?: (n: number, over: boolean) => void; prints?: TablePrints; bare?: boolean }) {
   const len = wide ? 8 : 6;
   const n = TABLE_STANDS;
   return (
     <group position={[x, 0, z]} rotation={[0, rot, 0]}>
-      <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} />} />
-      {prints ? Array.from({ length: n }, (_, i) => {
+      <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} hide={bare ? BARE_TABLE : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} bare={bare} />} />
+      {bare ? null : prints ? Array.from({ length: n }, (_, i) => {
         // more pieces than stands: the set rotates through them (offset); otherwise stand k simply shows piece k
         const k = prints.pieces.length > prints.total ? (prints.offset + first + i) % prints.pieces.length : first + i;
         const tex = prints.pieces[k]; if (!tex) return null;
@@ -405,7 +407,9 @@ function PrintWall({ x, pieces, urls, active, boothId, name }: { x: number; piec
   );
 }
 /** Primitives standing in for table.glb: pleat-textured skirt, hem, white topper, four comic stands. Same footprint and stand heights as the model. */
-function TableFallback({ len, cloth, art }: { len: number; cloth: string; art?: THREE.Texture | null }) {
+/** The table model's display pieces (risers, easels, longboxes): hidden for a bare table. */
+const BARE_TABLE = ["product", "trim", "paper"];
+function TableFallback({ len, cloth, art, bare }: { len: number; cloth: string; art?: THREE.Texture | null; bare?: boolean }) {
   const pleat = useMemo(() => drapeTexture(cloth), [cloth]);
   const n = TABLE_STANDS;
   return (
@@ -414,7 +418,7 @@ function TableFallback({ len, cloth, art }: { len: number; cloth: string; art?: 
       {art && <mesh position={[1.31, 1.15, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[Math.min(len - 0.3, DRAPE_PANEL_MAX_W), Math.min(len - 0.3, DRAPE_PANEL_MAX_W) / 3]} /><meshStandardMaterial map={art} roughness={0.9} transparent alphaTest={0.02} /></mesh>}
       <mesh position={[0, 2.37, 0]}><boxGeometry args={[2.76, 0.3, len + 0.16]} /><meshStandardMaterial color={cloth} roughness={0.9} /></mesh>
       <mesh position={[0, 2.55, 0]} material={MAT_WHITE}><boxGeometry args={[2.7, 0.1, len + 0.1]} /></mesh>
-      {Array.from({ length: n }, (_, i) => -len / 2 + (i + 0.5) * (len / n)).map((o) => (
+      {!bare && Array.from({ length: n }, (_, i) => -len / 2 + (i + 0.5) * (len / n)).map((o) => (
         <group key={o}>
           <mesh position={[0.35, 2.815, o]}><boxGeometry args={[1.08, 0.42, 0.94]} /><meshStandardMaterial color="#e5e7eb" /></mesh>
           <group position={[0.2, 3.03, o]} rotation={[0, 0, 0.14]}><mesh position={[0, 0.56, 0]} material={ALU}><boxGeometry args={[0.03, 1.12, 0.8]} /></mesh></group>

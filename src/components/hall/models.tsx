@@ -47,7 +47,8 @@ function cloneWithMaterials(scene: THREE.Object3D, colors?: Record<string, strin
   return c;
 }
 
-interface PropProps { name: string; colors?: Record<string, string>; emissive?: Record<string, string>; maps?: Record<string, THREE.Texture>; position?: [number, number, number]; rotation?: [number, number, number]; scale?: number | [number, number, number]; fallback?: ReactNode; onClick?: (e: { stopPropagation: () => void }) => void }
+interface PropProps { name: string; colors?: Record<string, string>; emissive?: Record<string, string>; maps?: Record<string, THREE.Texture>; hide?: string[]; // meshes with these material names are not shown (a table's empty stands)
+ position?: [number, number, number]; rotation?: [number, number, number]; scale?: number | [number, number, number]; fallback?: ReactNode; onClick?: (e: { stopPropagation: () => void }) => void }
 /** A GLB prop by manifest name, or the fallback primitives when the model isn't available. */
 export function Prop(p: PropProps) {
   const url = useModelUrl(p.name);
@@ -69,17 +70,19 @@ export class ModelBoundary extends Component<{ fallback: ReactNode; children: Re
   componentDidCatch(err: unknown) { console.warn("[models] falling back to primitives:", err); }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-function GltfProp({ url, colors, emissive, maps, position, rotation, scale, onClick }: PropProps & { url: string }) {
+function GltfProp({ url, colors, emissive, maps, hide, position, rotation, scale, onClick }: PropProps & { url: string }) {
   const { scene } = useModel(url);
   const colorKey = JSON.stringify([colors, emissive]);
   // keyed on the textures themselves: callers pass a fresh `maps` object every render, which re-cloned the model on every hover
   const mapKey = maps ? Object.entries(maps).map(([k, t]) => `${k}:${t?.uuid ?? ""}`).join("|") : "";
+  const hideKey = hide?.join("|") ?? "";
   const obj = useMemo(() => {
     const c = cloneWithMaterials(scene, colors, emissive);
+    if (hide?.length) c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && hide.includes((m.material as THREE.Material).name)) m.visible = false; });
     if (maps) c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && maps[(m.material as THREE.Material).name]) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.map = maps[(m.material as THREE.Material).name]; mm.color.set("#ffffff"); mm.transparent = true; mm.alphaTest = 0.02; m.material = mm; } });
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene, colorKey, mapKey]);
+  }, [scene, colorKey, mapKey, hideKey]);
   return <primitive object={obj} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
 }
 

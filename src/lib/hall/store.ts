@@ -26,7 +26,7 @@ export interface HallBooth {
   art?: Record<string, number>;
   artLinks?: Record<string, string>; // book:N → where to buy that comic // uploaded art: portrait | wide | drape | book:N → version
   bookSlots?: number; // paid display platforms
-  tableMode?: string; // "books" | "prints": what stands on the table stands
+  tableMode?: string; // "books" | "prints" | "none": what stands on the table
   category: string;
   size: string;
   kind: string;
