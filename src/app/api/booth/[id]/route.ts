@@ -7,6 +7,7 @@ import { boothReferrerRows, boothSeries, sumSeries, trendingScores } from "@/lib
 import { lastWeekRank } from "@/lib/seasons";
 import { claimedBooths } from "@/lib/economy";
 import { listProducts } from "@/lib/products";
+import { isBoothManager } from "@/lib/booth-access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,17 +18,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!p || !p.ownerId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const u = await currentUser();
   const isOwner = !!u && u.id === p.ownerId;
+  // a team manager runs the booth day to day: they get the owner's numbers and controls, not the owner's money
+  const canManage = isOwner || (!!u && (await isBoothManager(u.id, p)));
   if (p.hidden && !isOwner) return NextResponse.json({ error: "Not found" }, { status: 404 }); // hidden by an admin
-  const days = isOwner && p.tier !== "free" ? 90 : isOwner ? 30 : 7;
+  const days = canManage && p.tier !== "free" ? 90 : canManage ? 30 : 7;
   const series = await boothSeries(boothId, days);
   const history = await boothHistory(boothId);
-  const referrers = isOwner ? await boothReferrerRows(boothId) : [];
+  const referrers = canManage ? await boothReferrerRows(boothId) : [];
   const all = await claimedBooths();
   const rank = all.filter((x) => x.valueCents > p.valueCents).length + 1;
   const prevRank = await lastWeekRank(boothId);
   // the owner's "#12 of 300 this week": place by visits over the last 7 days among every claimed booth
   let week: { rank: number; of: number; views: number } | null = null;
-  if (isOwner) {
+  if (canManage) {
     const trend = await trendingScores(7);
     const mine = trend.get(boothId)?.views ?? 0;
     week = { rank: 1 + Array.from(trend.values()).filter((v) => v.views > mine).length, of: all.length, views: mine };
@@ -37,7 +40,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { subscriptionId: _sub, subscriptionStatus: _ss, tierUntil: _tu, teamId: _team, hidden: _h, lastTakeoverNudgeAt: _n, ...rest } = p as typeof p & { lastTakeoverNudgeAt?: number | null };
   const pub = { ...rest, logoUrl: p.logoUrl?.startsWith("data:") ? `/api/logo/${p.id}?v=${p.updatedAt ?? 0}` : p.logoUrl };
   const historyOut = history.map((h) => ({ id: h.id, kind: h.kind, amountCents: h.amountCents, valueBefore: h.valueBefore, valueAfter: h.valueAfter, createdAt: h.createdAt, ...(isOwner ? { sellerPayoutCents: h.sellerPayoutCents } : {}) }));
-  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank, week, products: await listProducts(boothId, isOwner) });
+  return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, canManage, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank, week, products: await listProducts(boothId, canManage) });
 }
 
 const Patch = z.object({

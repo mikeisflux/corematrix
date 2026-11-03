@@ -19,7 +19,7 @@ import { useShop, sponsorsAt, claimSponsor } from "@/lib/hall/shop";
 import { itemById } from "@/lib/hall/items";
 
 export interface StorefrontDetail {
-  booth: { isOwner: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
+  booth: { isOwner: boolean; canManage?: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
   totals: { views: number; clicks: number; impressions: number; uniques: number; dwellSeconds?: number; bannerClicks?: number };
   series?: Array<{ day: string; views: number; clicks: number; dwellSeconds?: number; bannerClicks?: number }>;
   week?: { rank: number; of: number; views: number } | null; // owner only: place by visits this week
@@ -127,7 +127,8 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   // the booth list from sign-in answers "is this mine?" instantly; the detail fetch confirms it (and catches a booth
   // sold since), so the owner's controls don't wait on a round trip
   const listedMine = useHall((s) => s.myBooths.some((b) => b.id === id && b.role !== "staff"));
-  const isOwner = !!me && (detail ? !!detail.booth.isOwner : listedMine);
+  // "isOwner" here means "may manage it": the owner, or a team manager the owner appointed (the detail says which)
+  const isOwner = !!me && (detail ? !!(detail.booth.isOwner || detail.booth.canManage) : listedMine);
   const ownerId = detail?.booth.ownerId ?? null;
   const players = Array.from(live.players.values());
   const ownerHere = ownerId ? players.find((p) => p.uid === ownerId && p.id !== live.me) : undefined;

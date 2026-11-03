@@ -3,6 +3,7 @@
  * transaction row first (pending), then `settle()` applies it once payment
  * is confirmed (comp/credit: immediately; DivinityCoin: from the webhook).
  */
+import { canManageBooth } from "@/lib/booth-access";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { MIN_BOOST_CENTS, TIERS, type Tier, formatMoney, CATEGORIES, BANNER_STYLES, BOOTH_SIZES, ZONES, BANNER, bannerUpgradeCents, HOUSE_BOOTH_ID, isHouseBooth, BOOK_PRICE_CENTS, bookCapacity, takeoverSplitFor } from "@/lib/config";
@@ -682,9 +683,9 @@ export async function boothHistory(boothId: number) {
     .orderBy(schema.transactions.createdAt);
 }
 
-export async function updateBooth(boothId: number, ownerId: string, draft: Partial<BoothDraft>) {
+export async function updateBooth(boothId: number, userId: string, draft: Partial<BoothDraft>) {
   const p = await getBooth(boothId);
-  if (!p || p.ownerId !== ownerId) throw new Error("Not your booth");
+  if (!p || !(await canManageBooth(userId, p))) throw new Error("Not your booth");
   // the logo is only checked when this edit changes it, so an older stored logo doesn't block unrelated edits
   const d = sanitizeDraft({ ...p, ...draft, logoUrl: "logoUrl" in draft ? draft.logoUrl : undefined, name: draft.name ?? p.name ?? "" } as BoothDraft);
   if (!("logoUrl" in draft)) delete (d as Partial<BoothDraft>).logoUrl;

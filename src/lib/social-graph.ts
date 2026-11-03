@@ -94,7 +94,8 @@ export async function areFriends(a: string, b: string): Promise<boolean> {
 
 /* ---------- teams ---------- */
 
-export interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null }> }
+export type MemberRole = "member" | "manager";
+export interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null; role: MemberRole }> }
 
 export async function teamsOf(ownerId: string): Promise<TeamView[]> {
   await ensureMigrated();
@@ -107,11 +108,11 @@ export async function teamsOf(ownerId: string): Promise<TeamView[]> {
   return ts.map((t) => ({
     id: t.id, name: t.name,
     booths: booths.filter((b) => b.teamId === t.id).map((b) => b.id),
-    members: members.filter((m) => m.teamId === t.id).map((m) => (m.via === "email"
+    members: members.filter((m) => m.teamId === t.id).map((m) => ({ role: (m.role === "manager" ? "manager" : "member") as MemberRole, ...(m.via === "email"
       // an email invite shows the address the owner typed and nothing about the account behind it, so inviting
       // addresses can't be used to find out who has an account
       ? (m.acceptedAt && m.userId ? { id: m.id, userId: m.userId, email: "", name: who.get(m.userId)?.name ?? null } : { id: m.id, userId: null, email: m.email, name: null })
-      : { id: m.id, userId: m.userId, email: m.userId ? "" : m.email, name: m.userId ? (who.get(m.userId)?.name ?? null) : null })),
+      : { id: m.id, userId: m.userId, email: m.userId ? "" : m.email, name: m.userId ? (who.get(m.userId)?.name ?? null) : null }) })),
   }));
 }
 
@@ -217,17 +218,30 @@ export async function removeMember(ownerId: string, teamId: string, memberId: st
   if (m?.userId) { const me = (await people([ownerId])).get(ownerId)!; await notify(m.userId, "team", `${me.name} removed you from ${t.name}`, "You can no longer sit at the booths that team staffs."); }
 }
 
-/** Booths this person staffs through a team (matched by account or by the email the invite was sent to), with the team's name. */
-export async function staffedBooths(userId: string, email: string): Promise<Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string; team: string }>> {
+/** The owner makes a team member a manager (edits the booth too) or a plain member (sits at the chairs). */
+export async function setMemberRole(ownerId: string, teamId: string, memberId: string, role: MemberRole) {
+  await ensureMigrated(); const t = await ownTeam(ownerId, teamId);
+  const [m] = await db.update(schema.teamMembers).set({ role }).where(and(eq(schema.teamMembers.id, memberId), eq(schema.teamMembers.teamId, teamId))).returning({ userId: schema.teamMembers.userId, acceptedAt: schema.teamMembers.acceptedAt });
+  if (!m) throw new Error("No such person on that team");
+  if (m.userId && m.acceptedAt) {
+    const me = (await people([ownerId])).get(ownerId)!;
+    await notify(m.userId, "team", role === "manager" ? `${me.name} made you a manager on ${t.name}` : `${me.name} changed your role on ${t.name}`, role === "manager" ? "You can now edit the booths that team staffs: listing, art, comics, portfolio and shop. They are in your dashboard." : "You can still sit at the team's booths; editing them is back with the owner.");
+    publishToUser(m.userId, { type: "team", name: t.name, from: me, quiet: true });
+  }
+}
+
+/** Booths this person staffs through a team, with the team's name and whether they manage the booth or only sit at it. */
+export async function staffedBooths(userId: string, email: string): Promise<Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string; team: string; role: "manager" | "staff" }>> {
   await ensureMigrated();
   void email; // email invites attach only once the address is confirmed (claimEmailInvites), never by matching it here
-  const ms = await db.select({ teamId: schema.teamMembers.teamId }).from(schema.teamMembers).where(and(eq(schema.teamMembers.userId, userId), sql`${schema.teamMembers.acceptedAt} IS NOT NULL`));
+  const ms = await db.select({ teamId: schema.teamMembers.teamId, role: schema.teamMembers.role }).from(schema.teamMembers).where(and(eq(schema.teamMembers.userId, userId), sql`${schema.teamMembers.acceptedAt} IS NOT NULL`));
   if (ms.length === 0) return [];
+  const manages = new Set(ms.filter((m) => m.role === "manager").map((m) => m.teamId));
   const teamIds = Array.from(new Set(ms.map((m) => m.teamId)));
-  const rows = await db.select({ id: schema.booths.id, name: schema.booths.name, valueCents: schema.booths.valueCents, tier: schema.booths.tier, color: schema.booths.color, team: schema.teams.name })
+  const rows = await db.select({ id: schema.booths.id, name: schema.booths.name, valueCents: schema.booths.valueCents, tier: schema.booths.tier, color: schema.booths.color, team: schema.teams.name, teamId: schema.booths.teamId })
     .from(schema.booths).innerJoin(schema.teams, and(eq(schema.teams.id, schema.booths.teamId), eq(schema.teams.ownerId, schema.booths.ownerId))) // a team only staffs booths its owner still owns
     .where(and(inArray(schema.booths.teamId, teamIds), eq(schema.booths.hidden, false)));
-  return rows;
+  return rows.map(({ teamId, ...r }) => ({ ...r, role: teamId && manages.has(teamId) ? "manager" as const : "staff" as const }));
 }
 
 /**

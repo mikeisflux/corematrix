@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { getBooth, liveBooth } from "@/lib/economy";
+import { canManageBooth } from "@/lib/booth-access";
 import { isArtSlot, setArt, artFlagsFor, artLinksFor, setArtLink } from "@/lib/art";
 import { normalizeUrl } from "@/lib/util";
 import { publish } from "@/lib/realtime";
@@ -17,7 +18,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const boothId = Number(id);
   const p = await getBooth(boothId);
-  if (!p || p.ownerId !== u.id) return NextResponse.json({ error: "Not your booth" }, { status: 403 });
+  if (!p || !(await canManageBooth(u.id, p))) return NextResponse.json({ error: "Not your booth" }, { status: 403 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success || !isArtSlot(parsed.data.slot)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const { slot, url, link } = parsed.data;

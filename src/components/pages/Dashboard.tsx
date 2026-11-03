@@ -9,7 +9,7 @@ import { ShareBooth } from "@/components/ui/ShareBooth";
 import { timeAgo } from "@/lib/util";
 
 interface Me { id: string; email: string; emailVerified?: boolean; promoCents?: number; displayName: string | null; coins: number; streak: number; creditCents: number; referralCode: string; isAdmin: boolean; notifyEmail: boolean }
-interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "staff"; team?: string }
+interface MyBooth { id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "manager" | "staff"; team?: string }
 interface Detail {
   booth: { id: number; name: string; freeValueCents?: number; tagline: string | null; description: string | null; website: string | null; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; logoUrl: string | null; color: string; accent: string; style: string; cloth: string; bannerHeight: number; art?: Record<string, number>; artLinks?: Record<string, string>; bookSlots: number; category: string; size: string; hall: string; label: string; kind: string; tier: string; tierUntil: number | null; subscriptionStatus: string | null; featuredUntil: number | null; valueCents: number; totalViews: number; totalClicks: number; totalImpressions: number; claimedAt: number | null; salesCount: number; isOwner: boolean };
   rank: number;
@@ -37,7 +37,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   const load = useCallback(async () => {
     const d = await api<{ user: Me; booths: MyBooth[] }>("/api/me");
     setMe(d.user);
-    const own = d.booths.filter((b) => b.role !== "staff"); // booths I staff for someone else are theirs to manage
+    const own = d.booths.filter((b) => b.role !== "staff"); // owned, plus the ones a team owner made me a manager of; plain staff seats stay out
     setBooths(own);
     if (!sel && own[0]) setSel(own[0].id);
   }, [sel]);
@@ -87,6 +87,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
   }
 
   const p = detail?.booth;
+  const isManager = !!p && !p.isOwner; // a team manager: edits the booth, never its money
   const takeover = p ? takeoverSplitFor(p.valueCents, p.freeValueCents) : null;
 
   return (
@@ -176,15 +177,21 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Grow p={p} me={me} onDone={() => { void load(); api<Detail>(`/api/booth/${p.id}`).then(setDetail); }} setMsg={setMsg} />
-            <Protect p={p} takeover={takeover!} setMsg={setMsg} />
-          </div>
+          {isManager ? (
+            <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-3 text-xs text-slate-200">You manage this booth for <b>{booths.find((b) => b.id === p.id)?.team ?? "the owner"}</b>: the listing, art, comics, portfolio and shop are yours to edit. Boosts, takeovers, plans, payouts and the team itself stay with the owner.</p>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Grow p={p} me={me} onDone={() => { void load(); api<Detail>(`/api/booth/${p.id}`).then(setDetail); }} setMsg={setMsg} />
+                <Protect p={p} takeover={takeover!} setMsg={setMsg} />
+              </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Plan p={p} setMsg={setMsg} onChanged={() => api<Detail>(`/api/booth/${p.id}`).then(setDetail)} />
-            <Emails me={me} onChanged={() => void load()} />
-          </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Plan p={p} setMsg={setMsg} onChanged={() => api<Detail>(`/api/booth/${p.id}`).then(setDetail)} />
+                <Emails me={me} onChanged={() => void load()} />
+              </div>
+            </>
+          )}
 
           <Edit p={p} onSaved={(d) => { patchBooth(p.id, d); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => patchBooth(p.id, { art })} />
@@ -196,7 +203,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
             <p className="mt-1 text-[11px] text-slate-500">Your card is drawn from your own banner art and logo, so update those first. Every link here is tagged, and the visits it brings show under "Where clicks come from". Exhibitors posting their booth is the one thing that grows the show for free.</p>
             <div className="mt-3 max-w-2xl"><ShareBooth id={p.id} name={p.name} label={p.label} own /></div>
           </div>
-          <Teams booths={booths} setMsg={setMsg} />
+          <Teams booths={booths.filter((b) => b.role !== "manager")} setMsg={setMsg} />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Code title="Conversion pixel" blurb="Put this on your thank-you / signup success page. Pass the order value in cents with ?v= to see revenue next to clicks." code={`<img src="${origin}/api/px/${p.id}?v=0" width="1" height="1" alt="" />`} />
@@ -370,7 +377,7 @@ function Plan({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string
   );
 }
 
-interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null }> }
+interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null; role?: "member" | "manager" }> }
 interface Person { id: string; name: string; handle: string | null }
 /** Teams of people who staff my booths: they can sit at the chairs of the booths a team is assigned to. Friends by name, anyone by email. */
 function Teams({ booths, setMsg }: { booths: MyBooth[]; setMsg: (s: string) => void }) {
@@ -439,6 +446,7 @@ function TeamCard({ t, booths, friends, busy, run }: { t: TeamView; booths: MyBo
       <ul className="mt-1 space-y-1">
         {t.members.map((m) => (
           <li key={m.id} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1 text-sm">
+            <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-slate-400" title="A manager edits the booths this team staffs: listing, art, comics, portfolio, shop. Never boosts, plans, payouts or the team."><input type="checkbox" checked={m.role === "manager"} disabled={busy || !m.userId} onChange={(e) => void run(() => api(`/api/teams/${t.id}/members`, { method: "PATCH", body: JSON.stringify({ member: m.id, role: e.target.checked ? "manager" : "member" }) }), e.target.checked ? `${m.name ?? m.email} can manage the booth now.` : `${m.name ?? m.email} is a member again.`)} /> manager</label>
             <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{m.name && <span className="ml-1.5 text-[11px] text-slate-500">{m.email}</span>}{!m.userId && <span className="ml-1.5 rounded-full bg-white/10 px-1.5 text-[10px] text-slate-400">invited · joins when they sign in</span>}</span>
             <button type="button" onClick={() => void run(() => api(`/api/teams/${t.id}/members?member=${m.id}`, { method: "DELETE" }))} className="rounded-md px-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white" disabled={busy} aria-label="Remove">✕</button>
           </li>

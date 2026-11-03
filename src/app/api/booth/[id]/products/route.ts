@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { getBooth } from "@/lib/economy";
+import { canManageBooth } from "@/lib/booth-access";
 import { listProducts, upsertProduct, deleteProduct } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ async function owned(id: string) {
   const u = await currentUser();
   if (!u) return { error: NextResponse.json({ error: "Sign in first" }, { status: 401 }) };
   const p = await getBooth(Number(id));
-  if (!p || p.ownerId !== u.id) return { error: NextResponse.json({ error: "Not your booth" }, { status: 403 }) };
+  if (!p || !(await canManageBooth(u.id, p))) return { error: NextResponse.json({ error: "Not your booth" }, { status: 403 }) };
   return { p };
 }
 
@@ -22,7 +23,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const p = await getBooth(Number(id));
   if (!p || !p.ownerId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const u = await currentUser();
-  return NextResponse.json({ products: await listProducts(p.id, !!u && u.id === p.ownerId) });
+  return NextResponse.json({ products: await listProducts(p.id, !!u && (await canManageBooth(u.id, p))) });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

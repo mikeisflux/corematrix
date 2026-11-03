@@ -45,7 +45,7 @@ export async function GET() {
       avatar: u.avatar ? JSON.parse(u.avatar) : null,
       unread: Number(unread?.n ?? 0),
     },
-    booths: [...booths.map((b) => ({ ...b, role: "owner" as const })), ...staffed.map((b) => ({ ...b, role: "staff" as const }))],
+    booths: [...booths.map((b) => ({ ...b, role: "owner" as const })), ...staffed],
   });
 }
 

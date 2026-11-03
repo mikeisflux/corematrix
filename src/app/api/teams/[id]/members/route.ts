@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { teamsOf, addMember, removeMember, leaveTeam, acceptInvite } from "@/lib/social-graph";
+import { teamsOf, addMember, removeMember, leaveTeam, acceptInvite, setMemberRole } from "@/lib/social-graph";
 
 export const dynamic = "force-dynamic";
 
@@ -30,5 +30,16 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     try { await leaveTeam(u.id, id); return NextResponse.json({ ok: true }); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); }
   }
   try { await removeMember(u.id, id, member); return NextResponse.json({ teams: await teamsOf(u.id) }); }
+  catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); }
+}
+
+/** Make a member a manager (edits the booths the team staffs) or a plain member again. Owner only. */
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const u = await currentUser();
+  if (!u) return NextResponse.json({ error: "Sign in" }, { status: 401 });
+  const { id } = await ctx.params;
+  const b = z.object({ member: z.string().max(40), role: z.enum(["member", "manager"]) }).safeParse(await req.json().catch(() => null));
+  if (!b.success) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  try { await setMemberRole(u.id, id, b.data.member, b.data.role); return NextResponse.json({ teams: await teamsOf(u.id) }); }
   catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); }
 }

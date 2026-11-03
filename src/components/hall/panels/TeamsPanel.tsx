@@ -8,7 +8,7 @@ import { api, useHall, type Me } from "@/lib/hall/store";
 import { useSocial } from "@/lib/hall/social";
 import { PanelHeader } from "./common";
 
-interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null }> }
+interface TeamView { id: string; name: string; booths: number[]; members: Array<{ id: string; userId: string | null; email: string; name: string | null; role?: "member" | "manager" }> }
 interface Person { id: string; name: string; handle: string | null }
 
 export function TeamsPanel() {
@@ -143,6 +143,7 @@ function TeamCard({ t, booths, friends, busy, run }: { t: TeamView; booths: Arra
             {t.members.map((m) => (
               <li key={m.id} className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1 text-[12px]">
                 <span className="min-w-0 flex-1 truncate">{m.name ?? m.email}{!m.userId && <span className="ml-1.5 text-[10px] text-slate-500" title="The seat is theirs once they confirm this email address and accept the invite">invited · waiting for them to accept</span>}</span>
+                <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-slate-400" title="Managers edit the booth too: listing, art, comics, portfolio, shop"><input type="checkbox" checked={m.role === "manager"} disabled={busy || !m.userId} onChange={(e) => void run(() => api(`/api/teams/${t.id}/members`, { method: "PATCH", body: JSON.stringify({ member: m.id, role: e.target.checked ? "manager" : "member" }) }), e.target.checked ? "They can manage the booth now." : "Back to a plain seat.")} /> manager</label>
                 <button onClick={() => void run(() => api(`/api/teams/${t.id}/members?member=${m.id}`, { method: "DELETE" }))} className="rounded-md px-1.5 text-xs text-slate-400 hover:bg-white/10 hover:text-white" disabled={busy} aria-label="Remove">✕</button>
               </li>
             ))}

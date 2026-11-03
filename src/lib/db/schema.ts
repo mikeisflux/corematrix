@@ -535,6 +535,7 @@ export const teamMembers = sqliteTable(
     email: text("email").notNull(),
     via: text("via").notNull().default("friend"), // friend | email: an email invite shows only the address the owner typed
     acceptedAt: integer("accepted_at"), // a seat counts once accepted: friends at once, email invites when the person says yes
+    role: text("role").notNull().default("member"), // member (sits at the chairs) | manager (also edits the booth: listing, art, comics, portfolio, shop)
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("team_members_team_idx").on(t.teamId), index("team_members_user_idx").on(t.userId), index("team_members_email_idx").on(t.email)],
