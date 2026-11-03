@@ -12,6 +12,7 @@ import { formatMoney, BANNER, bannerWidth } from "@/lib/config";
 import { Prop } from "./models";
 import { registerSeat, unregisterSeat, requestSit, seatOf } from "@/lib/hall/seats";
 import { useEffect } from "react";
+import { holdPreview, cancelPreview } from "@/lib/hall/preview";
 
 interface Props { booth: HallBooth; night: boolean; hovered: boolean; selected: boolean; preview?: boolean }
 
@@ -129,7 +130,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   }, [bookKey, booth.id]);
   // an artist's portfolio pieces (gallery:N), shown three at a time on the matted prints
   const galleryKey = Object.entries(booth.art ?? {}).filter(([k]) => k.startsWith("gallery:")).sort((a, b) => Number(a[0].slice(8)) - Number(b[0].slice(8))).map(([k, v]) => `${k}=${v}`).join("|");
-  const gallery = useMemo(() => galleryKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return logoTexture(`/api/art/${booth.id}/${k}?v=${v}`); }), [galleryKey, booth.id]);
+  const galleryUrls = useMemo(() => galleryKey.split("|").filter(Boolean).map((part) => { const [k, v] = part.split("="); return `/api/art/${booth.id}/${k}?v=${v}`; }), [galleryKey, booth.id]);
+  const gallery = useMemo(() => galleryUrls.map((u) => logoTexture(u)), [galleryUrls]);
   const banner = useMemo(() => {
     const t = wideUrl ? logoTexture(wideUrl) : bannerTexture({ name: booth.name ?? "", tagline: booth.tagline, color: booth.color, accent: booth.accent, style: booth.style, label: booth.label, wide: booth.size === "20x10" || booth.size === "20x20" });
     if (booth.house) { t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; }
@@ -183,6 +185,12 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       </div>
     </Html>
   );
+  // rest the mouse on a cover (or a print) for a couple of seconds to see it full size; leaving cancels or closes
+  const bookHover = (n: number, over: boolean) => {
+    if (!over) { cancelPreview(); return; }
+    const v = booth.art?.[`book:${n}`]; if (!v) return;
+    holdPreview(`/api/art/${booth.id}/book:${n}?v=${v}`, `${booth.name ?? "Booth"} · comic ${n + 1}`);
+  };
   const common = {
     onPointerOver: (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { setHovered(booth.id); document.body.style.cursor = "pointer"; } },
     onPointerOut: () => { if (!preview) { setHovered(null); document.body.style.cursor = ""; } },
@@ -232,7 +240,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* a Table runs along z at rot 0, so the north/south edges (which run along x) get PI/2 */}
         {/* one table per edge, each turned so its aisle side (local +x: stands, drape print) faces out of the island: north -z, south +z, west -x, east +x */}
         {/* only edges that face an aisle: the side pressed against the next row of booths gets no table, chair or roll-up */}
-        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} wide />)}
+        {([[0, -7.5, Math.PI / 2], [0, 7.5, -Math.PI / 2], [-7.5, 0, Math.PI], [7.5, 0, 0]] as const).map(([x, z, r], i) => onEdge(x, z) && <Table key={i} x={x} z={z} rot={r} cloth={booth.cloth} art={drapeArt} books={books} first={i * 4} onBook={bookClick} onHover={bookHover} wide />)}
         {/* the house booth swaps these for its lit columns */}
         {!booth.house && [[-9.5, -9.5], [9.5, -9.5], [-9.5, 9.5], [9.5, 9.5]].map(([x, z], i) => <Upright key={i} x={x} z={z} h={8} />)}
         {!booth.house && [-9.5, 9.5].map((s) => <group key={s}><Bar x={s} y={8} z={0} len={19} along="z" /><Bar x={0} y={8} z={s} len={19} along="x" /></group>)}
@@ -256,8 +264,8 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
         {/* low drape behind the table, with three matted prints pinned to it */}
         <PipeAndDrape w={w} d={d} drape={drape} low />
         <mesh geometry={PRINT_MATS} material={MAT_WHITE} position={[-w / 2 + 0.45, 2.3, 0]} />
-        {gallery.length ? <PrintWall x={-w / 2 + 0.45} pieces={gallery} active={hovered || selected} boothId={booth.id} /> : <mesh geometry={PRINT_ART} position={[-w / 2 + 0.45, 2.3, 0]}><meshStandardMaterial color={booth.accent} roughness={0.7} /></mesh>}
-        <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} />
+        {gallery.length ? <PrintWall x={-w / 2 + 0.45} pieces={gallery} urls={galleryUrls} active={hovered || selected} boothId={booth.id} name={booth.name ?? "Artist"} /> : <mesh geometry={PRINT_ART} position={[-w / 2 + 0.45, 2.3, 0]}><meshStandardMaterial color={booth.accent} roughness={0.7} /></mesh>}
+        <Table x={w / 2 - 2.2} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} />
         {/* retractable banner stand */}
         <group position={[-w / 2 + 1.1, 0, 0]} rotation={[0, Math.PI / 2, 0]}><RollUp bw={3} bh={6} portrait={portrait} glow={glow} onClick={bannerClick} /></group>
         {/* chair, beside the roll-up so neither hides the other */}
@@ -295,7 +303,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
       )}
       {sign.level >= 3 && <HangingSign tex={hang} y={sign.height} w={wide ? 16 : 11} night={night} onClick={bannerClick} big={sign.level >= 4} />}
       {/* tables */}
-      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} />}
+      {wide ? <><Table x={w / 2 - 1.8} z={-5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} /><Table x={w / 2 - 1.8} z={5} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={TABLE_STANDS} onBook={bookClick} onHover={bookHover} /></> : <Table x={w / 2 - 1.8} z={0} rot={0} cloth={booth.cloth} art={drapeArt} books={books} first={0} onBook={bookClick} onHover={bookHover} />}
       {/* a chair behind each table, facing the aisle */}
       {(wide ? [-5, 5] : [0]).map((z, i) => <Chair key={z} booth={booth.id} n={i} x={w / 2 - 4.6} z={z + 1.6} rot={Math.PI / 2} fallback={chairFallback} />)}
       {/* retractable banner centred behind each table: 3×6 ft by default, taller when the exhibitor paid for it (cap 16 ft) */}
@@ -335,7 +343,7 @@ function RollUp({ bw, bh, portrait, glow, onClick }: { bw: number; bh: number; p
 }
 
 /** A draped table; `art` is the owner's drape print for the aisle-facing skirt panel (material cloth_front); `books` are covers keyed by stand, this table owning stands first..first+3 (four stands per table). */
-function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void }) {
+function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover }: { x: number; z: number; rot: number; cloth: string; wide?: boolean; art?: THREE.Texture | null; books?: Map<number, THREE.Texture>; first?: number; onBook?: (n: number, e: { stopPropagation: () => void }) => void; onHover?: (n: number, over: boolean) => void }) {
   const len = wide ? 8 : 6;
   const n = TABLE_STANDS;
   return (
@@ -343,7 +351,7 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: n
       <Prop name={wide ? "table_wide" : "table"} colors={{ cloth, cloth_front: cloth }} maps={art ? { cloth_front: art } : undefined} fallback={<TableFallback len={len} cloth={cloth} art={art} />} />
       {books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
         // stand i sits at x 0.35, top at y 3.03; the book leans back against the easel and faces the aisle (+x)
-        <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={(e) => onBook?.(first + i, e)}>
+        <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={(e) => onBook?.(first + i, e)} onPointerOver={() => onHover?.(first + i, true)} onPointerOut={() => onHover?.(first + i, false)}>
           <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
           <mesh position={[0, 0.54, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 1.08]} /><meshStandardMaterial map={tex} roughness={0.55} /></mesh>
         </group>
@@ -356,7 +364,7 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook }: { x: n
  * one print every 2.5 s, while someone is at the table (walked up to it, hovering it or has it open), so the whole
  * portfolio gets seen without a click. Still otherwise: a hall of flipping prints would be noise.
  */
-function PrintWall({ x, pieces, active, boothId }: { x: number; pieces: THREE.Texture[]; active: boolean; boothId: number }) {
+function PrintWall({ x, pieces, urls, active, boothId, name }: { x: number; pieces: THREE.Texture[]; urls: string[]; active: boolean; boothId: number; name: string }) {
   const near = useHall((s) => s.near === boothId);
   const [offset, setOffset] = useState(0);
   const flipping = (active || near) && pieces.length > 3;
@@ -368,7 +376,7 @@ function PrintWall({ x, pieces, active, boothId }: { x: number; pieces: THREE.Te
   return (
     <group position={[x + 0.03, 2.3, 0]}>
       {[-3.2, 0, 3.2].map((z, i) => (
-        <mesh key={z} position={[0, 0, z]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[1.2, 1.5]} /><meshStandardMaterial map={pieces[(offset + i) % pieces.length]} roughness={0.7} /></mesh>
+        <mesh key={z} position={[0, 0, z]} rotation={[0, Math.PI / 2, 0]} onPointerOver={() => { const k = (offset + i) % pieces.length; holdPreview(urls[k], `${name} · piece ${k + 1} of ${pieces.length}`); }} onPointerOut={() => cancelPreview()}><planeGeometry args={[1.2, 1.5]} /><meshStandardMaterial map={pieces[(offset + i) % pieces.length]} roughness={0.7} /></mesh>
       ))}
     </group>
   );

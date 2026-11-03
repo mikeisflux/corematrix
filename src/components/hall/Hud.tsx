@@ -11,6 +11,7 @@ import { input } from "./Avatar";
 import { requestSit } from "@/lib/hall/seats";
 import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
+import { ArtPreview } from "./ArtPreview";
 import { useTheater, setTheaterSound } from "@/lib/hall/theater";
 import { Minimap } from "./Minimap";
 import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
@@ -133,6 +134,7 @@ export function Hud() {
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       <PerfOverlay />
+      {loaded && <ArtPreview />}
       {loaded && <Minimap />}
       {loaded && <Tips />}
       {loaded && <SignupNudge />}
