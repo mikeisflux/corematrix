@@ -884,6 +884,9 @@ function Shop({ p, products, setMsg, onChanged }: { p: Detail["booth"]; products
 }
 
 /** Full-size banner artwork: PNG/JPG/WebP straight up, PDFs rendered to an image here in the browser first. */
+/** Slots with their own card and their own numbered keys (book:N, gallery:N, product:<id>): uploading to the bare key would
+ *  be refused by the server, so they never appear in the banner art card. */
+const NOT_BANNER_ART: readonly ArtSlot[] = ["book", "gallery", "product"];
 function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   type Card = { key: string; spec: (typeof ART_SLOTS)[ArtSlot]; name: string; where: string };
@@ -892,7 +895,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
   // hanging sign carry the booth name, so it has no wide banner. Everyone else: one roll-up, the wide banner, the drape.
   const cards: Card[] = p.size === "20x20"
     ? [...ISLAND_SIDES.map((side, i) => ({ key: rollupSlotKey(i), spec: ART_SLOTS.portrait, name: `Roll-up banner · ${side}`, where: "The retractable banner behind this side's table, facing out to the aisle." })), card("drape"), card("tower"), card("floor")]
-    : (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => k !== "book" && !ISLAND_SLOTS.includes(k)).map(card);
+    : (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => !NOT_BANNER_ART.includes(k) && !ISLAND_SLOTS.includes(k)).map(card);
   const upload = async (c: Card, file: File) => {
     setBusy(c.key);
     try {
