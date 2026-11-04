@@ -35,10 +35,9 @@ export function Hero({ stats }: { stats: Stats }) {
       <Tilt className="mk-reveal on relative mx-auto mt-14 max-w-6xl" >
         <div className="mk-glow mk-glow--gold" style={{ width: 500, height: 300, left: "20%", top: "-20%", opacity: 0.35 }} />
         <div className="mk-frame">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/marketing/hero.jpg" alt="The show floor: Headliner Row, island spaces, hanging banners and the arcade in the middle of the hall" width={1920} height={1200} loading="eager" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-4 p-6 md:p-8">
-            <div><div className="mk-eyebrow">Hall D · Headliner Row</div><div className="display mt-1 text-2xl font-bold md:text-3xl">1,042 spaces. Aisles 100 to 2800. Artists&apos; Alley at the east end.</div></div>
+            <div><div className="mk-eyebrow">Hall D · Headliner Row</div><div className="display mt-1 text-2xl font-bold md:text-3xl">{stats.totalBooths.toLocaleString()} spaces. Aisles 100 to 2800. Artists&apos; Alley at the east end.</div></div>
             <Link href="/app?booth=406" className="mk-btn mk-btn--ghost !py-3">Fly to an island booth →</Link>
           </div>
         </div>

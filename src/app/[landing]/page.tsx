@@ -8,6 +8,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { LANDINGS, type LandingSlug } from "@/lib/landings";
 import { pageMeta, siteOrigin, graph, faqLd, breadcrumbLd, organizationLd, appLd } from "@/lib/seo";
 import { CATEGORIES } from "@/lib/config";
+import { Rich } from "@/components/ui/DocBlocks";
 import "@/components/marketing/marketing.css";
 
 export const dynamicParams = false;
@@ -52,6 +53,7 @@ export default async function LandingPage({ params }: { params: Promise<{ landin
               <Link href={l.cta.href} className="mk-btn mk-btn--primary">{l.cta.label}</Link>
               <Link href="/app?mode=walk" className="mk-btn mk-btn--ghost">Enter the hall</Link>
             </div>
+            <p className="mt-5 text-sm text-slate-400"><a href="#steps" className="text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">Step-by-step guide with pictures ↓</a> · {l.steps.length} steps · {l.minutes}</p>
           </header>
           <figure className="relative z-10 mx-auto max-w-5xl px-5">
             <div className="mk-frame overflow-hidden rounded-3xl border border-white/10">
@@ -60,6 +62,41 @@ export default async function LandingPage({ params }: { params: Promise<{ landin
           </figure>
 
           <div className="relative z-10 mx-auto max-w-3xl space-y-14 px-5 py-20">
+            {/* the walkthrough: every step with what to press, what you will see, and a picture of it */}
+            <section id="steps" className="scroll-mt-24">
+              <div className="mk-eyebrow">Step by step</div>
+              <h2 className="display mt-3 text-3xl font-extrabold leading-tight md:text-4xl">How to do it, screen by screen.</h2>
+              <p className="mt-4 text-lg leading-relaxed text-slate-300">Written for someone who has never used the site. Every step says exactly what to press and shows what you will see. {l.minutes}</p>
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Have ready before you start</h3>
+                <ul className="mt-3 space-y-2">{l.before.map((b) => <li key={b} className="flex gap-3 text-slate-300"><span aria-hidden className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#ffcf5c]" /><span><Rich text={b} /></span></li>)}</ul>
+              </div>
+              <ol className="mt-10 space-y-14">
+                {l.steps.map((st, i) => (
+                  <li key={st.h} id={`step-${i + 1}`} className="scroll-mt-24">
+                    <div className="flex items-start gap-4">
+                      <span aria-hidden className="display mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#ffcf5c] text-lg font-extrabold text-slate-950">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="display text-2xl font-extrabold leading-tight md:text-3xl"><span className="sr-only">Step {i + 1}: </span>{st.h}</h3>
+                        {st.p.map((p) => <p key={p} className="mt-4 text-lg leading-relaxed text-slate-300"><Rich text={p} /></p>)}
+                        {st.bullets && <ul className="mt-4 space-y-2.5">{st.bullets.map((b) => <li key={b} className="flex gap-3 text-slate-300"><span aria-hidden className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#ffcf5c]" /><span><Rich text={b} /></span></li>)}</ul>}
+                        {st.img && (
+                          <figure className="mt-6">
+                            <div className="mk-frame overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                              <Image src={st.img.src} alt={st.img.alt} width={st.img.width} height={st.img.height} sizes="(max-width: 800px) 100vw, 768px" className="h-auto w-full" />
+                            </div>
+                            {st.img.caption && <figcaption className="mt-2 text-sm text-slate-400">{st.img.caption}</figcaption>}
+                          </figure>
+                        )}
+                        {st.tip && <p className="mt-5 rounded-xl border border-[#ffcf5c]/30 bg-[#ffcf5c]/10 px-4 py-3 text-[15px] leading-relaxed text-slate-200">💡 <Rich text={st.tip} /></p>}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-slate-300">Every control, key, panel, price and limit is written up in the <Link href="/help" className="text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">help pages</Link>, and the same pages open inside the hall from the ❓ button.</p>
+            </section>
+
             {l.sections.map((s) => (
               <section key={s.h}>
                 <h2 className="display text-3xl font-extrabold leading-tight md:text-4xl">{s.h}</h2>
