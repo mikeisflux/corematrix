@@ -4,6 +4,7 @@
  * are listed in manifest.json; anything missing from the manifest falls back
  * to the procedural primitives, so the scene never breaks on a missing file.
  */
+import { installFullBodyFetch } from "@/lib/full-body-fetch";
 import { Suspense, useEffect, useMemo, useRef, type ReactNode, Component } from "react";
 import * as THREE from "three";
 import { useFrame, useLoader } from "@react-three/fiber";
@@ -26,7 +27,9 @@ export function useModelUrl(name: string): string | null { return MODELS[name] ?
  */
 const withDecoder = (loader: GLTFLoader) => { loader.setMeshoptDecoder(MeshoptDecoder); };
 export function useModel(url: string) { return useLoader(GLTFLoader, url, withDecoder); }
-// start every download the moment this module is evaluated, well before the scene mounts and asks
+// start every download the moment this module is evaluated, well before the scene mounts and asks; the fetch guard
+// goes in first so a 206 forced by a download manager does not sink the whole model set
+installFullBodyFetch();
 if (typeof window !== "undefined") for (const url of Object.values(MODELS)) useLoader.preload(GLTFLoader, url, withDecoder);
 
 /** Deep-clone a loaded scene with per-instance materials so recoloring one booth doesn't recolor them all. */

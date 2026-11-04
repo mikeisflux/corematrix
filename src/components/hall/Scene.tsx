@@ -1,4 +1,5 @@
 "use client";
+import { installFullBodyFetch } from "@/lib/full-body-fetch";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
@@ -98,6 +99,7 @@ const KEY_OFFSET = { x: 90, y: 170, z: 70 };
  * texSubImage) for raw pixel data like this. Same picture on screen either way.
  */
 function useWarehouseHdr() {
+  installFullBodyFetch(); // before the first HDR fetch (see lib/full-body-fetch)
   const tex = useLoader(HDRLoader, "/hdri/warehouse.hdr");
   return useMemo(() => {
     if (!tex.userData.rowsFlipped) {
