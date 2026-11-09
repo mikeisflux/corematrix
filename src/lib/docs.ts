@@ -45,7 +45,7 @@ export const DOCS: DocSection[] = [
       { h: "Map mode", bullets: ["Drag to orbit, scroll or pinch to zoom, WASD or arrows to pan.", "Click a booth to open its storefront; the Top booths and Live lists on the left jump to a booth."] },
       { h: "Links you can share", table: { head: ["Address", "Opens"], rows: [
         ["/app?booth=42", "The hall with booth 42 selected"], ["/app?booth=42&mode=walk", "Walks you to the booth"], ["/app?at=120,-40", "Puts you at a spot on the floor (people share this as \"meet me here\")"],
-        ["/app?tour=headliners", "Starts a guided tour"], ["/app?claim=1", "The claim-a-booth flow"], ["/app?arcade=1", "The arcade panel"], ["/app?conbot=1", "Calls ConBot over"], ["/app?night=1", "After-hours lighting"],
+        ["/app?tour=headliners", "Starts a guided tour"], ["/app?claim=1", "The claim-a-booth flow"], ["/app?arcade=1", "The arcade panel"], ["/app?theater=1", "The theater, full screen, with the showtimes"], ["/app?conbot=1", "Calls ConBot over"], ["/app?night=1", "After-hours lighting"],
         ["/app/booth/42", "A booth's public page"],
       ] } },
     ],
@@ -152,6 +152,9 @@ export const DOCS: DocSection[] = [
       { h: "Hall Flyover", p: "5 coins for a 60-second drone ride over every booth in the hall. Press the pad in the arcade or the button in the Arcade panel." },
       { h: "Theater", bullets: [
         "A film plays on the big screen in the arcade around the clock, the same moment for everyone. Walk up to hear it: tap the Now showing card (or click the screen) for sound; sound turns off when you leave the arcade.",
+        "**Full screen**: press ⛶ Full screen on the Now showing card (or open /app?theater=1 from anywhere) to watch the same stream big, with sound, from wherever you are in the hall. ⛶ again uses your browser's real full screen. Back to the hall closes it.",
+        "**Showtimes**: the full-screen view lists the programme: what is on now, what is next, and the next showings with their start time in UTC and in your own clock. The programme loops around the clock and everyone sees the same frame at the same moment, so agree on a time and meet there. **Invite someone** copies a line with the next showing's UTC time and a link that opens the theater.",
+        "**Showcases**: each item is a movie, a cartoon, a live stream or other; the label shows next to it in the programme.",
         "Sit on a bench with C. Five minutes near the screen while a film plays completes a daily quest.",
         "The film is streamed in quality rungs that follow your connection. If your browser has no H.264 decoder (some Firefox installs), a WebM version plays instead.",
       ] },

@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const g = await guard("theater"); if (g instanceof NextResponse) return g;
   const { id } = await ctx.params;
-  const b = await readJson<{ title?: string; enabled?: boolean; duration?: number }>(req);
+  const b = await readJson<{ title?: string; enabled?: boolean; duration?: number; category?: string }>(req);
   if (b.title !== undefined && typeof b.title !== "string") return bad("title must be text");
-  const row = await updateVideo(id, { title: b.title, enabled: typeof b.enabled === "boolean" ? b.enabled : undefined, duration: typeof b.duration === "number" ? b.duration : undefined });
+  const row = await updateVideo(id, { title: b.title, enabled: typeof b.enabled === "boolean" ? b.enabled : undefined, duration: typeof b.duration === "number" ? b.duration : undefined, category: typeof b.category === "string" ? b.category : undefined });
   if (!row) return notFound();
   return NextResponse.json({ row });
 }

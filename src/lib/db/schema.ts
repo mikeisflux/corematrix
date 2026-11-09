@@ -496,6 +496,7 @@ export const theaterVideos = sqliteTable("theater_videos", {
   position: integer("position").notNull().default(0),
   enabled: integer("enabled").notNull().default(1),
   status: text("status").notNull().default("ready"), // ready | processing (being downsampled for the screen)
+  category: text("category").notNull().default("movie"), // movie | cartoon | stream | other: the showcase it belongs to on the programme
   hls: text("hls"), // "<id>.hls-<stamp>": the folder (beside the file) holding the HLS encode, master.m3u8 + segments
   createdAt: integer("created_at").notNull(),
 });

@@ -2,9 +2,9 @@
 /** Admin → Theater: upload films to the server, order the playlist, caption the screen. */
 import { useEffect, useRef, useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Empty, Input, ConfirmButton } from "./shared";
-import { scheduleAt } from "@/lib/theater-schedule";
+import { scheduleAt, showtimes } from "@/lib/theater-schedule";
 
-interface Row { id: string; title: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; status: string; hls: string | null; webm?: boolean; createdAt: number }
+interface Row { id: string; title: string; category?: string; kind: "file" | "url"; src: string; mime: string | null; bytes: number; duration: number; position: number; enabled: number; status: string; hls: string | null; webm?: boolean; createdAt: number }
 interface Resp { rows: Row[]; title: string; dir: string; maxBytes: number; encoder: boolean; target: { height: number; kbps: number }; encoding: string | null; queued: string[]; errors?: Record<string, string> }
 
 const fmtDur = (s: number) => (s > 0 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}` : "?");
@@ -169,12 +169,13 @@ export default function Theater() {
         {list.data && rows.length === 0 && <Empty>No films yet. Upload one above; the screen shows a poster until then.</Empty>}
         {rows.length > 0 && (
           <div className="admTableWrap"><table className="admTable">
-            <thead><tr><th>#</th><th>Title</th><th>Source</th><th className="num">Length</th><th className="num">Size</th><th>On</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Title</th><th>Source</th><th>Showcase</th><th className="num">Length</th><th className="num">Size</th><th>On</th><th></th></tr></thead>
             <tbody>{rows.map((r, i) => (
               <tr key={r.id} className={sched && enabled[sched.index]?.id === r.id ? "sel" : ""}>
                 <td className="admMono">{i + 1}{sched && enabled[sched.index]?.id === r.id && <> <Badge kind="ok">on screen</Badge></>}</td>
                 <td><input className="admInput" style={{ minWidth: 220 }} defaultValue={r.title} onBlur={(e) => { if (e.target.value !== r.title) void patch(r.id, { title: e.target.value }); }} /></td>
                 <td>{r.kind === "file" ? <><Badge kind="info">upload</Badge> {r.hls && <Badge kind="info">HLS</Badge>} {r.webm && <Badge kind="dim">WebM</Badge>} <a href={`/api/theater/file/${r.id}`} target="_blank" rel="noreferrer">play</a></> : <><Badge kind="dim">link</Badge> <a href={r.src} target="_blank" rel="noreferrer" className="admMono" style={{ fontSize: 11 }}>{r.src.slice(0, 48)}{r.src.length > 48 ? "…" : ""}</a></>}</td>
+                <td><select className="admInput" value={r.category ?? "movie"} onChange={(e) => void patch(r.id, { category: e.target.value })}><option value="movie">Movie</option><option value="cartoon">Cartoon</option><option value="stream">Live stream</option><option value="other">Other</option></select></td>
                 <td className="num">{fmtDur(r.duration)}</td>
                 <td className="num">{fmtBytes(r.bytes)}{r.status === "processing" && <div><Badge kind="warn">{list.data?.encoding === r.id ? "encoding…" : "queued"}</Badge></div>}{list.data?.errors?.[r.id] && <div title={list.data.errors[r.id]}><Badge kind="bad">encode failed</Badge> <span className="admMono" style={{ fontSize: 11, wordBreak: "break-word" }}>{list.data.errors[r.id].slice(-160)}</span></div>}</td>
                 <td><input type="checkbox" checked={!!r.enabled} onChange={(e) => void patch(r.id, { enabled: e.target.checked })} /></td>
@@ -187,6 +188,15 @@ export default function Theater() {
               </tr>
             ))}</tbody>
           </table></div>
+        )}
+      </div>
+      <div className="admCard">
+        <div className="admCard__hd"><h2 className="admH2">Programme · next showings (UTC)</h2></div>
+        <p className="admMuted" style={{ fontSize: 12 }}>The loop is anchored to the clock, so these times are the same for everyone. Visitors see them in the theater&apos;s full-screen view (⛶ on the Now showing pill, or /app?theater=1) and can send each other an invite for a showing.</p>
+        {enabled.length === 0 ? <div className="admMuted" style={{ marginTop: 8 }}>Nothing enabled yet.</div> : (
+          <ol style={{ marginTop: 8, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
+            {showtimes(enabled, Date.now() / 1000, 10).map((t) => { const d = new Date(t.startS * 1000); return <li key={`${t.index}-${t.startS}`}>{t.now ? <Badge kind="ok">on now</Badge> : <span className="admMono">{String(d.getUTCHours()).padStart(2, "0")}:{String(d.getUTCMinutes()).padStart(2, "0")} UTC</span>} {enabled[t.index]?.title} <span className="admMuted">· {enabled[t.index]?.category ?? "movie"} · {fmtDur(t.endS - t.startS)}</span></li>; })}
+          </ol>
         )}
       </div>
     </>

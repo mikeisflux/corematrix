@@ -12,7 +12,7 @@ import { requestSit } from "@/lib/hall/seats";
 import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
 import { ArtPreview } from "./ArtPreview";
-import { useTheater, setTheaterSound } from "@/lib/hall/theater";
+import { useTheater, setTheaterSound, setTheaterOpen } from "@/lib/hall/theater";
 import { Minimap } from "./Minimap";
 import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { Tips } from "./Tips";
@@ -23,6 +23,7 @@ import { useShop, refreshShop, sponsorsAt, claimSponsor } from "@/lib/hall/shop"
 import { itemById } from "@/lib/hall/items";
 import { useTours } from "@/lib/hall/tours";
 import { TourBar } from "./TourBar";
+import { TheaterOverlay } from "./TheaterOverlay";
 import { useVoice, startVoiceTracking } from "@/lib/hall/voice";
 import { VoiceHud } from "./VoiceHud";
 
@@ -237,13 +238,17 @@ export function Hud() {
           (bottom left) fill the bottom of the screen, and a prompt over the stick blocks walking away from it */}
       {mode === "walk" && <Joystick />}
       {mode === "walk" && loaded && <VoiceHud />}
-      {mode === "walk" && th.near && th.playing && panel === "none" && (
-        <button onClick={() => setTheaterSound(!th.sound)} className="pointer-events-auto absolute bottom-[22rem] left-1/2 -translate-x-1/2 md:bottom-36 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up">
-          <span className="text-lg">🎬</span>
-          <span><b>{th.title || "Now showing"}</b></span>
-          <span className={`rounded-md px-1.5 text-[11px] ${th.sound ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10"}`}>{th.sound ? "🔊 sound on · off when you leave the arcade" : "🔇 tap here or click the screen for sound"}</span>
-        </button>
+      {mode === "walk" && th.near && th.playing && panel === "none" && !th.open && (
+        <div className="pointer-events-auto absolute bottom-[22rem] left-1/2 -translate-x-1/2 md:bottom-36 panel flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 text-sm fade-up">
+          <button onClick={() => setTheaterSound(!th.sound)} className="flex items-center gap-3">
+            <span className="text-lg">🎬</span>
+            <span><b>{th.title || "Now showing"}</b></span>
+            <span className={`rounded-md px-1.5 text-[11px] ${th.sound ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10"}`}>{th.sound ? "🔊 sound on · off when you leave the arcade" : "🔇 tap here or click the screen for sound"}</span>
+          </button>
+          <button data-theater-full onClick={() => setTheaterOpen(true)} className="rounded-full bg-amber-300 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-amber-200" title="Watch full screen, with the showtimes">⛶ Full screen</button>
+        </div>
       )}
+      {th.open && <TheaterOverlay />}
       {mode === "walk" && panel === "none" && (seated || nearSeat) && (
         <button onClick={() => requestSit(seated ? "stand" : nearSeat!)} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24" style={{ marginBottom: touring ? 92 : nearBooth || nearBot ? 52 : 0 }}>
           <span className="text-lg">🪑</span>

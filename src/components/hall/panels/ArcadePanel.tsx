@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-html-link-for-pages -- links out of the hall are full page loads on purpose: a client-side
    navigation makes React dismantle the 3D scene object by object before the next page can show */
+import { setTheaterOpen } from "@/lib/hall/theater";
 import { useState } from "react";
 import { api, useHall } from "@/lib/hall/store";
 import { formatMoney } from "@/lib/config";
@@ -55,6 +56,10 @@ export function ArcadePanel() {
           <div className="flex items-center justify-between">
             <div><div className="font-bold">🚁 Hall Flyover</div><div className="text-xs text-slate-300">A 60-second drone ride over every booth in the hall.</div></div>
             <button className="btn-primary" onClick={ride} disabled={!me}>5 coins</button>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3">
+            <div><div className="font-bold">🎬 Theater</div><div className="text-xs text-slate-300">The film on the big screen, full screen with sound, plus the showtimes in UTC so you can meet up and watch together.</div></div>
+            <button data-open-theater className="btn-primary" onClick={() => { setTheaterOpen(true); setPanel("none"); }}>Watch</button>
           </div>
         </div>
         <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Machines</div>

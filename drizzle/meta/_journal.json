@@ -211,6 +211,13 @@
       "when": 1793410000000,
       "tag": "0029_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793420000000,
+      "tag": "0030_theater_category",
+      "breakpoints": true
     }
   ]
 }

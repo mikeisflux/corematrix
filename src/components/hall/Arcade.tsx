@@ -464,6 +464,8 @@ function Theater({ night }: { night: boolean }) {
   const tuneRef = useRef<() => void>(() => {});
   const farRef = useRef(false);
   const audio = useRef({ muted: true, volume: 1 }); // the picture's own shape; anything else is letterboxed on the 4:3 screen
+  // the full-screen overlay shows this same element, so both views are the same frame
+  useEffect(() => { theater.video = video; bumpTheater(); return () => { theater.video = null; }; }, [video]);
   useEffect(() => {
     if (!video || !show?.items.length) { setPlaying(false); theater.playing = false; bumpTheater(); return; }
     const items = show.items;
@@ -518,7 +520,7 @@ function Theater({ night }: { night: boolean }) {
     // The clock says which film and how far in. Small drift is corrected by nudging the playback rate (invisible);
     // only a big gap (a stall, a tab that slept) seeks. Nothing happens while nobody is near enough to see the screen.
     const tune = () => {
-      if (farRef.current) { if (!video.paused) video.pause(); return; }
+      if (farRef.current && !theater.open) { if (!video.paused) video.pause(); return; }
       const s = scheduleAt(items, clock());
       let i = s.index, tries = 0;
       while (dead.has(i) && tries++ < items.length) i = (i + 1) % items.length;
@@ -591,17 +593,17 @@ function Theater({ night }: { night: boolean }) {
     if (!video) return;
     const st = useHall.getState();
     const inArcade = st.mode === "walk" && Math.abs(player.x - ARCADE.x) < ARCADE.w / 2 && Math.abs(player.z - ARCADE.z) < ARCADE.d / 2;
-    if (inArcade !== theater.near) { theater.near = inArcade; if (!inArcade && theater.sound) theater.sound = false; bumpTheater(); }
+    if (inArcade !== theater.near) { theater.near = inArcade; if (!inArcade && theater.sound && !theater.open) theater.sound = false; bumpTheater(); } // leaving the plaza mutes the screen, unless you are watching full screen
     const camDist = Math.hypot(camera.position.x - ARCADE.x, camera.position.z - (z + 4.5));
     // 190 ft takes in the whole plaza: the arcade is 86 ft deep and the walk camera rides 20 ft behind the player, so a
     // tighter limit (100 ft was tried) paused the film on a frozen frame for anyone in the front half of the arcade
-    const far = camDist > 190;
+    const far = camDist > 190 && !theater.open; // the full-screen view plays from anywhere in the hall
     if (far !== farRef.current) { farRef.current = far; if (far) video.pause(); else tuneRef.current(); }
     if (far && tex) tex.needsUpdate = false;
-    const muted = !(theater.sound && inArcade);
+    const muted = !(theater.open ? theater.sound : theater.sound && inArcade);
     if (muted !== audio.current.muted) { audio.current.muted = muted; video.muted = muted; }
     const d = Math.hypot(player.x - ARCADE.x, player.z - (z + 4.5));
-    const volume = THREE.MathUtils.clamp(1 - (d - 16) / 40, 0.2, 1);
+    const volume = theater.open ? 1 : THREE.MathUtils.clamp(1 - (d - 16) / 40, 0.2, 1);
     if (!muted && Math.abs(volume - audio.current.volume) > 0.03) { audio.current.volume = volume; video.volume = volume; }
   });
   const neon = night ? 2.8 : 1.4;
