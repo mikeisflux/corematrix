@@ -5,13 +5,15 @@ import { timeAgo } from "@/lib/util";
 import { PanelHeader, SignIn } from "./common";
 import { onChat } from "@/lib/hall/social";
 
-interface Msg { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number }
+interface Msg { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number; authorUid?: string; playerId?: string }
 
 export function ChatPanel({ room = "lobby", title = "Hall chat" }: { room?: string; title?: string }) {
   const me = useHall((s) => s.me);
   const stats = useHall((s) => s.stats);
   const select = useHall((s) => s.select);
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const blocked = useHall((s) => s.blocked); // re-render when the list changes
+  const isBlocked = (p: { uid?: string | null; id?: string | null }) => !!((p.uid && blocked.uids.has(p.uid)) || (p.id && blocked.pids.has(p.id)));
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -42,7 +44,7 @@ export function ChatPanel({ room = "lobby", title = "Hall chat" }: { room?: stri
       <PanelHeader title={title} sub={`${stats?.online ?? 1} online · owners can post links, visitors can't`} />
       <div className="max-h-[50vh] space-y-1.5 overflow-y-auto scroll p-3">
         {msgs.length === 0 && <p className="text-xs text-slate-400">Quiet right now. Say hi.</p>}
-        {msgs.map((m) => (
+        {msgs.filter((m) => !isBlocked({ uid: m.authorUid, id: m.playerId })).map((m) => (
           <div key={m.id} className="rounded-xl bg-white/[0.04] px-3 py-2 text-sm">
             <div className="flex items-center gap-2 text-[11px]">
               {m.authorBoothId ? (

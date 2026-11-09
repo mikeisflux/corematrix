@@ -97,6 +97,8 @@ const LINKS: Array<{ key: "website" | "globalcomix" | "artstation" | "deviantart
 
 export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number; booth: HallBooth; detail: StorefrontDetail | null; rank: number; onTakeover: () => void }) {
   const me = useHall((s) => s.me);
+  const saved = useHall((s) => s.favorites.has(id));
+  const toggleFavorite = useHall((s) => s.toggleFavorite);
   const mode = useHall((s) => s.mode);
   const setMode = useHall((s) => s.setMode);
   const setFlyTo = useHall((s) => s.setFlyTo);
@@ -246,8 +248,9 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
           ))}
         </div>
         {/* actions */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2">
           <button className="btn-primary" onClick={() => { if (mode !== "walk") setMode("walk"); setFlyTo(id); useHall.getState().setPanel("none"); }}>🚶 Walk to the booth</button>
+          <button data-save-booth className={saved ? "btn-primary" : "btn-ghost"} title={saved ? "Saved. Click to remove from your saved booths" : "Save this booth to find it again (Search → Saved)"} onClick={() => { void toggleFavorite(id).then((on) => setToast(on ? "★ Saved. Find it again under Search → Saved." : "Removed from your saved booths.")); }}>{saved ? "★ Saved" : "☆ Save"}</button>
           <button className={sharing ? "btn-primary" : "btn-ghost"} onClick={() => setSharing((v) => !v)}>Share</button>
         </div>
         {sharing && <ShareBooth id={id} name={booth.name ?? `Booth ${space?.label ?? id}`} label={space?.label ?? String(id)} own={isOwner} compact />}

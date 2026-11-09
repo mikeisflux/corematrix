@@ -14,6 +14,9 @@ import { Scene } from "./Scene";
 import { useHall, api, type HallBooth, type HallEvent, type HallStats, type Me, type HallBillboard, type Featured } from "@/lib/hall/store";
 import type { LiveMessage } from "@/lib/realtime";
 
+/** What /api/me answers: the account, its booths, and (signed in) the saved booths and blocked people. */
+type MeResponse = { user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }>; favorites?: number[]; blocked?: { uids: string[]; pids: string[] } };
+
 // Firefox still carries two deprecated MouseEvent getters, mozPressure and mozInputSource, and logs a deprecation the
 // first time anything reads them. react-three-fiber copies every property of each pointer event onto its own event
 // object, which reads them. Nothing here uses either, so the getters go before the first click.
@@ -71,9 +74,12 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
     const loadHall = (delay = 1000) => api<Snapshot>("/api/hall").then((d) => { if (alive) applySnapshot(d); }).catch(() => { if (alive) hallRetry = setTimeout(() => loadHall(Math.min(15_000, delay * 2)), delay); });
     if (!initial) void loadHall();
     try { const saved = localStorage.getItem("fcc_avatar"); if (saved) useHall.getState().setAvatar(JSON.parse(saved)); } catch {}
-    api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => {
+    // a guest's saved booths live in this browser; an account's come back with /api/me below and replace them
+    try { const favs = JSON.parse(localStorage.getItem("fcc_favs") || "[]"); if (Array.isArray(favs)) useHall.getState().setFavorites(favs.filter((n: unknown) => typeof n === "number")); } catch { /* storage off */ }
+    api<MeResponse>("/api/me").then((d) => {
       if (!alive) return;
       setMe(d.user, d.booths);
+      if (d.user) { useHall.getState().setFavorites(d.favorites ?? []); useHall.getState().setBlocked(d.blocked ?? { uids: [], pids: [] }); }
       if (d.user?.avatar) useHall.getState().setAvatar(d.user.avatar);
       // who my friends are, so the floor can say when one walks in
       if (d.user) api<{ friends: Array<{ id: string }> }>("/api/friends").then((f) => { social.friendIds = new Set(f.friends.map((x) => x.id)); }).catch(() => {});
@@ -86,7 +92,7 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
     bindVoicePosition(player); // proximity voice ranges people from where the walker stands
     document.body.dataset.hall = "1"; // the walk keys only act while this is set (see Avatar.tsx)
     // crews change while people are on the floor: refresh my booths when the tab comes back and every two minutes
-    const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => { if (alive) setMe(d.user, d.booths); }).catch(() => {}); };
+    const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<MeResponse>("/api/me").then((d) => { if (alive) { setMe(d.user, d.booths); if (d.user) { useHall.getState().setFavorites(d.favorites ?? []); useHall.getState().setBlocked(d.blocked ?? { uids: [], pids: [] }); } } }).catch(() => {}); };
     document.addEventListener("visibilitychange", refreshMe);
     const refresh = setInterval(refreshMe, 120_000);
     let es = new EventSource("/api/live");
@@ -99,7 +105,7 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
       else if (m.type === "presence") setStats({ online: Math.max(1, m.online) });
       else if (m.type === "players") { applyRoster(m.players as LivePlayer[]); friendsOnFloor(m.players as LivePlayer[]); }
       else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me && useHall.getState().panel !== "me") useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
-      else if (m.type === "chat") { emitChat(m.message); if (m.message.playerId) showBubble(m.message.playerId, m.message.body); }
+      else if (m.type === "chat") { emitChat(m.message); if (m.message.playerId && !useHall.getState().isBlocked({ uid: m.message.authorUid, id: m.message.playerId })) showBubble(m.message.playerId, m.message.body); }
       else if (m.type === "voice") handleVoiceSignal(m.signal);
       else if (m.type === "dm") {
         const msg = m.message; const d = social.dm;

@@ -204,6 +204,13 @@
       "when": 1793400000000,
       "tag": "0028_table_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1793410000000,
+      "tag": "0029_safety",
+      "breakpoints": true
     }
   ]
 }

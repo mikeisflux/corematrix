@@ -178,7 +178,7 @@ function tick() {
   if (!voice.enabled || !live.me) return;
   const now = Date.now();
   const here = new Map<string, number>(); // everyone on the roster (not away) → distance
-  for (const p of live.players.values()) { if (p.id === live.me || p.w) continue; here.set(p.id, dist(p)); }
+  for (const p of live.players.values()) { if (p.id === live.me || p.w || useHall.getState().isBlocked({ uid: p.uid, id: p.id })) continue; here.set(p.id, dist(p)); }
   // conversations we have, nearest first: kept while they are near (or only just missing), the furthest let go when over the cap
   const keep = new Set<string>();
   const have = Array.from(conns.entries()).map(([id, c]) => { const d = here.get(id); if (d !== undefined) { c.lastSeen = now; c.dist = d; } return { id, c }; }).sort((a, b) => a.c.dist - b.c.dist);

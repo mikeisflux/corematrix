@@ -24,6 +24,8 @@ export const DOCS: DocSection[] = [
       { h: "Map and walk", bullets: [
         "The hall opens on the **map**: an overhead view. Drag to orbit, scroll to zoom, use WASD or the arrows to pan, click any booth to open it.",
         "Press the 🚶 button (bottom right on a desktop, bottom left on a phone) to **walk** the floor as your avatar. The same button, now 🗺️, takes you back to the map.",
+        "**Instructions** live in three places: this Help panel (❓ at the bottom of the button bar), the help pages at /help, and the step-by-step guides with pictures linked in the site footer (Virtual comic con, Online artist alley, Exhibit, Promote your comic).",
+        "**Your name**: a free account lets you set a display name and an @handle under Account (👤). Handles are unique, so the first to take one keeps it; people mention you in chat with it.",
         "Everything on the floor is live: people with a green triangle over their head are real visitors, and what you see them do is happening now.",
       ] },
       { h: "An account", p: "You can walk, open booths, play the theater and chat as a guest. Signing in (free, email and password) gives you a name over your head, coins and daily quests, direct messages and friends, the shop, and a booth of your own if you want one. The 👤 button on the right rail signs you in." },
@@ -35,7 +37,7 @@ export const DOCS: DocSection[] = [
     summary: "Every key, mouse action and touch gesture on the floor, plus the address parameters you can share.",
     blocks: [
       { h: "Keyboard and mouse (walk mode)", table: { head: ["Key", "Does"], rows: [
-        ["W / ↑, S / ↓", "Walk forward and back"], ["A / D", "Sidestep"], ["← / →", "Turn"], ["Shift (hold)", "Run"], ["Drag the mouse", "Look around"], ["Rest the mouse on a cover or print (2–3 s)", "See it full size; move off to close"],
+        ["W / ↑, S / ↓", "Walk forward and back"], ["A / D", "Sidestep"], ["← / →", "Turn"], ["Shift (hold)", "Run"], ["Drag the mouse", "Look around; drag down to look up at the hanging signs and the roof"], ["M", "Big map of the whole hall; click a spot to walk there"], ["Rest the mouse on a cover or print (2–3 s)", "See it full size; move off to close"],
         ["E or Enter", "Open the booth you are at, or talk to ConBot when you are next to it"], ["C", "Sit on a theater bench, or at your own booth's chair"], ["V", "Switch between first and third person"], ["M", "Back to the map"],
         ["1 to 8", "Play an emote (wave, dance, cheer, clap, bow, point, laugh, facepalm)"], ["T (hold)", "Talk, when voice chat is on (see Voice chat)"], ["Esc", "Close the open panel"],
       ] } },
@@ -60,7 +62,7 @@ export const DOCS: DocSection[] = [
         "**Shop**: items the exhibitor sells, with prices. Opening one shows the picture, price and a Buy button; buying happens on the exhibitor's own site in a new tab, and the press counts for the booth.",
         "**Portfolio**: the artist's pieces. On an Artists' Alley table the three framed prints on the drape flip through the portfolio while you stand there; a booth switched to prints flips through it on the table stands. Tap a piece for the full view, Buy a print where there is one, and Commission me to ask for a commission by email or on their site.",
         "**About**, **Signage** (their banner art), the numbers (value, rank, visits this week), and the ownership history.",
-        "**Walk to the booth** switches to walk mode and takes you there. **Share** opens the share card and buttons.",
+        "**Walk to the booth** switches to walk mode and takes you there. **☆ Save** keeps the booth in your saved list (Search → ★ Saved) so you can walk back to it any time; it is kept on your account when you are signed in, in this browser otherwise. **Share** opens the share card and buttons.",
         "**Take over this booth**: any booth can be bought from its owner for 1.25× its value; see Claiming a booth.",
       ] },
       { h: "Giveaways", p: "A booth may be giving away a shop item (a costume or a reaction pack) for a while. It is announced on the live feed, listed under 🛍️ Shop, and shown in the storefront. Stand at the booth and tap Claim; the item is yours for good." },
@@ -177,7 +179,9 @@ export const DOCS: DocSection[] = [
         "**Hall chat** (💬): one room for everyone on the floor; messages also appear as bubbles over heads. Signed-in visitors post; only exhibitors may post links. Mention someone with @handle to notify them.",
         "**People** (👥): everyone on the floor right now, with a Say hi (direct message) and a copy-my-spot link. Click a person's avatar on the floor to message them.",
         "**Direct messages** stay between the two of you and work for guests on the floor as well as accounts; an account keeps them across devices.",
-        "**Friends**: send a request from a person's card; friends show a toast when they arrive on the floor and can be added to your team.",
+        "**Friends**: press ➕ next to a person in People (or on their card on the floor) to send a request; they accept it in their People panel. Friends show a toast when they arrive on the floor and can be added to your team.",
+        "**Blocking** (🚫 next to a person in People, or Block at the top of a message thread): their chat and speech bubbles disappear for you, they can no longer message you or send you friend requests, and voice never connects to them. They are not told. Unblock any time from the Blocked list in People. Blocking needs a free account.",
+        "**Reporting** (⚑): tell the admins about harassment, spam, impersonation or adult content. Pick a reason, add a line if you like, and the last things the person said go with it. You can block them at the same time.",
         "**Teams** (🎟️): an exhibitor's crew. Members can sit at the booth's chairs and are listed as staff; a member the owner marks as **manager** can also edit the booth from their own dashboard.",
         "**Voice chat**: optional push-to-talk with people within a few feet; see Voice chat.",
         "**Away**: switch tabs and you stay on the floor, marked away, for a couple of minutes.",

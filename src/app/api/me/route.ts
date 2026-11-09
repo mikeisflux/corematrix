@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { favoritesOf, blocksOf } from "@/lib/safety";
 import { isCostumeId } from "@/lib/hall/costumes";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
@@ -45,6 +46,8 @@ export async function GET() {
       avatar: u.avatar ? JSON.parse(u.avatar) : null,
       unread: Number(unread?.n ?? 0),
     },
+    favorites: await favoritesOf(u.id).catch(() => []),
+    blocked: await blocksOf(u.id).then((b) => ({ uids: b.uids, pids: b.pids })).catch(() => ({ uids: [], pids: [] })),
     booths: [...booths.map((b) => ({ ...b, role: "owner" as const })), ...staffed],
   });
 }

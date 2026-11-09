@@ -8,7 +8,10 @@ const NAV: { href: string; label: string; area?: AdminArea; sub?: { href: string
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/transactions", label: "Transactions", area: "transactions" },
   { href: "/admin/booths", label: "Booths", area: "booths" },
-  { href: "/admin/users", label: "Users", area: "users" },
+  { href: "/admin/users", label: "Users", area: "users", sub: [
+    { href: "/admin/users", label: "Accounts" },
+    { href: "/admin/users/reports", label: "Reports" },
+  ] },
   { href: "/admin/plans", label: "Plans", area: "plans" },
   { href: "/admin/codes", label: "Booth codes", area: "codes" },
   { href: "/admin/payouts", label: "Payouts", area: "payouts" },

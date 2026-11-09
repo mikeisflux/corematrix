@@ -26,7 +26,7 @@ const subscribe = (l: () => void) => { listeners.add(l); return () => { listener
 export function useSocial() { useSyncExternalStore(subscribe, () => social.version, () => 0); return social; }
 
 /** Hall chat messages from the one live stream the hall already holds, so the chat panel doesn't open a second connection. */
-type ChatMsg = { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number };
+type ChatMsg = { id: string; room: string; authorName: string; authorBoothId: number | null; body: string; createdAt: number; playerId?: string; authorUid?: string };
 const chatListeners = new Set<(m: ChatMsg) => void>();
 export function onChat(l: (m: ChatMsg) => void) { chatListeners.add(l); return () => { chatListeners.delete(l); }; }
 export function emitChat(m: ChatMsg) { for (const l of chatListeners) l(m); }

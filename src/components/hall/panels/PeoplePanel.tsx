@@ -8,6 +8,7 @@ import { openDm, player } from "../Avatar";
 import { timeAgo } from "@/lib/util";
 import type { DmMessage } from "@/lib/dm";
 import { PanelHeader } from "./common";
+import { ReportDialog, toggleBlock, type Someone } from "./Safety";
 
 interface Person { id: string; name: string; handle: string | null }
 
@@ -22,6 +23,11 @@ export function PeoplePanel() {
   // friends: who I'm friends with, who asked me, who I asked; refetched when a request arrives or is answered
   const [fr, setFr] = useState<{ friends: Person[]; incoming: Array<Person & { requestId: string }>; outgoing: Array<Person & { requestId: string }> } | null>(null);
   const setToast = useHall((s) => s.setToast);
+  const blocked = useHall((s) => s.blocked);
+  const isBlocked = useHall((s) => s.isBlocked);
+  const [reporting, setReporting] = useState<Someone | null>(null);
+  const [blockList, setBlockList] = useState<Array<{ id: string; userId: string | null; playerId: string | null; name: string }>>([]);
+  useEffect(() => { if (!me) { setBlockList([]); return; } api<{ list: typeof blockList }>("/api/block").then((d) => setBlockList(d.list)).catch(() => {}); }, [me, blocked]);
   // the floor's "friend walked in" notices read social.friendIds: keep it in step with every change made here
   const loadFriends = () => { if (me) api<NonNullable<typeof fr>>("/api/friends").then((d) => { setFr(d); social.friendIds = new Set(d.friends.map((x) => x.id)); }).catch(() => {}); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,7 +49,7 @@ export function PeoplePanel() {
   const unfriend = async (p: Person) => { if (!confirm(`Remove ${p.name} from your friends?`)) return; await api(`/api/friends?id=${p.id}`, { method: "DELETE" }); loadFriends(); };
   const onFloor = (uid: string) => Array.from(live.players.values()).find((p) => p.uid === uid && p.id !== live.me);
   useEffect(() => {
-    const read = () => setPeople(Array.from(live.players.values()).filter((p) => p.id !== live.me));
+    const read = () => setPeople(Array.from(live.players.values()).filter((p) => p.id !== live.me && !useHall.getState().isBlocked({ uid: p.uid, id: p.id })));
     read(); const t = setInterval(read, 1000); return () => clearInterval(t);
   }, []);
   // threads where only I have spoken carry no name: borrow it from the floor
@@ -74,10 +80,27 @@ export function PeoplePanel() {
                 <button title="Wave" onClick={() => fireReaction("👋")} className="rounded-lg px-1.5 py-0.5 hover:bg-white/10">👋</button>
                 <button title="Message" onClick={() => openDm(p.id, p.n)} className="rounded-lg px-1.5 py-0.5 hover:bg-white/10">💬</button>
                 <button title="Go to them" onClick={() => goTo(p)} className="rounded-lg px-1.5 py-0.5 hover:bg-white/10">🚶</button>
+                <button title="Block: hide their chat, refuse their messages" onClick={() => void toggleBlock({ uid: p.uid, pid: p.id, name: p.n })} className="rounded-lg px-1.5 py-0.5 text-slate-400 hover:bg-white/10 hover:text-rose-300">🚫</button>
+                <button title="Report to the admins" onClick={() => setReporting({ uid: p.uid, pid: p.id, name: p.n })} className="rounded-lg px-1.5 py-0.5 text-slate-400 hover:bg-white/10 hover:text-rose-300">⚑</button>
               </div>
             ))}
           </div>
+          {reporting && <div className="mt-2"><ReportDialog who={reporting} onClose={() => setReporting(null)} /></div>}
+          <p className="mt-1.5 text-[10px] text-slate-500">🚫 blocks someone: their chat disappears for you and they can&apos;t message you or add you. ⚑ reports them to the admins.</p>
         </div>
+        {me && blockList.length > 0 && (
+          <div data-blocked-list>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Blocked</div>
+            <div className="space-y-1">
+              {blockList.map((b) => (
+                <div key={b.id} className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-2.5 py-1.5 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-slate-300">{b.name || "A visitor"}</span>
+                  <button className="btn-ghost px-2 py-0.5 text-xs" onClick={() => void toggleBlock({ uid: b.userId, pid: b.playerId, name: b.name || "them" })}>Unblock</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {me && fr && (fr.incoming.length > 0 || fr.friends.length > 0 || fr.outgoing.length > 0) && (
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Friends</div>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isBlockedBy } from "@/lib/safety";
 import { z } from "zod";
 import { getOrSetPlayer, VID_COOKIE } from "@/lib/visitor";
 import { cookies } from "next/headers";
@@ -31,6 +32,8 @@ export async function POST(req: Request) {
   if (!roster().some((p) => p.id === parsed.data.to) && !(await hasThread(me, parsed.data.to))) return NextResponse.json({ error: "They're not on the floor right now." }, { status: 404 });
   if (!allow(`dm:${me}`, 20, 60_000)) return NextResponse.json({ error: "Slow down: 20 messages a minute" }, { status: 429 });
   const u = await currentUser();
+  // someone who blocked you does not get your messages (by account when you have one, by player id otherwise)
+  if (await isBlockedBy({ uid: roster().find((p) => p.id === parsed.data.to)?.uid, pid: parsed.data.to }, { uid: u?.id, pid: me })) return NextResponse.json({ error: "This person isn't accepting messages from you." }, { status: 403 });
   const onFloor = roster().find((p) => p.id === me);
   const name = u?.displayName || onFloor?.n || parsed.data.name || "Visitor";
   const msg = await sendDm(me, name, parsed.data.to, parsed.data.body);

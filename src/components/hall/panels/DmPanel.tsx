@@ -7,6 +7,7 @@ import { social, useSocial, guestName, bumpSocial } from "@/lib/hall/social";
 import { timeAgo } from "@/lib/util";
 import type { DmMessage } from "@/lib/dm";
 import { PanelHeader } from "./common";
+import { ReportDialog, toggleBlock } from "./Safety";
 import { player } from "../Avatar";
 
 export function DmPanel() {
@@ -18,6 +19,10 @@ export function DmPanel() {
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const me = useHall((s) => s.me);
+  const [reporting, setReporting] = useState(false);
+  const blocked = useHall((s) => s.blocked);
+  const theirUid = active ? live.players.get(active.id)?.uid : undefined;
+  const isBlockedNow = !!active && (!!(theirUid && blocked.uids.has(theirUid)) || blocked.pids.has(active.id));
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!active) return;
@@ -48,6 +53,12 @@ export function DmPanel() {
   return (
     <>
       <PanelHeader title={active.name} sub={onFloor ? "On the floor now · private chat" : "Not on the floor right now · they get it when they're back"} onBack={() => setPanel("people")} />
+      <div className="flex items-center gap-2 border-b border-white/8 px-3 py-1.5 text-[11px] text-slate-400">
+        <span className="flex-1">{isBlockedNow ? "You blocked this person. Their messages stay out of your way." : "Private between the two of you."}</span>
+        <button className="rounded-lg px-2 py-0.5 hover:bg-white/10 hover:text-rose-300" onClick={() => void toggleBlock({ uid: theirUid, pid: active.id, name: active.name })}>{isBlockedNow ? "Unblock" : "🚫 Block"}</button>
+        <button className="rounded-lg px-2 py-0.5 hover:bg-white/10 hover:text-rose-300" onClick={() => setReporting((v) => !v)}>⚑ Report</button>
+      </div>
+      {reporting && <div className="p-3 pb-0"><ReportDialog who={{ uid: theirUid, pid: active.id, name: active.name }} context={soc.dm.messages.filter((m) => m.from === active.id).slice(-8).map((m) => `${m.fromName}: ${m.body}`).join("\n")} onClose={() => setReporting(false)} /></div>}
       {onFloor?.uid && me && onFloor.uid !== me.id && (
         <button onClick={() => void api<{ status: string }>("/api/friends", { method: "POST", body: JSON.stringify({ to: onFloor.uid }) }).then((r) => useHall.getState().setToast(r.status === "accepted" ? `🤝 You and ${active.name} are friends now` : `🤝 Friend request sent to ${active.name}`)).catch((e: Error) => useHall.getState().setToast(e.message))} className="mx-3 mt-2 btn-ghost w-[calc(100%-1.5rem)] text-xs">➕ Add {active.name} as a friend</button>
       )}

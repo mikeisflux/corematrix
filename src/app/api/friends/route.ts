@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isBlockedBy } from "@/lib/safety";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { friendsOf, requestFriend, answerRequest, unfriend } from "@/lib/social-graph";
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
   if (!b.success) return NextResponse.json({ error: "bad body" }, { status: 400 });
   // a declined request can be sent again, so cap how often anyone can ask: no request-spam loops
   if (!allow(`friend:${u.id}`, 20, 3600_000) || !allow(`friend:${u.id}:${b.data.to}`, 3, 86_400_000)) return NextResponse.json({ error: "That's a lot of friend requests. Try again later." }, { status: 429 });
+  if (await isBlockedBy({ uid: b.data.to }, { uid: u.id })) return NextResponse.json({ error: "This person isn't accepting friend requests from you." }, { status: 403 });
   try { return NextResponse.json({ status: await requestFriend(u.id, b.data.to) }); }
   catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 400 }); }
 }

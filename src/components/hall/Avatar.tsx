@@ -358,7 +358,7 @@ export function Player() {
     if (isDown("arrowleft") || isDown("q")) yaw.current += 2.2 * d;
     if (isDown("arrowright")) yaw.current -= 2.2 * d;
     yaw.current += input.yawDrag; input.yawDrag = 0;
-    pitch.current = THREE.MathUtils.clamp(pitch.current + input.pitchDrag, -0.45, 0.6); input.pitchDrag = 0;
+    pitch.current = THREE.MathUtils.clamp(pitch.current + input.pitchDrag, -0.45, 0.95); input.pitchDrag = 0;
     const run = isDown("shift") || input.run;
     let len = Math.hypot(fx, fz);
     // a sit request from the HUD button or a click on a seat

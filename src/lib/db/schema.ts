@@ -668,3 +668,46 @@ export const sponsoredItems = sqliteTable(
   },
   (t) => [index("sponsored_ends_idx").on(t.endsAt)],
 );
+
+/** Booths a visitor saved to find again (the ★ on a storefront). Guests keep theirs in the browser instead. */
+export const favorites = sqliteTable(
+  "favorites",
+  { userId: text("user_id").notNull(), boothId: integer("booth_id").notNull(), createdAt: integer("created_at").notNull() },
+  (t) => [primaryKey({ columns: [t.userId, t.boothId] })],
+);
+
+/** People a user does not want to hear from: their chat is hidden, their messages and friend requests are refused.
+ *  A guest has only a player id (the visitor cookie); an account has a user id too, so both are kept. */
+export const blocks = sqliteTable(
+  "blocks",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(), // who blocked
+    userPlayerId: text("user_player_id"), // the blocker's player id at the time, so a message to them can be checked while they are offline
+    blockedUserId: text("blocked_user_id"),
+    blockedPlayerId: text("blocked_player_id"),
+    name: text("name").notNull().default(""), // the name shown at the time, so the Blocked list reads well later
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("blocks_user_idx").on(t.userId), index("blocks_blocked_user_idx").on(t.blockedUserId), index("blocks_blocked_player_idx").on(t.blockedPlayerId)],
+);
+
+/** A report about a person (harassment, spam, impersonation…) for the admins: who, why, and where it happened. */
+export const reports = sqliteTable(
+  "reports",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id").notNull(),
+    targetUserId: text("target_user_id"),
+    targetPlayerId: text("target_player_id"),
+    targetName: text("target_name").notNull().default(""),
+    reason: text("reason").notNull(), // harassment | spam | impersonation | adult | other
+    details: text("details").notNull().default(""),
+    context: text("context").notNull().default(""), // the last things they said, as the reporter saw them
+    status: text("status").notNull().default("open"), // open | resolved
+    createdAt: integer("created_at").notNull(),
+    resolvedAt: integer("resolved_at"),
+    resolvedBy: text("resolved_by"),
+  },
+  (t) => [index("reports_status_idx").on(t.status)],
+);

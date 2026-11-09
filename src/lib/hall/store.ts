@@ -107,6 +107,8 @@ interface HallState {
   featured: Featured[];
   stats: HallStats | null;
   me: Me | null;
+  favorites: Set<number>; // booths saved with ★: the account's when signed in, this browser's otherwise
+  blocked: { uids: Set<string>; pids: Set<string> }; // people I blocked: their chat is hidden here, their messages refused by the server
   myBooths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string; role?: "owner" | "manager" | "staff"; team?: string }>;
   loaded: boolean;
   hovered: number | null;
@@ -133,6 +135,10 @@ interface HallState {
   pushEvent: (e: HallEvent) => void;
   setStats: (s: Partial<HallStats>) => void;
   setMe: (m: Me | null, booths?: HallState["myBooths"]) => void;
+  setFavorites: (ids: number[]) => void;
+  toggleFavorite: (id: number) => Promise<boolean>;
+  setBlocked: (b: { uids: string[]; pids: string[] }) => void;
+  isBlocked: (p: { uid?: string | null; id?: string | null }) => boolean;
   setHovered: (id: number | null) => void;
   select: (id: number | null) => void;
   setPanel: (p: HallState["panel"]) => void;
@@ -174,13 +180,15 @@ export const SKIN_TONES = ["#ffdbb4", "#f1c27d", "#e0ac69", "#c68642", "#a16e4b"
 export const HAIR_COLORS = ["#0b0b0b", "#2b1b12", "#5a3a1a", "#8b5a2b", "#b5651d", "#d8a657", "#f2e394", "#a0a0a0", "#ffffff", "#e63946", "#3a86ff", "#8338ec", "#06d6a0", "#ff6bd6"];
 export const OUTFIT_COLORS = ["#e63946", "#f4a261", "#2a9d8f", "#3a86ff", "#8338ec", "#ff006e", "#ffd166", "#111827", "#f8f9fa", "#1f2a44", "#5c4b51", "#06d6a0"];
 
-export const useHall = create<HallState>((set) => ({
+export const useHall = create<HallState>((set, get) => ({
   booths: new Map(),
   events: [],
   billboards: [],
   featured: [],
   stats: null,
   me: null,
+  favorites: new Set<number>(),
+  blocked: { uids: new Set<string>(), pids: new Set<string>() },
   myBooths: [],
   loaded: false,
   hovered: null,
@@ -213,6 +221,16 @@ export const useHall = create<HallState>((set) => ({
   pushEvent: (e) => set((s) => ({ events: [e, ...s.events.filter((x) => x.id !== e.id)].slice(0, 60) })),
   setStats: (st) => set((s) => ({ stats: { ...(s.stats ?? emptyStats()), ...st } })),
   setMe: (me, booths) => set({ me, myBooths: booths ?? [] }),
+  setFavorites: (ids) => set({ favorites: new Set(ids) }),
+  // signed in: the account keeps the list (and it comes back through /api/me); a guest's list lives in this browser
+  toggleFavorite: async (id) => {
+    const on = !get().favorites.has(id);
+    if (get().me) { const r = await api<{ favorites: number[] }>("/api/favorites", { method: "POST", body: JSON.stringify({ boothId: id, on }) }); set({ favorites: new Set(r.favorites) }); }
+    else { const next = new Set(get().favorites); if (on) next.add(id); else next.delete(id); set({ favorites: next }); try { localStorage.setItem("fcc_favs", JSON.stringify([...next])); } catch { /* storage off */ } }
+    return on;
+  },
+  setBlocked: (b) => set({ blocked: { uids: new Set(b.uids), pids: new Set(b.pids) } }),
+  isBlocked: (p) => { const b = get().blocked; return !!((p.uid && b.uids.has(p.uid)) || (p.id && b.pids.has(p.id))); },
   setHovered: (hovered) => set({ hovered }),
   select: (selected) => set({ selected, panel: selected ? "booth" : "none" }),
   setPanel: (panel) => set({ panel }),

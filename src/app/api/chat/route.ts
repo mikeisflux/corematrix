@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     .where(and(eq(schema.messages.room, room), eq(schema.messages.hidden, false)))
     .orderBy(desc(schema.messages.createdAt))
     .limit(60);
-  return NextResponse.json({ messages: rows.reverse().map(({ userId: _u, hidden: _h, ...m }) => m) });
+  return NextResponse.json({ messages: rows.reverse().map(({ userId, hidden: _h, ...m }) => ({ ...m, authorUid: userId })) });
 }
 
 const Body = z.object({ room: z.string().max(30), body: z.string().min(1).max(400) });
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   if (Number(dup?.n ?? 0) > 0) return NextResponse.json({ error: "You just said that" }, { status: 429 });
   const msg = { id: newId(), room, userId: u.id, authorName: booth?.name ?? u.displayName ?? "visitor", authorBoothId: booth?.id ?? null, body, createdAt: t };
   await db.insert(schema.messages).values(msg);
-  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetPlayer() } });
+  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetPlayer(), authorUid: u.id } });
   // @handle mentions tell the person, even if they are not in the hall right now
   const handles = Array.from(new Set((body.match(/@([a-z0-9_]{2,30})/gi) ?? []).map((h) => h.slice(1).toLowerCase()))).slice(0, 5);
   for (const h of handles) {
