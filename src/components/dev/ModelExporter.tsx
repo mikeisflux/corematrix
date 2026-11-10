@@ -4,11 +4,14 @@ import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
+import { buildAvatar, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
+import { assembleAvatar, type Assembled } from "@/lib/hall/modelkit/assemble";
 import { COSTUME_IDS } from "@/lib/hall/costumes";
 import { PROP_BUILDERS } from "@/lib/hall/modelkit/props";
 
 type Export = Record<string, string>; // name -> base64 glb
+/** The skinned body the avatar is assembled around (models-src/, served by a dev-only route). */
+const bodyUrl = (body: "a" | "b") => `/api/dev/models-src/body-${body}.anim.glb`;
 
 async function exportGlb(obj: THREE.Object3D, animations: THREE.AnimationClip[] = []): Promise<string> {
   const buf = (await new GLTFExporter().parseAsync(obj, { binary: true, animations, trs: true })) as ArrayBuffer;
@@ -19,23 +22,23 @@ async function exportGlb(obj: THREE.Object3D, animations: THREE.AnimationClip[] 
 
 async function exportAll(): Promise<Export> {
   const out: Export = {};
-  const clips = buildAvatarClips();
-  for (const body of ["a", "b"] as const) out[`avatar-${body}`] = await exportGlb(buildAvatar(body), clips);
+  for (const body of ["a", "b"] as const) { const { scene, clips } = await assembleAvatar(body, bodyUrl(body)); out[`avatar-${body}`] = await exportGlb(scene, clips); }
   for (const [name, build] of Object.entries(PROP_BUILDERS)) out[name] = await exportGlb(build());
   return out;
 }
 
 function Preview({ body, hair, clip, costume }: { body: "a" | "b"; hair: string; clip: string; costume: string }) {
-  const model = useMemo(() => buildAvatar(body), [body]);
+  const [model, setModel] = useState<Assembled | null>(null);
+  useEffect(() => { let live = true; setModel(null); assembleAvatar(body, bodyUrl(body)).then((m) => { if (live) setModel(m); }, (e) => console.error("assemble failed", e)); return () => { live = false; }; }, [body]);
   useEffect(() => {
-    const colors = applyAvatarLook(model, { body, skin: "#c68642", hair, hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume });
-    model.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { const mat = m.material as THREE.MeshStandardMaterial; if ((RECOLOR_MATERIALS as readonly string[]).includes(mat.name)) mat.color.set(colors[mat.name]); } });
+    if (!model) return;
+    const colors = applyAvatarLook(model.scene, { body, skin: "#c68642", hair, hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume });
+    model.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { if (m.name === "lod") m.visible = false; const mat = m.material as THREE.MeshStandardMaterial; if ((RECOLOR_MATERIALS as readonly string[]).includes(mat.name)) mat.color.set(colors[mat.name]); } });
   }, [model, body, hair, costume]);
-  const clips = useMemo(() => buildAvatarClips(), []);
-  const mixer = useMemo(() => new THREE.AnimationMixer(model), [model]);
-  useEffect(() => { mixer.stopAllAction(); const c = clips.find((x) => x.name === clip); if (c) mixer.clipAction(c).play(); }, [mixer, clips, clip]);
-  useFrame((_, dt) => mixer.update(dt));
-  return <primitive object={model} />;
+  const mixer = useMemo(() => (model ? new THREE.AnimationMixer(model.scene) : null), [model]);
+  useEffect(() => { if (!mixer || !model) return; mixer.stopAllAction(); const c = model.clips.find((x) => x.name === clip); if (c) mixer.clipAction(c).play(); }, [mixer, model, clip]);
+  useFrame((_, dt) => mixer?.update(dt));
+  return model ? <primitive object={model.scene} /> : null;
 }
 
 export function ModelExporter() {

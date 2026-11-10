@@ -341,7 +341,7 @@ export function buildAvatar(body: BodyType): THREE.Group {
 }
 
 /** Materials recoloured per figure at runtime (by material name). */
-export const RECOLOR_MATERIALS = ["skin", "hair", "shirt", "pants", "costume", "costume2", "cape", "prop", "glow"] as const;
+export const RECOLOR_MATERIALS = ["skin", "hair", "brow", "shirt", "pants", "costume", "costume2", "cape", "prop", "glow"] as const; // brow: the skinned body's eyebrows, hair-coloured
 export interface AvatarLook { body: "a" | "b"; skin: string; hair: string; hairColor: string; shirt: string; pants: string; costume?: string }
 /**
  * Shows the right hair and costume parts on a built or loaded avatar and returns
@@ -362,7 +362,7 @@ export function applyAvatarLook(root: THREE.Object3D, look: AvatarLook): Record<
   });
   const dressed = look.costume && look.costume !== "none";
   return {
-    skin: look.skin, hair: look.hairColor,
+    skin: look.skin, hair: look.hairColor, brow: look.hairColor,
     shirt: dressed && costume.colors.shirt ? costume.colors.shirt : look.shirt,
     pants: dressed && costume.colors.pants ? costume.colors.pants : look.pants,
     costume: costume.colors.costume, costume2: costume.colors.costume2, cape: costume.colors.cape,

@@ -1,0 +1,63 @@
+{
+ "out": "../../models-src/body-a.glb",
+ "scale": 1.95,
+ "parts": [
+  {
+   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_CasualMale.usda",
+   "node": "body",
+   "subsets": {
+    "Skin": {
+     "below": [
+      0.42,
+      "shoes",
+      "skin"
+     ]
+    },
+    "Shirt": "shirt",
+    "Pants": "pants",
+    "Belt": "belt",
+    "Face": {
+     "split_y": [
+      "eye",
+      "brow"
+     ]
+    }
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_Casual2Male.usda",
+   "node": "hair_short",
+   "subsets": {
+    "Hair": "hair"
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_KimonoFemale.usda",
+   "node": "hair_long",
+   "subsets": {
+    "Hair": "hair"
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_Casual3Male.usda",
+   "node": "hair_buzz",
+   "subsets": {
+    "Hair": "hair"
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_ChefFemale.usda",
+   "node": "hair_bun",
+   "subsets": {
+    "Hair": "hair"
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_CasualMale.usda",
+   "node": "hair_curly",
+   "subsets": {
+    "Hair": "hair"
+   }
+  }
+ ]
+}

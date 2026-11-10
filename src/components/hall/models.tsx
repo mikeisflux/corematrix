@@ -9,6 +9,7 @@ import { Suspense, useEffect, useMemo, useRef, type ReactNode, Component } from 
 import * as THREE from "three";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { MeshoptDecoder } from "@/lib/hall/meshopt-decoder";
 import type { AvatarConfig } from "@/lib/hall/store";
 import { applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
@@ -95,6 +96,7 @@ export interface Motion { speed: number; emote?: { name: string; at: number } | 
 
 /** The rigged GLB avatar with idle/walk/run crossfades and recoloring by material name. */
 export const ONESHOT = new Set(["wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"]);
+const LOCOMOTION = ["idle", "walk", "run"];
 /** idle/walk/run from speed, or the emote while it lasts (moving cancels it). Shared by the GLB rig and the primitive fallback. */
 export function wantedClip(motion: Motion, actions: Record<string, THREE.AnimationAction | undefined>, st: { at: number; until: number; name: string }): string {
   if (motion.sit && actions.sit) { st.until = 0; return "sit"; }
@@ -109,11 +111,12 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
   const { scene, animations } = useModel(url);
   const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}|${config.costume ?? "none"}`;
   const obj = useMemo(() => {
-    const c = scene.clone(true);
+    const c = SkeletonUtils.clone(scene); // a skinned body: its bones must be cloned with it and the meshes rebound to the copies
     const colors = applyAvatarLook(c, config);
     c.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
+      if (m.name === "lod") { m.visible = false; return; } // the far-crowd stand-in baked into the file; CrowdImpostors draws it
       const name = (m.material as THREE.Material).name;
       if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); if (name === "glow") { mm.emissive.set(colors[name]); mm.emissiveIntensity = 1.5; } m.material = mm; }
     });
@@ -123,10 +126,17 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
   const ref = useRef<THREE.Object3D>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
   const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
-  const current = useRef<string>("");
+  const overlay = useRef<THREE.AnimationAction | null>(null); // the sit pose or an emote, played over the locomotion blend
+  const blend = useRef(0); // eased speed, 0 idle → 1 walk → 2 run
   const frame = useRef(0);
   const emote = useRef({ at: 0, until: 0, name: "" });
-  useEffect(() => () => { mixer.stopAllAction(); }, [mixer]);
+  // the three locomotion clips run all the time; their weights come from the speed (a blend tree), so a figure easing
+  // from a stroll into a run passes through a real mix of the two cycles instead of a hard crossfade
+  useEffect(() => {
+    for (const n of LOCOMOTION) actions[n]?.setEffectiveWeight(n === "idle" ? 1 : 0).play();
+    blend.current = 0; overlay.current = null;
+    return () => { mixer.stopAllAction(); };
+  }, [mixer, actions]);
   useFrame(({ camera }, dt) => {
     const o = ref.current; if (!o) return;
     // skip hidden or distant figures entirely: no mixer update, no bone transforms
@@ -136,12 +146,21 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
     if (dist > 220) return;
     frame.current++;
     if (dist > 90 && frame.current % 2) return; // far figures animate at half rate
+    const step = dist > 90 ? dt * 2 : dt;
     const want = wantedClip(motion, actions, emote.current);
-    if (want !== current.current) {
-      const next = actions[want]; const prev = actions[current.current];
-      if (next) { next.reset().setLoop(ONESHOT.has(want) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity).setEffectiveWeight(1).fadeIn(0.18).play(); next.clampWhenFinished = ONESHOT.has(want); if (prev) prev.fadeOut(0.18); current.current = want; }
+    const ov = LOCOMOTION.includes(want) ? null : actions[want] ?? null;
+    if (ov !== overlay.current) {
+      if (overlay.current) overlay.current.fadeOut(0.18);
+      if (ov) { ov.reset().setLoop(ONESHOT.has(want) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity).setEffectiveWeight(1).fadeIn(0.18).play(); ov.clampWhenFinished = ONESHOT.has(want); }
+      overlay.current = ov;
     }
-    mixer.update(dist > 90 ? dt * 2 : dt);
+    const target = Math.min(2, Math.max(0, motion.speed));
+    blend.current += (target - blend.current) * Math.min(1, step * 7);
+    const b = blend.current, k = 1 - (overlay.current ? overlay.current.getEffectiveWeight() : 0);
+    actions.idle?.setEffectiveWeight(Math.max(0, 1 - b) * k);
+    actions.walk?.setEffectiveWeight((b <= 1 ? b : Math.max(0, 2 - b)) * k);
+    actions.run?.setEffectiveWeight(Math.max(0, b - 1) * k);
+    mixer.update(step);
   });
   return <primitive ref={ref} object={obj} />;
 }

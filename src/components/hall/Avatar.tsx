@@ -6,7 +6,8 @@ import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OU
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, KIOSKS, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
-import { CROWD_COSTUMES } from "@/lib/hall/costumes";
+import { CROWD_COSTUMES, COSTUMES, isCostumeId } from "@/lib/hall/costumes";
+import { impostors, LOD_FAR_FT, LOD_NEAR_FT, type ImpostorSlot } from "./CrowdImpostors";
 import { agent, useAgent, agentDone, bumpAgent, talkToAgent } from "@/lib/hall/agent";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
@@ -130,12 +131,34 @@ const camGoal = new THREE.Vector3(); // reused every frame by the walk camera
 
 /* ---------- the figure ---------- */
 /** An avatar: the rigged GLB from public/models when present (idle/walk/run, recolored by material name), else primitives. */
-export function AvatarModel({ config, motion, idle }: { config: AvatarConfig; motion?: Motion; idle?: boolean }) {
+let lodSeq = 0;
+export function AvatarModel({ config, motion, idle, lod = true }: { config: AvatarConfig; motion?: Motion; idle?: boolean; lod?: boolean }) {
   const url = useModelUrl(`avatar-${config.body}`);
   const still = useMemo<Motion>(() => ({ speed: 0 }), []);
   const m = idle || !motion ? still : motion;
-  if (url) return <ModelBoundary fallback={<PrimitiveAvatar config={config} motion={m} />}><Suspense fallback={<PrimitiveAvatar config={config} motion={m} />}><AvatarRig config={config} motion={m} url={url} /></Suspense></ModelBoundary>;
-  return <PrimitiveAvatar config={config} motion={m} />;
+  // far from the camera the rig gives way to an instance in CrowdImpostors (two draw calls for the whole far crowd);
+  // the figure's parent group carries its position and heading, the slot repeats them every frame
+  const ref = useRef<THREE.Group>(null);
+  const [far, setFar] = useState(false);
+  const key = useMemo(() => `lod${++lodSeq}`, []);
+  const slot = useMemo<ImpostorSlot | null>(() => {
+    if (!lod || idle || !url) return null;
+    const c = applyAvatarLook(new THREE.Object3D(), config); // nothing to traverse: just the colours of this look
+    const costume = isCostumeId(config.costume) ? COSTUMES[config.costume] : COSTUMES.none;
+    return { body: config.body, x: 0, z: 0, h: 0, skin: c.skin, shirt: c.shirt, pants: c.pants, hair: c.hair, hasHair: config.hair !== "bald" && !costume.hideHair, visible: true };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lod, idle, url, config.body, config.skin, config.shirt, config.pants, config.hairColor, config.hair, config.costume]);
+  useEffect(() => () => { impostors.delete(key); }, [key]);
+  useFrame(({ camera }) => {
+    const g = ref.current?.parent; if (!g || !slot) return;
+    const d = Math.hypot(camera.position.x - g.position.x, camera.position.z - g.position.z);
+    const nowFar = far ? d > LOD_NEAR_FT : d > LOD_FAR_FT;
+    if (nowFar !== far) setFar(nowFar);
+    if (nowFar) { slot.x = g.position.x; slot.z = g.position.z; slot.h = g.rotation.y; slot.visible = g.visible; impostors.set(key, slot); }
+    else impostors.delete(key);
+  });
+  const rig = url ? <ModelBoundary fallback={<PrimitiveAvatar config={config} motion={m} />}><Suspense fallback={<PrimitiveAvatar config={config} motion={m} />}><AvatarRig config={config} motion={m} url={url} /></Suspense></ModelBoundary> : <PrimitiveAvatar config={config} motion={m} />;
+  return <group ref={ref}>{!(far && slot) && rig}</group>;
 }
 
 /* ---------- fallback figure ---------- */
@@ -428,7 +451,7 @@ export function Player() {
   if (mode !== "walk") return <pointLight position={[0, -100, 0]} intensity={0} distance={14} color="#ffffff" />;
   return (
     <group ref={group}>
-      {!firstPerson && <AvatarModel config={avatar} motion={motion} />}
+      {!firstPerson && <AvatarModel config={avatar} motion={motion} lod={false} />}
       {!firstPerson && <OverheadNotes id="me" />}
       <pointLight position={[0, 7, 0]} intensity={6} distance={14} color="#ffffff" />
     </group>

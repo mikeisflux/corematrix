@@ -13,6 +13,7 @@ import { Hall } from "./Hall";
 import { EmptyBooths } from "./EmptyBooths";
 import { Arcade, flyoverCurve } from "./Arcade";
 import { Player, Crowd, Others, player } from "./Avatar";
+import { CrowdImpostors } from "./CrowdImpostors";
 import { Mascot } from "./Mascot";
 import { TourRoute } from "./TourRoute";
 import { TwoSided } from "./Booth";
@@ -64,6 +65,7 @@ export function Scene() {
       <TourRoute />
       <Player />
       <Others />
+      <CrowdImpostors />
       <CameraRig />
       <Impressions />
       {quality !== "low" && (
