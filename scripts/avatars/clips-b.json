@@ -4,13 +4,13 @@
  "sources": [
   {
    "file": "${KAYKIT_ADVENTURERS}/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb",
-   "map": "kaykit",
+   "map": "kaykit_ue",
    "clips": {
     "walk": "Walking_A",
     "run": "Running_A",
     "sit": {
      "clip": "Sit_Chair_Idle",
-     "hipsY": 1.55
+     "hipsY": 1.6
     },
     "cheer": "Cheer",
     "bow": "PickUp",
@@ -19,14 +19,14 @@
   },
   {
    "file": "legacy-rig.glb",
-   "map": "legacy",
+   "map": "legacy_ue",
    "clips": {
+    "idle": "idle",
     "wave": "wave",
     "dance": "dance",
     "clap": "clap",
     "laugh": "laugh",
-    "facepalm": "facepalm",
-    "idle": "idle"
+    "facepalm": "facepalm"
    }
   }
  ]

@@ -1,62 +1,116 @@
 {
  "out": "../../models-src/body-a.glb",
- "scale": 1.95,
+ "scale": 3.2808,
+ "turn": 180,
  "parts": [
   {
-   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_CasualMale.usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
    "node": "body",
-   "subsets": {
-    "Skin": {
-     "below": [
-      0.42,
-      "shoes",
-      "skin"
-     ]
+   "textured": [
+    "skin",
+    "eye"
+   ],
+   "tint": [
+    "skin"
+   ],
+   "meshes": {
+    "Sphere_005_Retopology_004": {
+     "*": "skin"
     },
-    "Shirt": "shirt",
-    "Pants": "pants",
-    "Belt": "belt",
     "Face": {
-     "split_y": [
-      "eye",
-      "brow"
-     ]
+     "*": "eye"
+    },
+    "Face_001": {
+     "*": "eye"
     }
+   },
+   "clothes": {
+    "mesh": "Sphere_005_Retopology_004",
+    "offset": 0.07,
+    "pants": 0.05,
+    "shoes": 0.1,
+    "sleeve": 0.5,
+    "collar": 0.02,
+    "hem": 0.15,
+    "ankle": 0.12
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_Casual2Male.usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_EyebrowsRegularFBX(Unity).usda",
+   "node": "brows",
+   "textured": [
+    "brow"
+   ],
+   "tint": [
+    "brow"
+   ],
+   "subsets": {
+    "*": "brow"
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairSimplePartedFBX(Unity).usda",
    "node": "hair_short",
+   "textured": [
+    "hair"
+   ],
+   "tint": [
+    "hair"
+   ],
    "subsets": {
-    "Hair": "hair"
+    "*": "hair"
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_KimonoFemale.usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairLongFBX(Unity).usda",
    "node": "hair_long",
+   "textured": [
+    "hair"
+   ],
+   "tint": [
+    "hair"
+   ],
    "subsets": {
-    "Hair": "hair"
+    "*": "hair"
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_Casual3Male.usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairBuzzedFBX(Unity).usda",
    "node": "hair_buzz",
+   "textured": [
+    "hair"
+   ],
+   "tint": [
+    "hair"
+   ],
    "subsets": {
-    "Hair": "hair"
+    "*": "hair"
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_ChefFemale.usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairBunsFBX(Unity).usda",
    "node": "hair_bun",
+   "textured": [
+    "hair"
+   ],
+   "tint": [
+    "hair"
+   ],
    "subsets": {
-    "Hair": "hair"
+    "*": "hair"
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UltimateAnimatedCharacter/SK_CasualMale.usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairBunsFBX(Unity).usda",
    "node": "hair_curly",
+   "textured": [
+    "hair"
+   ],
+   "tint": [
+    "hair"
+   ],
    "subsets": {
-    "Hair": "hair"
+    "*": "hair"
    }
   }
  ]

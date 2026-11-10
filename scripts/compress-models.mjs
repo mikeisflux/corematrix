@@ -11,7 +11,7 @@ import path from "node:path";
 
 const CLI = path.resolve("node_modules/.bin/gltf-transform");
 const FILES = ["avatar-a", "avatar-b", "robot"];
-const STEPS = [["resample"], ["quantize"], ["meshopt", "--level", "medium"]];
+const STEPS = [["resample"], ["resize", "--width", "1024", "--height", "1024"], ["webp", "--quality", "82"], ["quantize"], ["meshopt", "--level", "medium"]]; // resize/webp: the exporter writes textures as PNG
 
 for (const name of FILES) {
   const src = path.resolve("public/models", `${name}.glb`);

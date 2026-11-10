@@ -59,7 +59,10 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   const scene = gltf.scene as THREE.Group; scene.name = `avatar-${body}`;
   scene.updateMatrixWorld(true);
   const bone = (n: string) => { const b = scene.getObjectByName(n); if (!b) throw new Error(`assemble: no bone ${n}`); return b; };
-  const head = bone("Head"), torso = bone("Torso"), fist = bone("Fist_L"); // Fist_L is at +x, where the procedural figure's "hand_r" was
+  // the two rigs this runs on: the stylised Quaternius one and the UE-style one of the Universal Base Characters
+  const ue = !!scene.getObjectByName("spine_03");
+  const head = bone("Head"), torso = bone(ue ? "spine_03" : "Torso"), fist = bone(ue ? "hand_l" : "Fist_L"); // the +x hand, where the procedural figure's "hand_r" was
+  const armX = new THREE.Vector3().setFromMatrixPosition(bone(ue ? "upperarm_l" : "UpperArm_L").matrixWorld).x; // the sleeves start here
   const old = buildAvatar(body);
   old.updateMatrixWorld(true);
 
@@ -67,7 +70,10 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   // sphere that encloses the boxy head, so its corners never poke through; face pieces (mask, shades, earpiece) a tight
   // one. Both keep the old eye line on the new eyes and the old crown on the new crown, so hats sit and masks line up.
   const headPos = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld);
-  const hb = measure(scene, "skin", (v) => v.y > headPos.y - 0.25 && Math.abs(v.x) < 1.3);
+  // the head's skin: above the neck and no wider than a head, so the shoulders (which reach the chin line on the
+  // realistic body in its T-pose) stay out of the measurement
+  const neckY = new THREE.Vector3().setFromMatrixPosition(bone(ue ? "neck_01" : "Neck").matrixWorld).y;
+  const hb = measure(scene, "skin", (v) => v.y > (ue ? neckY + 0.12 : headPos.y - 0.25) && Math.abs(v.x) < (ue ? 0.6 : 1.3));
   const hc = hb.getCenter(new THREE.Vector3()), hr = hb.getSize(new THREE.Vector3()).multiplyScalar(0.5);
   const eyeY = measure(scene, "eye", () => true).getCenter(new THREE.Vector3()).y;
   const OLD_EYE = OLD_HEAD_C.y + 0.1, OLD_TOP = OLD_HEAD_C.y + OLD_HEAD_R.y;
@@ -80,7 +86,8 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
     const shift = new THREE.Group(); shift.position.copy(OLD_HEAD_C).negate();
     headHold.add(fit); fit.add(shift); return shift;
   };
-  const cover = headFit("head_cover", 0.16, 0.2), face = headFit("head_face", 0.03, 0.05);
+  // pads in proportion to the head: a covering sits a fifth outside the skin, a face piece just off it
+  const cover = headFit("head_cover", hr.x * 0.22, hr.z * 0.25), face = headFit("head_face", hr.x * 0.05, hr.z * 0.07);
   const oldHead = old.getObjectByName("head")!;
   for (const c of [...oldHead.children]) {
     if (!(c as THREE.Mesh).isMesh || !c.name.startsWith("cos_")) continue;
@@ -91,7 +98,7 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   const oldTorso = old.getObjectByName("torso")!, oldShirt = old.getObjectByName("torso_m") as THREE.Mesh;
   oldShirt.geometry.computeBoundingBox(); const ob = oldShirt.geometry.boundingBox!;
   const oc = ob.getCenter(new THREE.Vector3()), or = ob.getSize(new THREE.Vector3()).multiplyScalar(0.5);
-  const tb = measure(scene, "shirt", (v) => Math.abs(v.x) < 0.62); // the sleeves start where the upper arm bones do
+  const tb = measure(scene, "shirt", (v) => Math.abs(v.x) < armX); // the sleeves start where the upper arm bones do
   const tc = tb.getCenter(new THREE.Vector3()), tr = tb.getSize(new THREE.Vector3()).multiplyScalar(0.5).add(new THREE.Vector3(0.08, 0, 0.1)); // a little proud of the shirt
   const torsoHold = holder(torso, "torso_parts");
   const torsoFit = new THREE.Group(); torsoFit.name = "torso_fit";

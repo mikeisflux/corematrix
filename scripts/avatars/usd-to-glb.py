@@ -178,15 +178,130 @@ def bound_textures(prim):
                 if f and f.Get(): out[key] = f.Get().resolvedPath or f.Get().path
     return out
 
-def image_bytes(path, max_size, kind):
-    """A texture file resized for the web: JPEG for colour maps without alpha, PNG otherwise."""
+def image_bytes(path, max_size, kind, tint=False):
+    """A texture file resized for the web: JPEG for colour maps without alpha, PNG otherwise. `tint`: the map becomes a
+    luminance map with its mean lifted to 0.72, so the runtime's material colour (a skin tone, a shirt colour) multiplies
+    onto the shading detail and comes out as the colour chosen, whatever the painted colour was."""
     from PIL import Image
     import io
     im = Image.open(path)
     if max(im.size) > max_size: im = im.resize((min(im.size[0], max_size), min(im.size[1], max_size)), Image.LANCZOS)
+    if tint:
+        alpha = im.getchannel("A") if im.mode == "RGBA" else None
+        lum = np.asarray(im.convert("L"), dtype=np.float32) / 255
+        lum = np.clip(lum * (0.72 / max(1e-3, float(lum.mean()))), 0, 1)
+        im = Image.fromarray((lum * 255).astype(np.uint8)).convert("RGB")
+        if alpha is not None: im.putalpha(alpha)
     buf = io.BytesIO()
     if im.mode == "RGBA" or kind == "normal": im.save(buf, format="PNG", optimize=True); return buf.getvalue(), "image/png"
     im.convert("RGB").save(buf, format="JPEG", quality=86); return buf.getvalue(), "image/jpeg"
+
+def clip_tris(attrs, tris, n, d, interp=None):
+    """Keeps the part of a triangle mesh on the side of the plane dot(p, n) >= d, splitting the triangles it cuts so the
+    edge is a clean straight line. attrs: list of per-vertex arrays (positions first); shared cut edges stay welded.
+    interp: per attribute, whether a cut vertex blends it (positions, normals) or takes the nearer end's (bone slots)."""
+    P = attrs[0]; sd = P @ n - d; out = []; cache = {}
+    interp = interp or [True] * len(attrs)
+    attrs = [list(a) for a in attrs]
+    def cut(i, j):
+        key = (min(i, j), max(i, j))
+        if key in cache: return cache[key]
+        t = sd[i] / (sd[i] - sd[j])
+        for a, blend in zip(attrs, interp): a.append(a[i] + (a[j] - a[i]) * t if blend else (a[i] if t < 0.5 else a[j]))
+        cache[key] = len(attrs[0]) - 1; return cache[key]
+    for tri in tris:
+        inside = [v for v in tri if sd[v] >= 0]
+        if len(inside) == 3: out.append(tuple(tri)); continue
+        if len(inside) == 0: continue
+        a, b, c = tri
+        # rotate so the odd vertex comes first
+        for _ in range(3):
+            if (sd[a] >= 0) != (sd[b] >= 0) and (sd[a] >= 0) != (sd[c] >= 0): break
+            a, b, c = b, c, a
+        ab, ac = cut(a, b), cut(a, c)
+        if sd[a] >= 0: out.append((a, ab, ac))            # one corner kept
+        else: out.append((b, c, ac)); out.append((b, ac, ab))  # two corners kept
+    attrs = [np.array(a) for a in attrs]
+    return attrs, np.array(out, dtype=int).reshape(-1, 3)
+
+def clothe(prim, names, W, X, scale, opts):
+    """
+    Regular clothes grown from the body itself: a T-shirt, trousers and shoes as thin shells pushed out along the
+    body's smooth normals, so they are seamless and deform exactly with it (same skin weights). Each garment is the
+    body surface cut by planes (a collar below the neck, sleeves across the upper arms, a hem at the hips, an ankle
+    line), the triangles split on the planes so every edge is a clean line. Returns {material: arrays} like mesh_part.
+    """
+    mesh = UsdGeom.Mesh(prim)
+    pts = np.array(mesh.GetPointsAttr().Get(), dtype=np.float64)
+    fvc = np.array(mesh.GetFaceVertexCountsAttr().Get()); fvi = np.array(mesh.GetFaceVertexIndicesAttr().Get())
+    binding = UsdSkel.BindingAPI(prim)
+    gbt = binding.GetGeomBindTransformAttr().Get(); M = (mat_np(gbt) if gbt is not None else np.eye(4)) @ X
+    P = (np.c_[pts, np.ones(len(pts))] @ M)[:, :3] * scale
+    ji = binding.GetJointIndicesPrimvar(); jw = binding.GetJointWeightsPrimvar(); es = ji.GetElementSize()
+    idx = np.array(ji.Get()).reshape(-1, es); wts = np.array(jw.Get(), dtype=np.float64).reshape(-1, es)
+    bound = binding.GetJointsAttr().Get()
+    if bound: idx = np.array([names.index(j.split("/")[-1]) for j in bound])[idx]
+    order = np.argsort(-wts, axis=1)[:, :4]; idx4 = np.take_along_axis(idx, order, 1).astype(np.float64); w4 = np.take_along_axis(wts, order, 1)
+    if idx4.shape[1] < 4: pad = 4 - idx4.shape[1]; idx4 = np.pad(idx4, ((0, 0), (0, pad))); w4 = np.pad(w4, ((0, 0), (0, pad)))
+    w4 = w4 / np.maximum(w4.sum(1, keepdims=True), 1e-9)
+    offsets = np.r_[0, np.cumsum(fvc)[:-1]]; tris = []
+    for f in range(len(fvc)):
+        o, c = offsets[f], fvc[f]
+        for t in range(1, c - 1): tris.append((fvi[o], fvi[o + t], fvi[o + t + 1]))
+    tris = np.array(tris)
+    fn = np.cross(P[tris[:, 1]] - P[tris[:, 0]], P[tris[:, 2]] - P[tris[:, 0]])
+    vn = np.zeros_like(P)
+    for k in range(3): np.add.at(vn, tris[:, k], fn)
+    vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-9)
+    pos = {n: W[i][3, :3] for i, n in enumerate(names)}
+    neck, pelvis, foot = pos["neck_01"], pos["pelvis"], pos["foot_l"]
+    Y = np.array([0.0, 1.0, 0.0])
+    sleeve = float(opts.get("sleeve", 0.5)); off = float(opts.get("offset", 0.065)); shoe_off = float(opts.get("shoes", 0.1))
+    collar = neck[1] - float(opts.get("collar", 0.25)); hem = pelvis[1] - float(opts.get("hem", 0.15)); ankle = foot[1] + float(opts.get("ankle", 0.12))
+    def garment(planes, grow):
+        attrs, t = [P.copy(), vn.copy(), idx4.copy(), w4.copy()], tris.copy()
+        for n, d in planes: attrs, t = clip_tris(attrs, t, n, d, [True, True, False, False])
+        if len(t) == 0: return None
+        used = np.unique(t); remap = -np.ones(len(attrs[0]), dtype=int); remap[used] = np.arange(len(used))
+        Pn, Nn, Jn, Wn = (a[used] for a in attrs)
+        Nn = Nn / np.maximum(np.linalg.norm(Nn, axis=1, keepdims=True), 1e-9)
+        Jn = Jn.astype(np.uint16)
+        tt = remap[t]
+        # cloth drapes: a few rounds of Laplacian smoothing on the shell (the cut edges stay put) soften the body's muscle
+        # detail under the garment; the normals are recomputed from the smoothed surface
+        nb = [set() for _ in range(len(Pn))]; edge_count = {}
+        for a, b, c in tt:
+            for i, j in ((a, b), (b, c), (c, a)): nb[i].add(j); nb[j].add(i); e = (min(i, j), max(i, j)); edge_count[e] = edge_count.get(e, 0) + 1
+        boundary = np.zeros(len(Pn), dtype=bool)
+        for (i, j), cnt in edge_count.items():
+            if cnt == 1: boundary[i] = boundary[j] = True
+        Q = Pn.copy()
+        for _ in range(int(opts.get("smooth", 3))):
+            R = Q.copy()
+            for i in range(len(Q)):
+                if boundary[i] or not nb[i]: continue
+                R[i] = Q[i] * 0.4 + np.mean(Q[list(nb[i])], axis=0) * 0.6
+            Q = R
+        # smoothing pulls convex places (thighs, chest) inward: never let the cloth sink below the body surface
+        inward = np.minimum(0, np.einsum("ij,ij->i", Q - Pn, Nn)); Q = Q - Nn * inward[:, None]
+        fn2 = np.cross(Q[tt[:, 1]] - Q[tt[:, 0]], Q[tt[:, 2]] - Q[tt[:, 0]]); N2 = np.zeros_like(Q)
+        for k in range(3): np.add.at(N2, tt[:, k], fn2)
+        N2 /= np.maximum(np.linalg.norm(N2, axis=1, keepdims=True), 1e-9)
+        # pushed out along the body's own normals (so the shell never dips inside), but shaded with its own smoother ones
+        return ((Q + Nn * grow).astype(np.float32), N2.astype(np.float32), Jn, Wn.astype(np.float32), tt.reshape(-1).astype(np.uint32), np.zeros((len(used), 2), np.float32))
+    # sleeves: a plane across each upper arm, half way to the elbow, keeping the shoulder side
+    sleeves = []
+    for side in "lr":
+        a, b = pos["upperarm_" + side], pos["lowerarm_" + side]; axis = (b - a) / np.linalg.norm(b - a); cutp = a + axis * sleeve * np.linalg.norm(b - a)
+        sleeves.append((-axis, -float(axis @ cutp)))
+    out = {}
+    shirt = garment([(-Y, -collar), (Y, hem)] + sleeves, off)                 # below the collar, above the hem, inside the sleeve lines
+    pants = garment([(-Y, -(pelvis[1] + 0.35)), (Y, ankle)], float(opts.get("pants", off * 0.75)))  # from under the shirt down to the ankle line, a little closer to the body than the shirt that hangs over it
+    shoes = garment([(-Y, -(ankle + 0.06))], shoe_off)                        # from just under the trouser hem down
+    for matname, g in (("shirt", shirt), ("pants", pants), ("shoes", shoes)):
+        if g is None: continue
+        out[matname] = g; print(f"  clothes/{matname}: {len(g[0])} vertices, {len(g[4])//3} triangles")
+    return out
 
 class Glb:
     def __init__(self): self.bin = bytearray(); self.views = []; self.accessors = []
@@ -234,7 +349,9 @@ def main(spec_path):
             mspec = part["meshes"].get(mprim.GetName()) if "meshes" in part else part["subsets"]
             if mspec is None: continue
             bound_name = UsdShade.MaterialBindingAPI(mprim).ComputeBoundMaterial()[0]; bound_name = bound_name.GetPrim().GetName() if bound_name else "material"
-            for matname, (P, N, J, Wt, I, T) in mesh_part(mprim, names, X, scale, mspec).items():
+            pieces = mesh_part(mprim, names, X, scale, mspec)
+            if "clothes" in part and mprim.GetName() == part["clothes"].get("mesh", mprim.GetName()): pieces.update(clothe(mprim, names, W, X, scale, part["clothes"]))
+            for matname, (P, N, J, Wt, I, T) in pieces.items():
                 if matname == "@": matname = bound_name  # named after the USD material (a modular outfit piece keeps its own)
                 if "@" in textured: textured.add(matname)
                 if matname not in materials:
@@ -246,16 +363,17 @@ def main(spec_path):
                         for kind, slot in (("diffuse", "baseColorTexture"), ("normal", "normalTexture")):
                             if kind not in maps: continue
                             if kind == "normal" and not part.get("normals", False): continue
-                            tkey = (maps[kind], kind)
+                            tinted = kind == "diffuse" and matname in set(part.get("tint", []))
+                            tkey = (maps[kind], kind, tinted)
                             if tkey not in tex_index:
-                                data, mime = image_bytes(maps[kind], int(part.get("textureSize", 1024)) if kind == "diffuse" else 512, kind)
+                                data, mime = image_bytes(maps[kind], int(part.get("textureSize", 1024)) if kind == "diffuse" else 512, kind, tinted)
                                 while len(g.bin) % 4: g.bin.append(0)
                                 g.views.append({"buffer": 0, "byteOffset": len(g.bin), "byteLength": len(data)}); g.bin += data
                                 images.append({"bufferView": len(g.views) - 1, "mimeType": mime}); textures.append({"source": len(images) - 1, "sampler": 0})
                                 tex_index[tkey] = len(textures) - 1
                                 print(f"  texture {os.path.basename(maps[kind])} ({kind}) → {len(data)//1024} KB")
                             ref = {"index": tex_index[tkey]}
-                            if slot == "baseColorTexture": materials[matname]["pbrMetallicRoughness"]["baseColorTexture"] = ref; materials[matname]["pbrMetallicRoughness"]["baseColorFactor"] = [1, 1, 1, 1]
+                            if slot == "baseColorTexture": materials[matname]["pbrMetallicRoughness"]["baseColorTexture"] = ref; materials[matname]["pbrMetallicRoughness"]["baseColorFactor"] = (srgb2lin(hex2rgb(COLORS[matname])) + [1]) if tinted and matname in COLORS else [1, 1, 1, 1]
                             else: materials[matname]["normalTexture"] = ref
                 mi = list(materials).index(matname)
                 attrs = {"POSITION": g.acc(P, 5126, "VEC3", True, 34962), "NORMAL": g.acc(N, 5126, "VEC3", False, 34962), "JOINTS_0": g.acc(J, 5123, "VEC4", False, 34962), "WEIGHTS_0": g.acc(Wt, 5126, "VEC4", False, 34962)}

@@ -11,9 +11,14 @@ import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 
 /** Our bone → VRM humanoid bone. */
 const MAP: Record<string, string> = {
+  // the Quaternius "Ultimate Animated Character" rig
   Body: "hips", Abdomen: "spine", Torso: "chest", Neck: "neck", Head: "head",
   UpperArm_L: "leftUpperArm", LowerArm_L: "leftLowerArm", Fist_L: "leftHand", UpperArm_R: "rightUpperArm", LowerArm_R: "rightLowerArm", Fist_R: "rightHand",
   UpperLeg_L: "leftUpperLeg", LowerLeg_L: "leftLowerLeg", Foot_L: "leftFoot", UpperLeg_R: "rightUpperLeg", LowerLeg_R: "rightLowerLeg", Foot_R: "rightFoot",
+  // the UE-style rig of the "Universal Base Characters" (Head is named the same)
+  pelvis: "hips", spine_01: "spine", spine_03: "chest", neck_01: "neck",
+  upperarm_l: "leftUpperArm", lowerarm_l: "leftLowerArm", hand_l: "leftHand", upperarm_r: "rightUpperArm", lowerarm_r: "rightLowerArm", hand_r: "rightHand",
+  thigh_l: "leftUpperLeg", calf_l: "leftLowerLeg", foot_l: "leftFoot", thigh_r: "rightUpperLeg", calf_r: "rightLowerLeg", foot_r: "rightFoot",
 };
 /** The humanoid parent of each mapped bone (intermediate VRM bones such as upperChest or the shoulders stay at rest). */
 const PARENT: Record<string, string | null> = {

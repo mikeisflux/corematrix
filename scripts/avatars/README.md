@@ -12,13 +12,16 @@ python3 -m venv .venv && .venv/bin/pip install usd-core numpy   # the USD reader
 ```
 
 1. **Bodies** – `usd-to-glb.py body-a.json` / `body-b.json` → `models-src/body-{a,b}.glb`. Converts the Quaternius
-   "Ultimate Animated Character" USD files (all on one 32-joint rig) into a skinned glTF: the Casual Male / Casual Female
-   body split into `skin`, `shirt`, `pants`, `belt`, `shoes` (the bottom of the bare legs), `eye` and `brow` (the Face
-   subset split in two), and five hair styles from other characters of the pack as `hair_short` … `hair_curly`. Y-up,
-   feet, soles on y = 0, flat shaded, four influences a vertex.
+   "Universal Base Characters" USD files (the male and female full bodies on a 65-joint UE-style rig, with the hair and
+   eyebrow pieces) into a skinned glTF with textures: the body as `skin` (its colour map turned into a tintable
+   luminance map, so the picker's skin tone multiplies onto the shading), `eye`, `brow`, five `hair_*` styles, and the
+   clothes grown from the body itself (`clothes` in the spec): a `shirt`, `pants` and `shoes` cut from the body surface
+   on clean planes (collar, sleeves, hem, ankle), smoothed, and pushed out along the normals, so they are seamless and
+   deform with the body. Y-up, feet, soles on y = 0, faces +z. The earlier stylised bodies ("Ultimate Animated
+   Character", 32-joint rig) still convert with the same script.
 2. **Clips** – `node retarget.mjs clips-a.json` / `clips-b.json` → `models-src/body-{a,b}.anim.glb`. Retargets
-   idle/walk/run/sit/cheer/bow/point from the KayKit Adventurers (any character file carries all 76 clips) and the
-   project's own wave/dance/clap/laugh/facepalm from `legacy-rig.glb` (the old procedural figure) onto the body's bones:
+   walk/run/sit/cheer/bow/point from the KayKit Adventurers (any character file carries all 76 clips) and the
+   project's own idle/wave/dance/clap/laugh/facepalm from `legacy-rig.glb` (the old procedural figure) onto the body's bones:
    world-space rotation deltas with limb-direction matching, eased elbows and knees, feet kept on the floor, the sit
    clip's hips pinned at seat height.
 3. **Assembly** – `npm run dev`, then `node scripts/export-models.mjs` (`/dev/models` in the browser): lifts the costume
