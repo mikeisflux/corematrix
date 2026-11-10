@@ -107,31 +107,17 @@ export function wantedClip(motion: Motion, actions: Record<string, THREE.Animati
   if (st.until > performance.now()) return st.name;
   return motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
 }
-export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motion: Motion; url: string }) {
-  const { scene, animations } = useModel(url);
-  const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}|${config.costume ?? "none"}`;
-  const obj = useMemo(() => {
-    const c = SkeletonUtils.clone(scene); // a skinned body: its bones must be cloned with it and the meshes rebound to the copies
-    const colors = applyAvatarLook(c, config);
-    c.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      if (m.name === "lod") { m.visible = false; return; } // the far-crowd stand-in baked into the file; CrowdImpostors draws it
-      const name = (m.material as THREE.Material).name;
-      if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); if (name === "glow") { mm.emissive.set(colors[name]); mm.emissiveIntensity = 1.5; } m.material = mm; }
-    });
-    return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene, colorKey]);
-  const ref = useRef<THREE.Object3D>(null);
-  const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
-  const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
+/**
+ * Drives a figure's mixer from its motion state. The three locomotion clips run all the time with weights from the
+ * eased speed (a blend tree), so a figure easing from a stroll into a run passes through a real mix of the two cycles
+ * instead of a hard crossfade; the sit pose or an emote plays over them and scales them down while it lasts. Hidden
+ * or distant figures cost nothing; far ones step at half rate. `extra` runs after each mixer step (a VRM's physics).
+ */
+export function useFigureAnimation(mixer: THREE.AnimationMixer, actions: Record<string, THREE.AnimationAction | undefined>, motion: Motion, ref: React.RefObject<THREE.Object3D | null>, extra?: (dt: number, camera: THREE.Camera) => void) {
   const overlay = useRef<THREE.AnimationAction | null>(null); // the sit pose or an emote, played over the locomotion blend
   const blend = useRef(0); // eased speed, 0 idle → 1 walk → 2 run
   const frame = useRef(0);
   const emote = useRef({ at: 0, until: 0, name: "" });
-  // the three locomotion clips run all the time; their weights come from the speed (a blend tree), so a figure easing
-  // from a stroll into a run passes through a real mix of the two cycles instead of a hard crossfade
   useEffect(() => {
     for (const n of LOCOMOTION) actions[n]?.setEffectiveWeight(n === "idle" ? 1 : 0).play();
     blend.current = 0; overlay.current = null;
@@ -161,6 +147,29 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
     actions.walk?.setEffectiveWeight((b <= 1 ? b : Math.max(0, 2 - b)) * k);
     actions.run?.setEffectiveWeight(Math.max(0, b - 1) * k);
     mixer.update(step);
+    extra?.(step, camera);
   });
+}
+
+export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motion: Motion; url: string }) {
+  const { scene, animations } = useModel(url);
+  const colorKey = `${config.skin}|${config.hairColor}|${config.shirt}|${config.pants}|${config.hair}|${config.costume ?? "none"}`;
+  const obj = useMemo(() => {
+    const c = SkeletonUtils.clone(scene); // a skinned body: its bones must be cloned with it and the meshes rebound to the copies
+    const colors = applyAvatarLook(c, config);
+    c.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      if (m.name === "lod") { m.visible = false; return; } // the far-crowd stand-in baked into the file; CrowdImpostors draws it
+      const name = (m.material as THREE.Material).name;
+      if ((RECOLOR_MATERIALS as readonly string[]).includes(name)) { const mm = (m.material as THREE.MeshStandardMaterial).clone(); mm.color.set(colors[name]); if (name === "costume2") mm.emissive.set(colors[name]).multiplyScalar(0.25); if (name === "glow") { mm.emissive.set(colors[name]); mm.emissiveIntensity = 1.5; } m.material = mm; }
+    });
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, colorKey]);
+  const ref = useRef<THREE.Object3D>(null);
+  const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
+  const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
+  useFigureAnimation(mixer, actions, motion, ref);
   return <primitive ref={ref} object={obj} />;
 }

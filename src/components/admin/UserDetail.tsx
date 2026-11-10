@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useJson, api, useToast, PageHead, Badge, Money, DateTime, ConfirmButton, Field, Input, Checkbox, Empty } from "./shared";
 import { ADMIN_AREAS, parsePermissions, type AdminArea } from "@/lib/permissions";
-interface User { permissions: string | null; id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; promoCents?: number; emailVerifiedAt: number | null; referralPaidAt: number | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
+interface User { permissions: string | null; avatar?: string | null; id: string; email: string; displayName: string | null; handle: string | null; referralCode: string; referredBy: string | null; promoCents?: number; emailVerifiedAt: number | null; referralPaidAt: number | null; creditCents: number; coins: number; streak: number; notifyEmail: boolean; dcPaymentMethodId: string | null; cardIp: string | null; isAdmin: boolean; createdAt: number; lastSeenAt: number | null }
 interface Resp { user: User; booths: { id: number; name: string | null; tier: string; valueCents: number; floors: number; hidden: boolean; claimedAt: number | null; subscriptionStatus: string | null }[]; txs: { id: string; kind: string; status: string; amountCents: number; boothId: number; createdAt: number; buyerId: string | null }[]; coins: { id: string; delta: number; reason: string; ref: string | null; createdAt: number }[]; mail: { id: string; direction: string; subject: string; status: string | null; createdAt: number }[]; sessions: number }
 export default function UserDetail({ id }: { id: string }) {
   const d = useJson<Resp>(`/api/admin/users/${id}`);
@@ -47,6 +47,7 @@ export default function UserDetail({ id }: { id: string }) {
             <div className="admRow"><span className="admLabel">Email</span>{u.emailVerifiedAt ? <span className="admMuted">confirmed <DateTime value={u.emailVerifiedAt} /></span> : <span className="admMuted">not confirmed</span>}</div>
             <div className="span2 admRow">
               <button className="admBtn admBtn--primary">Save</button>
+              {u.avatar && /"vrm":"/.test(u.avatar) && <ConfirmButton className="admBtn" message="Take their own VRM model off? They go back to the built-in figure and can upload another." onConfirm={() => patch({ action: "clear_vrm" }, "Model removed")}>Remove VRM model</ConfirmButton>}
               {u.dcPaymentMethodId && <ConfirmButton className="admBtn" message="Forget the saved card? Plan renewals will fail until they add a new one." onConfirm={() => patch({ action: "clear_card" }, "Card cleared")}>Forget card</ConfirmButton>}
               <button type="button" className="admBtn" onClick={() => { const p = window.prompt("New password (10+ characters). Leave empty to remove password sign-in for this user."); if (p === null) return; patch({ action: "set_password", password: p }, p ? "Password set" : "Password removed"); }}>Set password</button>
             </div>

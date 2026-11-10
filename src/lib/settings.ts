@@ -23,6 +23,7 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "SUPPORT_EMAIL", label: "Support email", group: "Site", hint: "hello@forevercomiccon.com" },
   { key: "ANNOUNCEMENT", label: "Announcement bar text", group: "Site", hint: "optional — shown on the home page HUD" },
   { key: "MAINTENANCE_MODE", label: "Maintenance mode", group: "Site", hint: "true / false — checkout is paused, admins can still sign in" },
+  { key: "VRM_UPLOADS", label: "Visitors may wear their own VRM model", group: "Site", hint: "true (default) / false. Signed-in visitors can upload a .vrm (VRoid Studio etc., up to 15 MB) in the avatar panel and walk the floor in it. An admin can take a model off any account from its user page." },
   { key: "HALL_CAPACITY", label: "Floor capacity (people walking at once)", group: "Site", hint: "400 (default). Past this, newcomers who press Walk see the waiting room and are let in first come, first served as others leave. The map, booths, chat and theater stay open to everyone. Admins never queue." },
 
   // Storage: uploaded images (booth art, logos) on Cloudflare R2 instead of the database

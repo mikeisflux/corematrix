@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { removeVrm } from "@/lib/vrm";
 import { audit, isAdminEmail, markVerified, requestPasswordReset, sendVerification, setPassword } from "@/lib/auth";
 import { getSetting } from "@/lib/settings";
 import { parsePermissions } from "@/lib/permissions";
@@ -46,6 +47,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     await db.delete(schema.sessions).where(eq(schema.sessions.userId, id)); // a new password signs out whoever had the old one
     await audit(g.id, "user.set_password", "user", id, undefined, { cleared: !b.password }, g.email);
     return NextResponse.json({ ok: true });
+  }
+  if (b.action === "clear_vrm") {
+    let a: Record<string, unknown> = {}; try { a = JSON.parse(u.avatar ?? "null") ?? {}; } catch {}
+    await removeVrm(typeof a.vrm === "string" ? a.vrm : null); const before = { vrm: a.vrm, vrmMeta: a.vrmMeta }; delete a.vrm; delete a.vrmMeta;
+    await db.update(schema.users).set({ avatar: JSON.stringify(a) }).where(eq(schema.users.id, id)); await audit(g.id, "user.clear_vrm", "user", id, before, undefined, g.email); return NextResponse.json({ ok: true });
   }
   if (b.action === "clear_card") { await db.update(schema.users).set({ dcPaymentMethodId: null }).where(eq(schema.users.id, id)); await audit(g.id, "user.clear_card", "user", id, { dcPaymentMethodId: u.dcPaymentMethodId }, undefined, g.email); return NextResponse.json({ ok: true }); }
   const data: Partial<typeof schema.users.$inferInsert> = {};

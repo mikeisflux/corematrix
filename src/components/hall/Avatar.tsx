@@ -8,6 +8,8 @@ import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES, COSTUMES, isCostumeId } from "@/lib/hall/costumes";
 import { impostors, LOD_FAR_FT, LOD_NEAR_FT, type ImpostorSlot } from "./CrowdImpostors";
+import { VrmRig } from "./VrmRig";
+import { VRM_URL_RE } from "@/lib/vrm-url";
 import { agent, useAgent, agentDone, bumpAgent, talkToAgent } from "@/lib/hall/agent";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
@@ -158,7 +160,9 @@ export function AvatarModel({ config, motion, idle, lod = true }: { config: Avat
     else impostors.delete(key);
   });
   const rig = url ? <ModelBoundary fallback={<PrimitiveAvatar config={config} motion={m} />}><Suspense fallback={<PrimitiveAvatar config={config} motion={m} />}><AvatarRig config={config} motion={m} url={url} /></Suspense></ModelBoundary> : <PrimitiveAvatar config={config} motion={m} />;
-  return <group ref={ref}>{!(far && slot) && rig}</group>;
+  // a visitor's own VRM model wears the hall's clips; the built-in figure stands in while it loads and if it fails
+  const figure = url && config.vrm && VRM_URL_RE.test(config.vrm) ? <ModelBoundary fallback={rig}><Suspense fallback={rig}><VrmRig url={config.vrm} config={config} motion={m} fallback={rig} /></Suspense></ModelBoundary> : rig;
+  return <group ref={ref}>{!(far && slot) && figure}</group>;
 }
 
 /* ---------- fallback figure ---------- */

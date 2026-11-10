@@ -13,6 +13,52 @@ function Swatches({ list, value, onPick }: { list: string[]; value: string; onPi
   return <div className="flex flex-wrap gap-1.5">{list.map((c) => <button key={c} onClick={() => onPick(c)} className={`h-7 w-7 rounded-full border-2 ${value === c ? "border-white" : "border-transparent"}`} style={{ background: c }} aria-label={c} />)}</div>;
 }
 
+/** Your own VRM model (VRoid Studio etc.): upload, see what its metadata says, take it off again. Signed-in only; the built-in look stays as the fallback. */
+function OwnModel() {
+  const avatar = useHall((s) => s.avatar);
+  const setAvatar = useHall((s) => s.setAvatar);
+  const setPanel = useHall((s) => s.setPanel);
+  const setToast = useHall((s) => s.setToast);
+  const me = useHall((s) => s.me);
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [meta, setMeta] = useState<{ name: string; author: string; permission: string } | null>(null);
+  const upload = async (f: File | undefined) => {
+    if (!f) return;
+    if (!ok) { setToast("Tick the box first: the model must be yours or one you are allowed to use."); return; }
+    if (f.size > 15 * 1024 * 1024) { setToast("That file is over 15 MB. Export a lighter model."); return; }
+    setBusy(true);
+    try {
+      const r = await fetch("/api/me/vrm", { method: "POST", body: f, headers: { "Content-Type": "model/gltf-binary" } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Upload failed");
+      setMeta(j.meta); setAvatar({ vrm: j.vrm }); setToast(`You are now wearing ${j.meta?.name || "your model"}.`);
+    } catch (e) { setToast((e as Error).message); } finally { setBusy(false); }
+  };
+  const remove = async () => { setBusy(true); try { await fetch("/api/me/vrm", { method: "DELETE" }); setAvatar({ vrm: null }); setMeta(null); setToast("Back to the built-in figure."); } finally { setBusy(false); } };
+  const label = (p: string) => (p === "everyone" || p === "Everyone" ? "anyone may use it" : p === "onlySeparatelyLicensedPerson" || p === "ExplicitlyLicensedPerson" ? "licensed people only" : "the author only");
+  return (
+    <div>
+      <label className="label">Your own model <span className="font-normal normal-case text-slate-500">(VRM, optional)</span></label>
+      {!me ? (
+        <p className="text-[11px] text-slate-400">Have a VRoid Studio or other .vrm avatar? <button className="underline" onClick={() => setPanel("me")}>Sign in</button> to wear it on the floor.</p>
+      ) : avatar.vrm ? (
+        <div className="rounded-lg bg-white/5 p-2 text-[11px] text-slate-300">
+          <div>Wearing <b>{meta?.name || "your model"}</b>{meta?.author ? ` by ${meta.author}` : ""}{meta ? ` · its licence: ${label(meta.permission)}` : ""}.</div>
+          <div className="mt-1 text-slate-500">Body, colours and costume above stay as your look for the far crowd and for anyone whose device cannot load the model.</div>
+          <button disabled={busy} onClick={remove} className="mt-1.5 rounded-lg bg-white/10 px-2 py-1 text-[11px] hover:bg-white/15 disabled:opacity-50">Take it off</button>
+        </div>
+      ) : (
+        <div className="space-y-1.5 text-[11px] text-slate-400">
+          <label className="flex items-start gap-2"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="mt-0.5" /><span>This model is mine, or its licence lets me use it as my avatar. Nothing adult or hateful; admins can remove a model.</span></label>
+          <label className={`inline-block cursor-pointer rounded-lg px-2 py-1 text-[11px] ${ok ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"} ${busy ? "opacity-50" : ""}`}>{busy ? "Uploading…" : "Upload a .vrm (up to 15 MB)"}<input type="file" accept=".vrm,model/gltf-binary" className="hidden" disabled={busy} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} /></label>
+          <p className="text-[10px] text-slate-500">VRM 0.x and 1.0 from VRoid Studio, Blender&apos;s VRM add-on or UniVRM. Lighter is better: everyone near you downloads it.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Pick a body, skin tone, hair and outfit, then walk the floor. Saved locally and on the account. */
 export function AvatarPanel() {
   const avatar = useHall((s) => s.avatar);
@@ -58,6 +104,9 @@ export function AvatarPanel() {
           <label className="label">Cosplay</label>
           <div className="grid grid-cols-3 gap-1">{COSTUME_IDS.filter((c) => !STAFF_COSTUMES.includes(c)).map((c) => { const item = PREMIUM_COSTUMES.includes(c) ? itemById(`costume:${c}`) : null; const locked = !!item && !shop.owned.has(item.id); return <button key={c} title={locked ? `${COSTUMES[c].blurb} · ${item!.coins} coins in the shop` : COSTUMES[c].blurb} onClick={() => { if (locked) { setPanel("shop"); return; } setAvatar({ costume: c }); }} className={`rounded-lg px-1 py-1.5 text-[11px] ${(avatar.costume ?? "none") === c ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"}`}>{locked ? "🔒 " : ""}{COSTUMES[c].name}</button>; })}</div>
           <p className="mt-1 text-[10px] text-slate-500">Original looks only. A costume sets its own outfit colours. 🔒 ones are in the <button className="underline" onClick={() => setPanel("shop")}>shop</button> for coins, or free at a booth that sponsors them.</p>
+        </div>
+        <OwnModel />
+        <div className="hidden">
         </div>
         <button className="btn-primary w-full" onClick={() => { setMode("walk"); setPanel("none"); }}>Walk the floor →</button>
         <p className="text-[11px] text-slate-500">Arrow keys or WASD to walk (left/right arrows turn, A/D sidestep), drag the mouse to look around, Shift to run, E at a booth to open it, V for first person. On phones, use the joystick.</p>

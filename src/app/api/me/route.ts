@@ -64,7 +64,9 @@ export async function PATCH(req: Request) {
     const costume = isCostumeId(a.costume) && (!STAFF_COSTUMES.includes(a.costume) || u.isAdmin) ? a.costume : "none"; // the show's own looks stay with the show
     const needs = costumeItem(costume);
     const wearable = !needs || (await ownedItemsCached(u.id)).has(needs);
-    set.avatar = JSON.stringify({ body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });
+    // the account's own model (and its metadata) is set only through /api/me/vrm: it rides along untouched here
+    let kept: Record<string, unknown> = {}; try { const cur = JSON.parse(u.avatar ?? "null") ?? {}; if (typeof cur.vrm === "string") kept = { vrm: cur.vrm, vrmMeta: cur.vrmMeta }; } catch {}
+    set.avatar = JSON.stringify({ ...kept, body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });
   }
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;

@@ -122,6 +122,8 @@ Why each part matters:
   it has a buffer's worth or the response ends. For the live stream that delays every event; for a film it means the
   player waits for whole chunks and the screen moves in jerks.
 - **`client_max_body_size`**: uploads are chunked, so 64 MB is plenty. Without this nginx answers 413 on the first chunk.
+  Visitors' own VRM avatars (up to 15 MB, one request) fit under it too; they are kept in R2 when storage is on, else in
+  `data/vrm/` next to the database folder (keep that directory in backups if you care about them).
 
 ## A CDN in front of nginx
 

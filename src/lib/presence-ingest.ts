@@ -3,6 +3,7 @@
  * what the person may show (shop costumes, reaction packs, sitting at a claimed booth), then stored.
  */
 import { z } from "zod";
+import { VRM_URL_RE } from "@/lib/vrm-url";
 import { ALL_REACTIONS, BASE_REACTIONS, costumeItem, reactionsFor } from "@/lib/hall/items";
 import { ownedItemsCached } from "@/lib/shop";
 import { COSTUME_IDS } from "@/lib/hall/costumes";
@@ -24,7 +25,7 @@ export const PresenceBody = z.object({
   j: z.string().max(40).nullable().optional(), // job title under the name
   w: z.boolean().optional(), // away: the tab is in the background, keep my spot
   // everything here is rendered by every other client: only known values, so a crafted name can't break their view
-  a: z.object({ body: z.enum(["a", "b"]), skin: HEX, hair: z.enum(["short", "long", "buzz", "bun", "curly", "bald"]), hairColor: HEX, shirt: HEX, pants: HEX, costume: z.enum(COSTUME_IDS as [string, ...string[]]).optional() }).optional(),
+  a: z.object({ body: z.enum(["a", "b"]), skin: HEX, hair: z.enum(["short", "long", "buzz", "bun", "curly", "bald"]), hairColor: HEX, shirt: HEX, pants: HEX, costume: z.enum(COSTUME_IDS as [string, ...string[]]).optional(), vrm: z.string().regex(VRM_URL_RE).optional().catch(undefined) }).optional(),
   e: z.object({ n: z.enum(["wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"]), t: z.number().finite() }).nullable().optional().catch(null),
   r: z.object({ k: z.enum(ALL_REACTIONS as [string, ...string[]]), t: z.number().finite() }).nullable().optional().catch(null),
 });
