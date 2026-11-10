@@ -12,6 +12,8 @@ import { requestSit } from "@/lib/hall/seats";
 import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
 import { ArtPreview } from "./ArtPreview";
+import { PortfolioBook } from "./PortfolioBook";
+import { ChatDock } from "./ChatDock";
 import { useTheater, setTheaterSound, setTheaterOpen } from "@/lib/hall/theater";
 import { useAgent, talkToAgent, answerAgent, AGENT_REPLIES } from "@/lib/hall/agent";
 import { Minimap } from "./Minimap";
@@ -131,13 +133,18 @@ export function Hud() {
   // phones get the panels as a bottom sheet outside the animated column (an animated ancestor would pin a fixed sheet to it)
   const [mobile, setMobile] = useState(false);
   useEffect(() => { const mq = window.matchMedia("(max-width: 767px)"); const on = () => setMobile(mq.matches); on(); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, []);
+  // the chat box at the bottom left pushes the minimap, the panel column and the live feed up by its height (computers only)
+  const dock = usePrefs().chatDock;
+  const dockH = dock === "off" || panel === "chat" || panel === "dm" ? "0px" : dock === "min" ? "2.1rem" : "13.6rem";
   const Panel = panel !== "none" && Object.hasOwn(Panels, panel) ? Panels[panel as PanelKey] : null;
   const panelBody = Panel ? <Panel /> : null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 select-none">
+    <div className="pointer-events-none absolute inset-0 select-none" style={{ "--fcc-dock": mobile ? "0px" : dockH } as React.CSSProperties}>
       <PerfOverlay />
+      {loaded && <ChatDock />}
       {loaded && <ArtPreview />}
+      {loaded && <PortfolioBook />}
       {loaded && <Minimap />}
       {loaded && <Tips />}
       {loaded && <SignupNudge />}
@@ -172,7 +179,7 @@ export function Hud() {
           </button>
         )}
         {panelBody && !mobile && (
-          <div className="pointer-events-auto panel max-h-[calc(100vh-210px)] overflow-y-auto scroll rounded-2xl fade-up">{panelBody}</div>
+          <div className="pointer-events-auto panel max-h-[calc(100vh-210px-var(--fcc-dock))] overflow-y-auto scroll rounded-2xl fade-up">{panelBody}</div>
         )}
         {panel === "none" && loaded && mode === "map" && <LiveFeed />}
       </div>
@@ -352,7 +359,7 @@ function LiveFeed() {
   const [open, setOpen] = useState(true);
   const top = Array.from(booths.values()).sort((a, b) => b.valueCents - a.valueCents).slice(0, 6);
   return (
-    <div className="pointer-events-auto panel rounded-2xl p-3 max-h-[calc(100vh-170px)] overflow-y-auto scroll">
+    <div className="pointer-events-auto panel rounded-2xl p-3 max-h-[calc(100vh-205px-var(--fcc-dock))] overflow-y-auto scroll">
       <div className="flex items-center justify-between">
         <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Top booths</div>
         <button onClick={() => setOpen((o) => !o)} className="text-xs text-slate-400 hover:text-white">{open ? "hide" : "show"}</button>

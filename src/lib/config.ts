@@ -89,11 +89,11 @@ export const ART_SLOTS = {
   },
   gallery: {
     name: "Portfolio piece",
-    ratio: "4:5",
-    width: 960, height: 1200,
-    where: "Your portfolio: the matted prints pinned to the drape behind an Artists' Alley table, or standing on an exhibitor table switched to prints, flip through it as people walk up, and the storefront shows the whole gallery.",
-    physical: "The three prints on an artist's drape are 1.2 × 1.5 ft; a print on a table stand is 0.9 × 1.1 ft; the gallery shows each piece full size when opened.",
-    tip: "Finished pieces at 4:5. A wider or taller piece is cropped to fit; upload a crop you like instead of trusting the automatic one.",
+    ratio: "11:17",
+    width: 1100, height: 1700,
+    where: "Your portfolio: the 11 × 17 prints on the print wall behind your table (every Artists' Alley table has one; a booth gets one when its table is switched to Print wall), the open portfolio book on the table, and the storefront gallery.",
+    physical: "Each print on the wall is 11 × 17 in, hung from table height up; the book on the table flips through the whole set; the gallery shows each piece full size when opened.",
+    tip: "Finished pieces at 11:17, the standard print size. A different shape is cropped to fit; upload a crop you like instead of trusting the automatic one.",
   },
   product: {
     name: "Product photo",
@@ -108,7 +108,7 @@ export type ArtSlot = keyof typeof ART_SLOTS;
 /** Shop items: how many one booth may list. */
 export const PRODUCT_LIMIT = 8;
 /** Portfolio: pieces an artist table may show. */
-export const GALLERY_LIMIT = 12;
+export const GALLERY_LIMIT = 48; // enough to fill an inline booth's print wall (8 across × 6 up)
 export const gallerySlotKey = (n: number) => `gallery:${n}`;
 export const productSlotKey = (id: string) => `product:${id}`;
 /** Slots that only exist on a 20×20 island (it has the tower and the open floor). */

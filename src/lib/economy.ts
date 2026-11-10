@@ -50,7 +50,7 @@ export interface BoothDraft {
   style?: string; // banner style
   cloth?: string; // table cloth / drape color
   category?: string;
-  tableMode?: string; // "books": comic covers on the stands; "prints": the portfolio pieces instead (for exhibitors without books); "none": a bare table
+  tableMode?: string; // "books": comic covers on the stands; "prints": the portfolio pieces on the stands; "wall": a print wall behind the table and the portfolio book on it; "none": a bare table
 }
 
 /** Where to ask for a commission: an email becomes a mailto: link, anything else must be a web address. */
@@ -104,7 +104,7 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
     style: BANNER_STYLES.includes((d.style ?? "") as never) ? d.style : "classic",
     cloth: d.cloth && isHexColor(d.cloth) ? d.cloth : "#111827",
     category: d.category && CATEGORIES[d.category] ? d.category : "comics",
-    tableMode: d.tableMode === "prints" || d.tableMode === "none" ? d.tableMode : "books",
+    tableMode: d.tableMode === "prints" || d.tableMode === "none" || d.tableMode === "wall" ? d.tableMode : "books",
   };
 }
 
@@ -483,6 +483,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
         ...spaceColumns(tx.boothId),
         ownerId: tx.buyerId,
         ...d,
+        tableMode: spaceColumns(tx.boothId).kind === "artist" ? "wall" : d.tableMode, // an artist table starts with its print wall up
         valueCents: tx.valueAfter,
         freeValueCents: freeValue,
         claimedAt: t,
@@ -492,7 +493,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
       })
       .onConflictDoUpdate({
         target: schema.booths.id,
-        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, valueCents: tx.valueAfter, freeValueCents: freeValue, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false, teamId: null },
+        set: { ...spaceColumns(tx.boothId), ownerId: tx.buyerId, ...d, tableMode: spaceColumns(tx.boothId).kind === "artist" ? "wall" : d.tableMode, valueCents: tx.valueAfter, freeValueCents: freeValue, claimedAt: t, updatedAt: t, lastSoldAt: t, salesCount: 1, hidden: false, teamId: null },
         setWhere: isNull(schema.booths.ownerId), // never over someone who claimed it in the meantime
       })
       .returning({ id: schema.booths.id })
@@ -516,6 +517,7 @@ async function settleInner(txId: string, provider: PayProvider, providerRef?: st
       .set({
         ownerId: tx.buyerId,
         ...d,
+        tableMode: spaceColumns(tx.boothId).kind === "artist" ? "wall" : d.tableMode, // an artist table starts with its print wall up
         valueCents: tx.valueAfter,
         updatedAt: t,
         lastSoldAt: t,

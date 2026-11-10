@@ -195,7 +195,7 @@ export function Dashboard({ initialBooth }: { initialBooth: number | null }) {
 
           <Edit p={p} onSaved={(d) => { patchBooth(p.id, d); setMsg("Saved. The show floor updates instantly."); }} setMsg={setMsg} />
           <Artwork p={p} setMsg={setMsg} onChanged={(art) => patchBooth(p.id, { art })} />
-          {p.kind !== "artist" && <TableMode p={p} setMsg={setMsg} onChanged={(tableMode) => patchBooth(p.id, { tableMode })} />}
+          <TableMode p={p} setMsg={setMsg} onChanged={(tableMode) => patchBooth(p.id, { tableMode })} />
           <Books p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />
           {(p.kind === "artist" || p.tableMode === "prints") && <Portfolio p={p} setMsg={setMsg} onChanged={(art, artLinks) => patchBooth(p.id, { art, ...(artLinks ? { artLinks } : {}) })} />}
           <Shop p={p} products={detail.products ?? []} setMsg={setMsg} onChanged={(products) => setDetail((cur) => (cur && cur.booth.id === p.id ? { ...cur, products } : cur))} />
@@ -659,17 +659,17 @@ async function uploadArt(boothId: number, slot: string, file: File, want: { widt
 }
 
 /** What stands on an exhibitor's table: comic covers on the paid stands, the portfolio pieces for someone who has art but no books, or nothing. */
-type TableModeId = "books" | "prints" | "none";
+type TableModeId = "books" | "prints" | "wall" | "none";
 function TableMode({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (tableMode: string) => void }) {
   const [busy, setBusy] = useState(false);
-  const saved: TableModeId = p.tableMode === "prints" || p.tableMode === "none" ? p.tableMode : "books";
+  const saved: TableModeId = p.tableMode === "prints" || p.tableMode === "none" || p.tableMode === "wall" ? p.tableMode : "books";
   const [mode, setMode] = useState<TableModeId>(saved); // the pick shows at once; it reverts if saving fails
   const [seen, setSeen] = useState(saved);
   if (seen !== saved) { setSeen(saved); setMode(saved); } // a save elsewhere (another tab, a manager) resets the pick
   const set = async (tableMode: TableModeId) => {
     if (tableMode === mode || busy) return;
     setBusy(true); setMode(tableMode);
-    try { await api(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ tableMode }) }); onChanged(tableMode); setMsg(tableMode === "prints" ? "Your table shows your portfolio now. Add pieces below." : tableMode === "none" ? "Your table is bare now. Your covers and pieces are kept." : "Your table shows comic covers again."); }
+    try { await api(`/api/booth/${p.id}`, { method: "PATCH", body: JSON.stringify({ tableMode }) }); onChanged(tableMode); setMsg(tableMode === "prints" ? "Your table shows your portfolio now. Add pieces below." : tableMode === "wall" ? "Your print wall is up behind the table, with the portfolio book on it. Add pieces below." : tableMode === "none" ? "Your table is bare now. Your covers and pieces are kept." : "Your table shows comic covers again."); }
     catch (e) { setMode(saved); setMsg((e as Error).message); }
     setBusy(false);
   };
@@ -682,11 +682,13 @@ function TableMode({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: s
   return (
     <div className="rounded-2xl border border-white/10 p-4">
       <div className="text-xs font-bold uppercase tracking-wider text-slate-400">On the table</div>
-      <p className="mt-1 text-[11px] text-slate-500">Pick what stands on your table. No books to show? Put your art there instead: the stands hold framed prints from your portfolio and flip through it while someone is at the booth. Or leave the table bare. The storefront lists your comics and portfolio either way.</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        {opt("books", "Comic covers", "The books you unlock below, one cover per stand, with a buy link each.")}
-        {opt("prints", "Art prints from your portfolio", `Up to ${GALLERY_LIMIT} pieces, free, with a print link each. Switch back any time; nothing is lost.`)}
-        {opt("none", "Off", "A bare table: no stands, nothing on it. Your covers and pieces are kept for when you switch back.")}
+      <p className="mt-1 text-[11px] text-slate-500">{p.kind === "artist" ? "Pick what your table shows: your print wall with the portfolio book on the table, or comic stands with a roll-up banner behind them. One or the other, never both. The storefront lists your comics and portfolio either way." : "Pick what your table shows. Comics on the stands, a print wall of your art behind the table like a real artist booth, prints on the stands, or nothing. One at a time. The storefront lists your comics and portfolio either way."}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {p.kind === "artist" && opt("wall", "Print wall", `Your gridwall of 11 × 17 prints behind the table, taller than the drape, with the open portfolio book on the table. Up to ${GALLERY_LIMIT} pieces, free.`)}
+        {opt("books", "Comic covers", p.kind === "artist" ? "Comic stands on the table and a 3 × 6 roll-up banner behind it; the print wall comes down." : "The books you unlock below, one cover per stand, with a buy link each.")}
+        {p.kind !== "artist" && p.size !== "20x20" && opt("wall", "Print wall", `A free-standing black gridwall across the back of the booth, taller than the drape, with your portfolio clipped on as 11 × 17 prints from table height up, and an open portfolio book on the table that visitors flip through. It replaces the roll-up, logo board and back banner. Up to ${GALLERY_LIMIT} pieces, free.`)}
+        {p.kind !== "artist" && opt("prints", "Art prints on the stands", "Your portfolio pieces on the table stands instead of comics; they rotate when there are more pieces than stands.")}
+        {p.kind !== "artist" && opt("none", "Off", "A bare table: no stands, nothing on it. Your covers and pieces are kept for when you switch back.")}
       </div>
     </div>
   );
@@ -762,7 +764,7 @@ function Books({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: strin
   );
 }
 
-/** An artist's portfolio: up to GALLERY_LIMIT pieces that hang on the table's drape (three at a time, flipping as people walk up) and fill the storefront gallery. */
+/** The portfolio: up to GALLERY_LIMIT pieces that hang on the print wall, fill the book on the table and the storefront gallery. */
 function Portfolio({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: string) => void; onChanged: (art: Record<string, number>, artLinks?: Record<string, string>) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [links, setLinks] = useState<Record<string, string>>(p.artLinks ?? {});
@@ -771,7 +773,7 @@ function Portfolio({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: s
   const have = pieces.filter((k) => p.art?.[k]).length;
   const upload = async (slot: string, file: File) => {
     setBusy(slot);
-    try { onChanged(await uploadArt(p.id, slot, file, ART_SLOTS.gallery)); setMsg(p.kind === "artist" ? "Piece added. It's on your table's drape and in your gallery." : "Piece added. It's on your table and in your gallery."); }
+    try { onChanged(await uploadArt(p.id, slot, file, ART_SLOTS.gallery)); setMsg("Piece added. It's on your print wall, in the book on the table and in your gallery."); }
     catch (e) { setMsg((e as Error).message); }
     setBusy(null);
   };
@@ -791,7 +793,7 @@ function Portfolio({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: s
     <div id="portfolio" className="rounded-2xl border border-white/10 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Portfolio · {have}/{GALLERY_LIMIT} pieces</div>
-        <div className="text-[11px] text-slate-500">{p.kind === "artist" ? "Included with every Artists' Alley table" : "Included with your booth"}</div>
+        <div className="text-[11px] text-slate-500">{p.kind === "artist" ? "Your print wall and the book on the table (table mode Print wall), and the gallery" : "Your print wall (table mode Print wall), the book on the table, and the gallery"}</div>
       </div>
       <p className="mt-1 text-[11px] text-slate-500">{ART_SLOTS.gallery.where} {ART_SLOTS.gallery.tip} Add a link under a piece to sell it as a print. Set where commissions go in Edit booth above; the gallery gets a Commission me button.</p>
       <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
@@ -895,7 +897,7 @@ function Artwork({ p, setMsg, onChanged }: { p: Detail["booth"]; setMsg: (s: str
   // hanging sign carry the booth name, so it has no wide banner. Everyone else: one roll-up, the wide banner, the drape.
   const cards: Card[] = p.size === "20x20"
     ? [...ISLAND_SIDES.map((side, i) => ({ key: rollupSlotKey(i), spec: ART_SLOTS.portrait, name: `Roll-up banner · ${side}`, where: "The retractable banner behind this side's table, facing out to the aisle." })), card("drape"), card("tower"), card("floor")]
-    : (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => !NOT_BANNER_ART.includes(k) && !ISLAND_SLOTS.includes(k)).map(card);
+    : (Object.keys(ART_SLOTS) as ArtSlot[]).filter((k) => !NOT_BANNER_ART.includes(k) && !ISLAND_SLOTS.includes(k) && !(p.kind === "artist" && k === "portrait")).map(card); // an artist table has a print wall where a roll-up would stand
   const upload = async (c: Card, file: File) => {
     setBusy(c.key);
     try {

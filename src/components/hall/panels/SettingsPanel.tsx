@@ -75,6 +75,7 @@ export function SettingsPanel() {
           </Row>
           <Row label="Invert vertical look"><Toggle on={p.invertY} onChange={(v) => set({ invertY: v })} /></Row>
           <Row label="First person view (V)"><Toggle on={p.firstPerson} onChange={(v) => set({ firstPerson: v })} /></Row>
+          <Row label="Chat box at the bottom left" hint="Hall, Friends and Whisper tabs, always open on a computer; Enter to type"><Toggle on={p.chatDock !== "off"} onChange={(v) => set({ chatDock: v ? "open" : "off" })} /></Row>
           <div className="mono pt-1 text-[11px] text-slate-400">arrows / WASD walk · Q E turn · shift run · V first person · E open booth · P stats overlay</div>
         </div>
         <div className="py-2">

@@ -579,14 +579,23 @@ export function framedLogoTexture(url: string, color: string, aspect = 1): THREE
   framedCache.set(key, t);
   return t;
 }
-export function logoTexture(url: string): THREE.Texture {
+export function logoTexture(url: string, fit?: number): THREE.Texture {
   const hit = logoCache.get(url);
   if (hit) return hit;
-  const t = loader.load(url);
+  const t = loader.load(url, (tex) => { if (fit) coverFit(tex, fit); });
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   logoCache.set(url, t);
   return t;
+}
+/** Crop a texture to a frame of aspect `fit` (width/height) the way CSS object-fit: cover does: the frame is filled, the overflow trimmed evenly. Older 4:5 portfolio uploads sit in the 11:17 frames this way. */
+export function coverFit(tex: THREE.Texture, fit: number) {
+  const img = tex.image as { width?: number; height?: number } | undefined;
+  if (!img?.width || !img?.height) return;
+  const a = img.width / img.height;
+  if (Math.abs(a - fit) < 0.01) return;
+  if (a > fit) { tex.repeat.set(fit / a, 1); tex.offset.set((1 - fit / a) / 2, 0); } else { tex.repeat.set(1, a / fit); tex.offset.set(0, (1 - a / fit) / 2); }
+  tex.needsUpdate = true;
 }
 export function dropLogo(url: string) {
   logoCache.get(url)?.dispose();

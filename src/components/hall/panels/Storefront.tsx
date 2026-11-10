@@ -6,6 +6,7 @@
  * Hero art, the exhibitor's links, every comic cover on their table as a
  * gallery with a lightbox, who is at the booth right now, and the actions.
  */
+import { openPortfolio } from "@/lib/hall/portfolio";
 import { useEffect, useMemo, useState } from "react";
 import { track, useHall, type HallBooth } from "@/lib/hall/store";
 import { CATEGORIES, formatCount, formatMoney, BOOTH_SIZES, ZONES, takeoverSplitFor, productSlotKey } from "@/lib/config";
@@ -197,7 +198,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         {/* portfolio (artist tables) */}
         {pieces.length > 0 && (
           <section>
-            <div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Portfolio</h3><span className="text-[11px] text-slate-500">{pieces.length} {pieces.length === 1 ? "piece" : "pieces"} · tap to view</span></div>
+            <div className="mb-1.5 flex items-baseline justify-between"><h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Portfolio</h3><button className="text-[11px] text-amber-300 hover:underline" onClick={() => openPortfolio(id, 0)}>📖 Flip through the book</button></div>
             <div className="grid grid-cols-3 gap-1.5">
               {pieces.map((k, i) => (
                 <button key={k} onClick={() => setPiece(i)} className="group relative overflow-hidden rounded-lg bg-white/5 transition hover:-translate-y-0.5">

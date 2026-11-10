@@ -44,8 +44,8 @@ const SIZES: Record<string, [number, number]> = {
   home: [1280, 800], signin: [1280, 800], "hall-walk": [1280, 740], "booth-open": [1280, 740], help: [1280, 740], avatar: [1280, 740], tours: [1280, 740],
   search: [1280, 740], quests: [1280, 740], arcade: [1280, 740], "claim-list": [1280, 740], "claim-space": [1280, 740], designer: [1280, 740], "designer-pay": [1280, 672],
   "artist-table": [1280, 740], "storefront-portfolio": [1280, 740], lightbox: [1280, 740], "dashboard-top": [815, 820], "dash-edit": [784, 851], "dash-art": [784, 1465],
-  "dash-table": [784, 213], "dash-books": [784, 701], "dash-shop": [784, 410], "dash-share": [784, 601], "dash-teams": [784, 479], "dash-plan": [384, 473], "dash-grow": [384, 413],
-  "dash-portfolio": [784, 399], "dash-rollup": [384, 413],
+  "dash-table": [784, 262], "dash-books": [784, 701], "dash-shop": [784, 410], "dash-share": [784, 601], "dash-teams": [784, 479], "dash-plan": [384, 473], "dash-grow": [384, 413],
+  "dash-portfolio": [784, 894], "dash-rollup": [384, 413],
 };
 const shot = (name: string, alt: string, caption?: string): LandingImage => ({ src: `/guides/${name}.jpg`, alt, width: SIZES[name][0], height: SIZES[name][1], caption });
 
@@ -67,7 +67,7 @@ const stepPick = (what: string, which: string): LandingStep => ({
     `${which} Click the space you want.`,
   ],
   bullets: [
-    `**AA table · from ${AA}**: a 6-foot Artists' Alley table at the east end. One banner, one chair, your portfolio on the drape.`,
+    `**AA table · from ${AA}**: a 6-foot Artists' Alley table at the east end. A gridwall of prints with your name across the top, a chair, and your portfolio on the wall and in a book on the table.`,
     `**10×10 · from ${INLINE}**: an inline booth with a back wall, side drapes, a table, four comic stands and a roll-up banner.`,
     `**20×10 · from ${CORNER}**: a corner booth, double wide with two tables and two open sides.`,
     `**20×20 · from ${ISLAND}**: an island, open on all four sides, with a tower sign and up to four tables.`,
@@ -150,15 +150,15 @@ const STEP_BOOKS: LandingStep = {
     "On the floor the cover stands on your table. Visitors tap it in your booth panel to see it full size, and the **Buy** button opens your link.",
   ],
   img: shot("dash-books", "The Books on display card: sixteen stands, four with covers and buy link boxes, the rest with Upload cover buttons", "Books on display. Four covers up, twelve stands waiting."),
-  tip: "No comics to show? The **On the table** card just above lets you put framed art prints from your portfolio on the stands instead, or leave the table bare.",
+  tip: "No comics to show? The **On the table** card just above lets you hang your portfolio on a print wall behind the table, put framed prints on the stands instead, or leave the table bare.",
 };
 const STEP_TABLE: LandingStep = {
   h: "Choose what the table shows",
   p: [
-    "The **On the table** card has three choices. **Comic covers** is the default: the books you unlocked, one per stand. **Art prints from your portfolio** puts framed pieces from your portfolio on the stands instead, free, and flips through them while someone is at the booth. **Off** leaves the table bare.",
+    "The **On the table** card has four choices. **Comic covers** is the default: the books you unlocked, one per stand. **Print wall** hangs your portfolio as 11 × 17 prints on a wall behind the table, from table height up to about 14 ft, and lays an open portfolio book on the table that visitors click to flip through (island booths have no back wall, so they skip this one). **Art prints on the stands** puts framed pieces from your portfolio on the stands instead and flips through them while someone is at the booth. **Off** leaves the table bare. All four are free.",
     "Pick one and it saves on its own. Nothing is deleted when you switch; your covers and pieces are kept.",
   ],
-  img: shot("dash-table", "The On the table card with three choices: Comic covers, Art prints from your portfolio, and Off", "On the table: covers, prints or nothing."),
+  img: shot("dash-table", "The On the table card with four choices: Comic covers, Print wall, Art prints on the stands, and Off", "On the table: covers, a print wall, prints on the stands, or nothing."),
 };
 const STEP_SHOP: LandingStep = {
   h: "Add a shop",
@@ -384,28 +384,29 @@ export const LANDINGS = {
         ],
       },
       {
-        h: "Upload your roll-up banner",
+        h: "Put your name over the wall",
         p: [
-          `The **Banner artwork** card has a box for each place art can go. For a table the one that matters is the **Roll-up banner**, the tall ${ART_SLOTS.portrait.ratio} banner that stands behind your table: ${px(ART_SLOTS.portrait)} px. Press **Upload**, pick the file, and it is cropped to fit.`,
+          `Your name is drawn on a strip along the top rail of your print wall from the moment you claim the table, in your colours. To use your own art there instead, open the **Banner artwork** card and upload to the **Wide banner** box (${ART_SLOTS.wide.ratio}, ${px(ART_SLOTS.wide)} px); it is cropped to fit.`,
           "Uploads take PNG, JPG, WebP or a PDF (first page), up to 12 MB. Big shapes and your name read best; small text is unreadable from the aisle.",
         ],
-        img: shot("dash-rollup", "The Roll-up banner box in the Banner artwork card with the recommended size and an Upload button", "The Roll-up banner box. Tall picture, your name big."),
-        tip: "No art yet? The banner is drawn from your name, tagline and colours until you replace it.",
+        img: shot("dash-art", "The Banner artwork card with a box for each place art can go, each with its size and an Upload button", "Banner artwork. For a table, the Wide banner box is the name strip along the top of your gridwall."),
+        tip: "No art yet? The strip shows your name, in your colours, until you replace it.",
       },
       {
         h: "Hang your portfolio",
         p: [
-          `Scroll to the **Portfolio** card. Press **Upload** in the first empty frame and pick a piece (${ART_SLOTS.gallery.ratio}, ${px(ART_SLOTS.gallery)} px; a different shape is cropped to fit). Repeat for up to ${GALLERY_LIMIT} pieces. Each one appears on your table's drape and in your gallery the moment it uploads.`,
+          `Scroll to the **Portfolio** card. Press **Upload** in the first empty frame and pick a piece (${ART_SLOTS.gallery.ratio}, ${px(ART_SLOTS.gallery)} px; a different shape is cropped to fit). Repeat for up to ${GALLERY_LIMIT} pieces. Each one is hung on the print wall behind your table (bottom row first, left to right) and put in the book on the table the moment it uploads.`,
           "Selling prints? Type the link to buy a print in the box under a piece and press save. That piece gets a **Buy a print** button.",
+          "Rather show comics? The **On the table** card above switches the table to **Comic covers**: the wall comes down, comic stands go on the table and a 3 × 6 roll-up banner stands behind it. It is one or the other, never both.",
         ],
         img: shot("dash-portfolio", "The Portfolio card with uploaded pieces, an empty frame with an Upload button, and a print link box under each piece", `Portfolio. Up to ${GALLERY_LIMIT} pieces, a print link under each.`),
       },
       {
         h: "This is what visitors see",
         p: [
-          "On the floor, three framed prints hang on the drape behind your table. When someone walks up they flip through your whole portfolio, one print every couple of seconds. A card at the bottom says your name and **see the portfolio**.",
+          "On the floor your pieces hang as 11 × 17 prints on a black gridwall that stands behind your table, taller than the drape, from table height up, with your name on a strip along the top rail. An open portfolio book lies on the table. Resting the mouse on a print for two seconds shows it full size; clicking a print or the book opens the book on screen, where visitors turn the pages with **Next** or the ← → keys. A card at the bottom says your name and **see the portfolio**.",
         ],
-        img: shot("artist-table", "An Artists' Alley table seen from the aisle with framed prints on the drape and a card reading see the portfolio", "Your table from the aisle. Press E to open the portfolio."),
+        img: shot("artist-table", "An Artists' Alley table seen from the aisle with a wall of 11 by 17 prints behind it, an open book on the table and a card reading see the portfolio", "Your table from the aisle. Click the book, or press E to open the portfolio."),
       },
       {
         h: "…and when they press E",
@@ -421,11 +422,11 @@ export const LANDINGS = {
     sections: [
       {
         h: "What you get at your table",
-        p: ["Each table is a 6-foot space in the alley with your own roll-up banner, a backdrop and a spot to sit, just like a real con table, except it's open all day, every day."],
+        p: ["Each table is a 6-foot space in the alley with a gridwall of prints standing behind it, your name across the top, a portfolio book on the table and a spot to sit, just like a real artist table, except it's open all day, every day."],
         bullets: [
           "Your name, logo, banner art and colors, editable any time and updated on the floor instantly.",
           "A link straight to your shop, Etsy, Patreon, Ko-fi, Linktree, commissions form or webcomic.",
-          `A portfolio of up to ${GALLERY_LIMIT} pieces on the drape and in your gallery, with a print link and a Commission me button.`,
+          `A portfolio of up to ${GALLERY_LIMIT} pieces on your print wall, in the book on the table and in your gallery, with a print link and a Commission me button.`,
           "A public table page with a share card for socials, plus an embed badge for your site.",
           "Real numbers: how many people saw your table, visited and clicked, and where they came from.",
         ],

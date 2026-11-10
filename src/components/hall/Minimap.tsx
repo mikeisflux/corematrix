@@ -55,9 +55,9 @@ export function Minimap() {
     }, 250);
     return () => clearInterval(t);
   }, [open, mode]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!open) return <button onClick={() => setOpen(true)} className="pointer-events-auto absolute bottom-14 left-3 hidden panel rounded-full px-2.5 py-1 text-[11px] md:block">🗺 map · M</button>;
+  if (!open) return <button onClick={() => setOpen(true)} className="pointer-events-auto absolute left-3 hidden panel rounded-full px-2.5 py-1 text-[11px] md:block" style={{ bottom: "calc(4rem + var(--fcc-dock, 0px))" }}>🗺 map · M</button>;
   return (
-    <div className="pointer-events-auto absolute bottom-14 left-3 hidden md:block">
+    <div className="pointer-events-auto absolute left-3 hidden md:block" style={{ bottom: "calc(4rem + var(--fcc-dock, 0px))" }}>
       <canvas ref={canvas} width={W} height={H} className="cursor-crosshair rounded-lg border border-white/10 shadow-lg" title="Click to walk there · M hides the map"
         onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const x = X0 + ((e.clientX - r.left) / r.width) * HALL_LENGTH, z = Z0 + ((e.clientY - r.top - 3) / (r.height - 6)) * HALL_DEPTH; if (mode !== "walk") setMode("walk"); setWalkPoint({ x, z }); }} />
       <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400"><span className="inline-block h-2 w-2 rounded-full bg-amber-300" />you<span className="inline-block h-2 w-2 rounded-full bg-emerald-300" />people<span className="inline-block h-2 w-2 rounded-full bg-fuchsia-400" />ConBot<span className="ml-auto mono">M</span></div>

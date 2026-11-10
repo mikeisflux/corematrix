@@ -10,7 +10,11 @@
   needs rotation 0.
 - **The roll-up banner stands centred behind its table, back against the
   drape/back wall**, facing the aisle. Never at the end of the table, never in
-  front of it.
+  front of it. **A print wall replaces the roll-up**: every Artists' Alley
+  table, and a booth whose table mode is `wall`, has a free-standing black gridwall
+  (on feet, in front of the drape, taller than it) across the whole back of the
+  space and no banner stand, logo board or back-wall banner at all; the wide
+  banner becomes a name strip along the gridwall's top rail.
 - After touching `Booth.tsx`, `EmptyBooths.tsx` or the table/banner props,
   capture `node scripts/dev/debug-booths.mjs` and look at the pictures before
   committing.

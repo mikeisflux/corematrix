@@ -1,23 +1,35 @@
 import { NextResponse } from "next/server";
 import { getOrSetPlayer } from "@/lib/visitor";
 import { z } from "zod";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newId, now } from "@/lib/util";
-import { publish } from "@/lib/realtime";
+import { publish, publishTo } from "@/lib/realtime";
+import { friendsOf } from "@/lib/social-graph";
+import { visitorsOf } from "@/lib/presence";
 import { notify } from "@/lib/notify";
 import { allow } from "@/lib/throttle";
 
 export const dynamic = "force-dynamic";
 
+/** The friends room is per person: what my friends and I posted there. Signed out, it is empty. */
+async function friendUids(): Promise<string[] | null> {
+  const u = await currentUser();
+  if (!u) return null;
+  const f = await friendsOf(u.id);
+  return [u.id, ...f.friends.map((p) => p.id)];
+}
+
 export async function GET(req: Request) {
   await ensureMigrated();
   const room = new URL(req.url).searchParams.get("room") ?? "lobby";
+  let scope = undefined as ReturnType<typeof inArray> | undefined;
+  if (room === "friends") { const ids = await friendUids(); if (!ids) return NextResponse.json({ messages: [] }); scope = inArray(schema.messages.userId, ids); }
   const rows = await db
     .select()
     .from(schema.messages)
-    .where(and(eq(schema.messages.room, room), eq(schema.messages.hidden, false)))
+    .where(and(eq(schema.messages.room, room), eq(schema.messages.hidden, false), scope))
     .orderBy(desc(schema.messages.createdAt))
     .limit(60);
   return NextResponse.json({ messages: rows.reverse().map(({ userId, hidden: _h, ...m }) => ({ ...m, authorUid: userId })) });
@@ -61,7 +73,10 @@ export async function POST(req: Request) {
   if (Number(dup?.n ?? 0) > 0) return NextResponse.json({ error: "You just said that" }, { status: 429 });
   const msg = { id: newId(), room, userId: u.id, authorName: booth?.name ?? u.displayName ?? "visitor", authorBoothId: booth?.id ?? null, body, createdAt: t };
   await db.insert(schema.messages).values(msg);
-  publish({ type: "chat", message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetPlayer(), authorUid: u.id } });
+  const out = { type: "chat" as const, message: { id: msg.id, room, authorName: msg.authorName, authorBoothId: msg.authorBoothId, body, createdAt: t, playerId: await getOrSetPlayer(), authorUid: u.id } };
+  // the friends room goes only to my friends' tabs (and my own); everything else is for the whole hall
+  if (room === "friends") { const ids = (await friendUids()) ?? [u.id]; publishTo(ids.flatMap((id) => visitorsOf(id)), out); }
+  else publish(out);
   // @handle mentions tell the person, even if they are not in the hall right now
   const handles = Array.from(new Set((body.match(/@([a-z0-9_]{2,30})/gi) ?? []).map((h) => h.slice(1).toLowerCase()))).slice(0, 5);
   for (const h of handles) {

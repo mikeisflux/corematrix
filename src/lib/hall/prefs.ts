@@ -17,9 +17,10 @@ export interface Prefs {
   label: string;               // free text tag on captured sessions ("my laptop")
   fpsCap: 30 | 60 | 0;         // frames per second the hall renders at; 0 = as fast as the screen allows
   firstPerson: boolean;        // walk camera at eye level instead of behind the figure (V or the HUD button)
+  chatDock: "open" | "min" | "off"; // the always-open chat box at the bottom left (computers): full, one line, or hidden
 }
 export function toggleFirstPerson() { setPrefs({ firstPerson: !getPrefs().firstPerson }); }
-export const DEFAULT_PREFS: Prefs = { quality: "auto", crowd: "full", sensitivity: 1, invertY: false, overlay: false, capture: true, label: "", fpsCap: 60, firstPerson: false };
+export const DEFAULT_PREFS: Prefs = { quality: "auto", crowd: "full", sensitivity: 1, invertY: false, overlay: false, capture: true, label: "", fpsCap: 60, firstPerson: false, chatDock: "open" };
 const KEY = "fcc_prefs";
 
 function load(): Prefs {
@@ -33,6 +34,7 @@ function load(): Prefs {
     p.label = String(p.label ?? "").slice(0, 60);
     if (![0, 30, 60].includes(p.fpsCap)) p.fpsCap = 60;
     p.firstPerson = p.firstPerson === true;
+    if (!["open", "min", "off"].includes(p.chatDock)) p.chatDock = "open";
     // ?safe=1: the gentlest settings, for machines whose driver falls over under load
     if (typeof location !== "undefined" && new URLSearchParams(location.search).get("safe") === "1") { p.quality = "low"; p.crowd = "light"; p.fpsCap = 30; }
     // the old overlay flag still counts

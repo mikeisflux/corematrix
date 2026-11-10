@@ -218,6 +218,13 @@
       "when": 1793420000000,
       "tag": "0030_theater_category",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1793430000000,
+      "tag": "0031_artist_wall",
+      "breakpoints": true
     }
   ]
 }
