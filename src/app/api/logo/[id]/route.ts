@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBooth } from "@/lib/economy";
 import { fetchPublic } from "@/lib/safe-fetch";
+import { fileUrl, isRef, r2Get, r2Readable, refKey } from "@/lib/r2";
 
 /**
  * Serves a booth's logo. Stored logos are data URLs (portable, no object
@@ -14,6 +15,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const p = await getBooth(Number(id));
   if (!p || p.hidden) return new NextResponse("not found", { status: 404 });
+  if (isRef(p.logoUrl)) {
+    const cfg = await r2Readable();
+    if (cfg?.publicUrl) return NextResponse.redirect(fileUrl(p.logoUrl, cfg), { status: 302, headers: { "Cache-Control": "public, max-age=3600" } });
+    const obj = cfg ? await r2Get(cfg, refKey(p.logoUrl)).catch(() => null) : null;
+    if (obj) return new NextResponse(Buffer.from(obj.body), { headers: { ...SAFE, "Content-Type": /^image\//.test(obj.type) ? obj.type : "image/png", "Cache-Control": "public, max-age=31536000, immutable" } });
+  }
   if (p.logoUrl?.startsWith("data:")) {
     const m = /^data:([^;]+);base64,(.*)$/.exec(p.logoUrl);
     if (m) {

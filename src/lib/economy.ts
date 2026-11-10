@@ -82,6 +82,7 @@ export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
   const logo = raw === undefined ? undefined : !raw ? null
     : /^\/(?!\/)[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/i.test(raw) && !raw.includes("..") ? raw
     : /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(raw) && raw.length < 1_500_000 ? raw
+    : /^r2:logo\/[A-Za-z0-9_\-.]+$/.test(raw) ? raw // already moved to R2 (see lib/r2.ts)
     : raw.startsWith("data:") ? badLogo("Use a PNG, JPG, WebP or GIF logo (SVG isn't supported).")
     : raw.startsWith("/") ? badLogo("A logo path on this site must point to a PNG, JPG, WebP or GIF file.")
     : normalizeUrl(raw) ?? badLogo("That logo link isn't a web address.");

@@ -133,3 +133,14 @@ tail -n 50 /srv/fcc/logs/err.log      # should be quiet
 curl -sI https://forevercomiccon.com/models/robot.glb | grep -i "cache-control\|server"   # nginx, a day's cache
 curl -sI https://forevercomiccon.com/_next/static/chunks/ 2>/dev/null | head -1
 ```
+
+## Uploaded images on Cloudflare R2
+
+Booth art and logos are stored in the SQLite database by default. To move them to R2: create a bucket, create an R2 API
+token with Object Read & Write on it, and in **Admin → Settings → Storage** enter the account id, the token's access key
+id and secret, the bucket name and the bucket's public URL (enable the r2.dev subdomain or connect a custom domain). Add
+a CORS rule on the bucket (bucket → Settings → CORS policy) allowing `GET` and `HEAD` from the site's origin, or the hall
+cannot use the images as WebGL textures. Press **Test R2** (it writes, reads, checks the public URL and CORS, and deletes
+a probe object), set `R2_ENABLED` to `true`, then **Move existing uploads to R2**. Nothing changes for visitors: the
+`/api/art/…` and `/api/logo/…` links redirect to the bucket; without a public URL the server streams the objects itself
+from `/api/f/…`. The signing is done in `src/lib/r2.ts` with no SDK (AWS Signature V4 over fetch).

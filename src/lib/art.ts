@@ -8,6 +8,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { now } from "@/lib/util";
 import { ART_SLOTS, ART_MAX_UPLOAD, ART_FORMATS, specForSlot, type ArtSlot } from "@/lib/config";
+import { artKey, isRef, r2Delete, r2Get, r2Put, r2Readable, r2Ready, refKey } from "@/lib/r2";
 
 export { ART_SLOTS, ART_MAX_UPLOAD, ART_FORMATS, type ArtSlot };
 void ART_SLOTS;
@@ -30,18 +31,33 @@ export async function normalizeArt(buf: Buffer, slot: string): Promise<{ mime: s
   return { mime: alpha ? "image/png" : "image/jpeg", data: encoded.toString("base64"), width, height };
 }
 
+/** Save a slot. With R2 switched on the bytes go to the bucket under a versioned key and the row keeps only the reference; the previous object is removed. */
 export async function setArt(boothId: number, slot: string, art: { mime: string; data: string; width: number; height: number } | null) {
   await ensureMigrated();
-  if (!art) { await db.delete(schema.boothArt).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot))); return; }
+  const [prev] = await db.select({ url: schema.boothArt.url }).from(schema.boothArt).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot))).limit(1);
+  const cfg = await r2Ready();
+  if (!art) {
+    await db.delete(schema.boothArt).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot)));
+    if (cfg && isRef(prev?.url)) await r2Delete(cfg, refKey(prev.url));
+    return;
+  }
   const t = now();
-  await db.insert(schema.boothArt).values({ boothId, slot, ...art, updatedAt: t })
-    .onConflictDoUpdate({ target: [schema.boothArt.boothId, schema.boothArt.slot], set: { ...art, updatedAt: t } });
+  let row: { mime: string; data: string; width: number; height: number; url: string | null } = { ...art, url: null };
+  if (cfg) row = { ...row, data: "", url: await r2Put(cfg, artKey(boothId, slot, art.mime, t), Buffer.from(art.data, "base64"), art.mime) };
+  await db.insert(schema.boothArt).values({ boothId, slot, ...row, updatedAt: t })
+    .onConflictDoUpdate({ target: [schema.boothArt.boothId, schema.boothArt.slot], set: { ...row, updatedAt: t } });
+  if (cfg && isRef(prev?.url) && prev.url !== row.url) await r2Delete(cfg, refKey(prev.url));
 }
 
 export async function getArt(boothId: number, slot: string) {
   await ensureMigrated();
   const [row] = await db.select().from(schema.boothArt).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot))).limit(1);
   return row ?? null;
+}
+/** The bytes of a stored slot, wherever they live (the database row, or the bucket). */
+export async function artBytes(row: { data: string; url: string | null; mime: string }): Promise<Buffer | null> {
+  if (isRef(row.url)) { const cfg = await r2Readable(); const obj = cfg ? await r2Get(cfg, refKey(row.url)).catch(() => null) : null; return obj ? Buffer.from(obj.body) : null; }
+  return row.data ? Buffer.from(row.data, "base64") : null;
 }
 
 export type ArtFlags = Record<string, number>; // slot key → updatedAt (doubles as a cache key)

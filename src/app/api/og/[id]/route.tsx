@@ -2,7 +2,8 @@ import { ImageResponse } from "next/og";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getPublicBooth, claimedBooths } from "@/lib/economy";
-import { getArt, artFlagsFor } from "@/lib/art";
+import { getArt, artFlagsFor, artBytes } from "@/lib/art";
+import { r2Get, r2Readable, refKey } from "@/lib/r2";
 import { CATEGORIES, formatCount, formatMoney, SITE_NAME, BOOTH_SIZES } from "@/lib/config";
 import { boothSpace, describeSpace, hallLayout, HALL_LENGTH, HALL_DEPTH, X0, Z0 } from "@/lib/hall/layout";
 import { siteOrigin } from "@/lib/seo";
@@ -41,8 +42,9 @@ async function artData(boothId: number, slot: string, width: number): Promise<st
   const row = await getArt(boothId, slot);
   if (!row) return null;
   try {
+    const src = await artBytes(row); if (!src) return null;
     const sharp = (await import("sharp")).default;
-    const buf = await sharp(Buffer.from(row.data, "base64")).resize({ width, withoutEnlargement: true }).flatten({ background: "#0b0f1a" }).jpeg({ quality: 82 }).toBuffer();
+    const buf = await sharp(src).resize({ width, withoutEnlargement: true }).flatten({ background: "#0b0f1a" }).jpeg({ quality: 82 }).toBuffer();
     return `data:image/jpeg;base64,${buf.toString("base64")}`;
   } catch { return null; }
 }
@@ -53,6 +55,7 @@ async function logoData(logoUrl: string | null): Promise<string | null> {
     let src: Buffer | null = null;
     const m = /^data:image\/(png|jpeg|webp|gif);base64,(.*)$/.exec(logoUrl);
     if (m) src = Buffer.from(m[2], "base64");
+    else if (logoUrl.startsWith("r2:")) { const cfg = await r2Readable(); const obj = cfg ? await r2Get(cfg, refKey(logoUrl)).catch(() => null) : null; src = obj ? Buffer.from(obj.body) : null; }
     else if (/^\/(?!\/)[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/i.test(logoUrl) && !logoUrl.includes("..")) src = await fs.readFile(path.join(process.cwd(), "public", logoUrl));
     if (!src) return null;
     const sharp = (await import("sharp")).default;

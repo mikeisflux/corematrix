@@ -11,6 +11,20 @@ export default function Settings() {
   const [custom, setCustom] = useState({ key: "", value: "" });
   const [testing, setTesting] = useState<"" | "email" | "divinity" | "check">("");
   const [check, setCheck] = useState<{ ok: boolean; steps: Array<{ name: string; ok: boolean | null; detail: string }> } | null>(null);
+  const storage = useJson<{ art: { inDb: number; dbMB: number; onR2: number }; logos: { inDb: number; dbMB: number; onR2: number }; configured: boolean; enabled: boolean; publicUrl: string; bucket: string }>(group === "Storage" ? "/api/admin/settings/storage" : null);
+  const [moving, setMoving] = useState<{ moved: number; remaining: number; errors: string[] } | null>(null);
+  async function moveAll(action: "migrate" | "restore" = "migrate") {
+    let moved = 0;
+    setMoving({ moved: 0, remaining: -1, errors: [] });
+    try {
+      for (let i = 0; i < 500; i++) {
+        const r = await api<{ moved: number; remaining: number; errors: string[] }>("/api/admin/settings/storage", { method: "POST", json: { action, batch: 20 } });
+        moved += r.moved; setMoving({ moved, remaining: r.remaining, errors: r.errors });
+        if (r.remaining === 0 || r.moved === 0) break;
+      }
+      toast.ok(action === "migrate" ? `${moved} files moved to R2` : `${moved} files back in the database`); storage.reload(); setMoving(null);
+    } catch (e) { toast.err(e); setMoving(null); }
+  }
   const toast = useToast();
   async function save(key: string) {
     const value = edits[key];
@@ -54,6 +68,23 @@ export default function Settings() {
         {data.data?.groups.map((x) => <button key={x.name} className={group === x.name ? "on" : ""} onClick={() => setGroup(x.name)}>{x.name} <span className="admMuted">{x.keys.filter((k) => k.set).length}/{x.keys.length}</span></button>)}
         <button className={group === "Custom" ? "on" : ""} onClick={() => setGroup("Custom")}>Custom</button>
       </div>
+      {group === "Storage" && storage.data && (
+        <div className="admCard" style={{ marginBottom: 16 }}>
+          <div className="admCard__hd"><h2 className="admH2">Uploaded images {storage.data.enabled && storage.data.configured ? <Badge kind="ok">R2 on</Badge> : storage.data.configured ? <Badge kind="dim">R2 configured, off</Badge> : <Badge kind="dim">in the database</Badge>}</h2>
+            <div className="admRow">
+              <button className="admBtn" disabled={testing !== "" || !storage.data.configured} onClick={async () => { setTesting("check"); setCheck(null); try { setCheck(await api("/api/admin/settings/storage", { method: "POST", json: { action: "test" } })); } catch (e) { toast.err(e); } finally { setTesting(""); } }}>{testing === "check" ? "Testing…" : "Test R2"}</button>
+              <ConfirmButton className="admBtn admBtn--primary" disabled={!storage.data.enabled || !storage.data.configured || !!moving || storage.data.art.inDb + storage.data.logos.inDb === 0} message={`Move ${storage.data.art.inDb} art files and ${storage.data.logos.inDb} logos from the database to the bucket ${storage.data.bucket}? Visitors keep seeing everything; the database shrinks by about ${(storage.data.art.dbMB + storage.data.logos.dbMB).toFixed(0)} MB.`} onConfirm={() => moveAll("migrate")}>{moving ? `Moving… ${moving.moved} done` : "Move existing uploads to R2"}</ConfirmButton>
+              {storage.data.art.onR2 + storage.data.logos.onR2 > 0 && <ConfirmButton className="admBtn admBtn--ghost" disabled={!storage.data.configured || !!moving} message={`Copy ${storage.data.art.onR2} art files and ${storage.data.logos.onR2} logos from R2 back into the database? Use this before closing the bucket.`} onConfirm={() => moveAll("restore")}>Move back into the database</ConfirmButton>}
+            </div>
+          </div>
+          <table className="admTable"><thead><tr><th>What</th><th>Still in the database</th><th>On R2</th></tr></thead><tbody>
+            <tr><td>Booth art (banners, covers, portfolio, product photos)</td><td>{storage.data.art.inDb} files · {storage.data.art.dbMB} MB</td><td>{storage.data.art.onR2}</td></tr>
+            <tr><td>Logos</td><td>{storage.data.logos.inDb} files · {storage.data.logos.dbMB} MB</td><td>{storage.data.logos.onR2}</td></tr>
+          </tbody></table>
+          <p className="admHint" style={{ marginTop: 10 }}>How it works: with the keys below filled in and <span className="admMono">R2_ENABLED</span> true, every new upload goes straight to the bucket and the database keeps only a reference. Visitors&apos; links do not change (/api/art/… and /api/logo/… send them to {storage.data.publicUrl || "the bucket through the server (set a public URL to serve from Cloudflare directly)"}). Moving existing uploads is safe to repeat and to interrupt.</p>
+          {moving && moving.errors.length > 0 && <div className="admNote admNote--err" style={{ marginTop: 10 }}>{moving.errors.map((e) => <div key={e}>{e}</div>)}</div>}
+        </div>
+      )}
       {g && (
         <div className="admCard">
           {g.keys.map((k) => {

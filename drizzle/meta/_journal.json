@@ -225,6 +225,13 @@
       "when": 1793430000000,
       "tag": "0031_artist_wall",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1793440000000,
+      "tag": "0032_art_url",
+      "breakpoints": true
     }
   ]
 }

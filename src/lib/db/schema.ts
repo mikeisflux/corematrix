@@ -436,7 +436,8 @@ export const boothArt = sqliteTable(
     boothId: integer("booth_id").notNull(),
     slot: text("slot").notNull(), // portrait (roll-up, 1:2) | wide (back wall / hanging, 4:1)
     mime: text("mime").notNull(),
-    data: text("data").notNull(), // base64 (no data: prefix)
+    data: text("data").notNull(), // base64 (no data: prefix); "" once the bytes live on R2
+    url: text("url"), // "r2:<key>" when the bytes are on R2 (see lib/r2.ts)
     link: text("link"), // comic covers: where to buy it
     width: integer("width").notNull(),
     height: integer("height").notNull(),

@@ -14,7 +14,7 @@ export interface SettingDef {
   readonly?: boolean; // computed / informational rows
 }
 
-export const SETTING_GROUPS = ["Site", "Theater", "DivinityCoin", "SendGrid", "Economy", "Security"] as const;
+export const SETTING_GROUPS = ["Site", "Storage", "Theater", "DivinityCoin", "SendGrid", "Economy", "Security"] as const;
 
 export const SETTING_KEYS: SettingDef[] = [
   // Site
@@ -23,6 +23,15 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "SUPPORT_EMAIL", label: "Support email", group: "Site", hint: "hello@forevercomiccon.com" },
   { key: "ANNOUNCEMENT", label: "Announcement bar text", group: "Site", hint: "optional — shown on the home page HUD" },
   { key: "MAINTENANCE_MODE", label: "Maintenance mode", group: "Site", hint: "true / false — checkout is paused, admins can still sign in" },
+
+  // Storage: uploaded images (booth art, logos) on Cloudflare R2 instead of the database
+  { key: "R2_ACCOUNT_ID", label: "Cloudflare account id", group: "Storage", hint: "The 32-character id shown on the R2 overview page (the first part of the S3 endpoint <id>.r2.cloudflarestorage.com)" },
+  { key: "R2_ACCESS_KEY_ID", label: "R2 access key id", group: "Storage", hint: "R2 → Manage R2 API tokens → Create API token (Object Read & Write on this bucket) → Access Key ID" },
+  { key: "R2_SECRET_ACCESS_KEY", label: "R2 secret access key", group: "Storage", secret: true, hint: "Shown once when the token is created" },
+  { key: "R2_BUCKET", label: "Bucket name", group: "Storage", hint: "forevercomiccon-uploads" },
+  { key: "R2_PUBLIC_URL", label: "Public URL of the bucket", group: "Storage", hint: "https://pub-….r2.dev or a connected custom domain such as https://files.forevercomiccon.com. Optional: without it images stream through the server. Add a CORS rule on the bucket allowing GET and HEAD from the site, or the floor cannot use them as textures." },
+  { key: "R2_ENABLED", label: "Store new uploads on R2", group: "Storage", hint: "true / false. Test the connection first (Storage tab button); then Move existing uploads." },
+  { key: "R2_ENDPOINT", label: "S3 endpoint override (optional)", group: "Storage", hint: "Leave blank for R2. Another S3-compatible store: https://host (path-style, bucket in the path)." },
 
   // DivinityCoin
   { key: "DIVINITYCOIN_API_URL", label: "DivinityCoin API base URL", group: "DivinityCoin", hint: "https://divinitycoin.com (default) — public HTTPS, no VPN or allow-list needed" },

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logoKey, offloadDataUrl } from "@/lib/r2";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { getBooth, boothHistory, updateBooth } from "@/lib/economy";
@@ -38,7 +39,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // a visitor sees the shop window, not the books: no payment, customer or subscription details
   // (and no 1.5 MB logo blob on every storefront open: /api/logo/<id> serves it)
   const { subscriptionId: _sub, subscriptionStatus: _ss, tierUntil: _tu, teamId: _team, hidden: _h, lastTakeoverNudgeAt: _n, ...rest } = p as typeof p & { lastTakeoverNudgeAt?: number | null };
-  const pub = { ...rest, logoUrl: p.logoUrl?.startsWith("data:") ? `/api/logo/${p.id}?v=${p.updatedAt ?? 0}` : p.logoUrl };
+  const pub = { ...rest, logoUrl: p.logoUrl?.startsWith("data:") || p.logoUrl?.startsWith("r2:") ? `/api/logo/${p.id}?v=${p.updatedAt ?? 0}` : p.logoUrl };
   const historyOut = history.map((h) => ({ id: h.id, kind: h.kind, amountCents: h.amountCents, valueBefore: h.valueBefore, valueAfter: h.valueAfter, createdAt: h.createdAt, ...(isOwner ? { sellerPayoutCents: h.sellerPayoutCents } : {}) }));
   return NextResponse.json({ booth: { ...(isOwner ? p : pub), isOwner, canManage, art: await artFlagsFor(boothId), artLinks: await artLinksFor(boothId) }, series, totals: sumSeries(series), history: historyOut, referrers, rank, prevRank, week, products: await listProducts(boothId, canManage) });
 }
@@ -73,8 +74,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!parsed.success) return NextResponse.json({ error: "Invalid" }, { status: 400 });
   try {
     const d = { ...parsed.data, logoUrl: parsed.data.logoUrl ?? undefined };
+    if (d.logoUrl?.startsWith("data:")) d.logoUrl = await offloadDataUrl(d.logoUrl, (mime) => logoKey(Number(id), mime, Date.now())); // on R2 when storage is on
     const booth = await updateBooth(Number(id), u.id, d);
-    return NextResponse.json({ booth });
+    // a logo on R2 is a reference, never shown raw: the dashboard previews it through /api/logo like everyone else
+    return NextResponse.json({ booth: { ...booth, logoUrl: booth.logoUrl?.startsWith("r2:") ? `/api/logo/${booth.id}?v=${booth.updatedAt ?? Date.now()}` : booth.logoUrl } });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
