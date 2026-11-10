@@ -30,10 +30,31 @@ const MAPS = {
       { s: "hips", t: "Body" }, { s: "spine", t: "Abdomen" }, { s: "chest", t: "Torso" }, { s: "head", t: "Head" },
       // damp: the KayKit figures are chibi (short forearms and shins), so their elbows and knees bend further than
       // reads well on longer limbs; the delta is eased back by this factor
-      { s: "upperarm.l", t: "UpperArm_L", dir: ["lowerarm.l", "LowerArm_L"] }, { s: "lowerarm.l", t: "LowerArm_L", dir: ["wrist.l", "Fist_L"], damp: 0.6 }, { s: "hand.l", t: "Fist_L", dir: ["handslot.l", "Fist_L_end"] },
-      { s: "upperarm.r", t: "UpperArm_R", dir: ["lowerarm.r", "LowerArm_R"] }, { s: "lowerarm.r", t: "LowerArm_R", dir: ["wrist.r", "Fist_R"], damp: 0.6 }, { s: "hand.r", t: "Fist_R", dir: ["handslot.r", "Fist_R_end"] },
+      { s: "upperarm.l", t: "UpperArm_L", dir: ["lowerarm.l", "LowerArm_L"], damp: 0.8 }, { s: "lowerarm.l", t: "LowerArm_L", dir: ["wrist.l", "Fist_L"], damp: 0.45 }, { s: "hand.l", t: "Fist_L", dir: ["handslot.l", "Fist_L_end"], damp: 0.5 },
+      { s: "upperarm.r", t: "UpperArm_R", dir: ["lowerarm.r", "LowerArm_R"], damp: 0.8 }, { s: "lowerarm.r", t: "LowerArm_R", dir: ["wrist.r", "Fist_R"], damp: 0.45 }, { s: "hand.r", t: "Fist_R", dir: ["handslot.r", "Fist_R_end"], damp: 0.5 },
       { s: "upperleg.l", t: "UpperLeg_L", dir: ["lowerleg.l", "LowerLeg_L"] }, { s: "lowerleg.l", t: "LowerLeg_L", dir: ["foot.l", "LowerLeg_L_end"], damp: 0.7 }, { s: "foot.l", t: "Foot_L", dir: ["toes.l", "Foot_L_end"], footOf: "LowerLeg_L", damp: 0.7 },
       { s: "upperleg.r", t: "UpperLeg_R", dir: ["lowerleg.r", "LowerLeg_R"] }, { s: "lowerleg.r", t: "LowerLeg_R", dir: ["foot.r", "LowerLeg_R_end"], damp: 0.7 }, { s: "foot.r", t: "Foot_R", dir: ["toes.r", "Foot_R_end"], footOf: "LowerLeg_R", damp: 0.7 },
+    ],
+  },
+  // KayKit → the UE-style rig of Quaternius's "Universal Base Characters" (root/pelvis/spine_01…/upperarm_l/thigh_l…)
+  kaykit_ue: {
+    root: "root", hipsSrc: "hips", hipsTgt: "pelvis",
+    bones: [
+      { s: "hips", t: "pelvis" }, { s: "spine", t: "spine_01" }, { s: "chest", t: "spine_03" }, { s: "head", t: "Head" },
+      { s: "upperarm.l", t: "upperarm_l", dir: ["lowerarm.l", "lowerarm_l"], damp: 0.8 }, { s: "lowerarm.l", t: "lowerarm_l", dir: ["wrist.l", "hand_l"], damp: 0.45 }, { s: "hand.l", t: "hand_l", dir: ["handslot.l", "middle_01_l"], damp: 0.5 },
+      { s: "upperarm.r", t: "upperarm_r", dir: ["lowerarm.r", "lowerarm_r"], damp: 0.8 }, { s: "lowerarm.r", t: "lowerarm_r", dir: ["wrist.r", "hand_r"], damp: 0.45 }, { s: "hand.r", t: "hand_r", dir: ["handslot.r", "middle_01_r"], damp: 0.5 },
+      { s: "upperleg.l", t: "thigh_l", dir: ["lowerleg.l", "calf_l"] }, { s: "lowerleg.l", t: "calf_l", dir: ["foot.l", "foot_l"], damp: 0.7 }, { s: "foot.l", t: "foot_l", dir: ["toes.l", "ball_l"], damp: 0.7 },
+      { s: "upperleg.r", t: "thigh_r", dir: ["lowerleg.r", "calf_r"] }, { s: "lowerleg.r", t: "calf_r", dir: ["foot.r", "foot_r"], damp: 0.7 }, { s: "foot.r", t: "foot_r", dir: ["toes.r", "ball_r"], damp: 0.7 },
+    ],
+  },
+  legacy_ue: {
+    root: "root", hipsSrc: "hips", hipsTgt: "pelvis",
+    bones: [
+      { s: "hips", t: "pelvis" }, { s: "torso", t: "spine_03" }, { s: "head", t: "Head" },
+      { s: "shoulder_l", t: "upperarm_r", dir: ["forearm_l", "lowerarm_r"] }, { s: "forearm_l", t: "lowerarm_r", dir: ["hand_l", "hand_r"] }, { s: "hand_l", t: "hand_r" },
+      { s: "shoulder_r", t: "upperarm_l", dir: ["forearm_r", "lowerarm_l"] }, { s: "forearm_r", t: "lowerarm_l", dir: ["hand_r", "hand_l"] }, { s: "hand_r", t: "hand_l" },
+      { s: "thigh_l", t: "thigh_r", dir: ["shin_l", "calf_r"] }, { s: "shin_l", t: "calf_r", dir: ["shoe_l", "foot_r"] }, { s: "shoe_l", t: "foot_r" },
+      { s: "thigh_r", t: "thigh_l", dir: ["shin_r", "calf_l"] }, { s: "shin_r", t: "calf_l", dir: ["shoe_r", "foot_l"] }, { s: "shoe_r", t: "foot_l" },
     ],
   },
   // the project's old rigid-part avatar (src/lib/hall/modelkit/avatar.ts) → Quaternius rig; its parts are world-aligned at rest
@@ -133,7 +154,7 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
     }
     if (opts.ground !== false) {
       // keep the lowest foot on the floor: longer legs lift a foot higher for the same thigh swing than the source did
-      const feet = tgtRig.nodes.filter((n) => /^Foot_[LR](_end)?$/.test(n.getName()));
+      const feet = tgtRig.nodes.filter((n) => /^(Foot_[LR](_end)?|foot_[lr]|ball_[lr])$/.test(n.getName()));
       if (feet.length) {
         const low = Math.min(...feet.map((n) => posOf(tw.get(n)).y)), restLow = Math.min(...feet.map((n) => posOf(tgtRestW.get(n)).y));
         const dy = restLow - low; const rl = tl.get(rootT); rl.t = rl.t.clone(); rl.t.y += dy;

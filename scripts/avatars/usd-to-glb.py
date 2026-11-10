@@ -15,7 +15,7 @@ flat-shaded (face normals are kept, vertices are split where normals differ). Ne
 """
 import json, struct, sys, os, re
 import numpy as np
-from pxr import Usd, UsdSkel, UsdGeom, Gf
+from pxr import Usd, UsdSkel, UsdGeom, UsdShade, Gf
 
 # default colours; the hall recolours skin/hair/shirt/pants at runtime by material name
 COLORS = {"skin": "#c68642", "hair": "#2b1b12", "brow": "#2b1b12", "shirt": "#e63946", "pants": "#1f2a44", "belt": "#2a1d14", "face": "#ffffff", "shoes": "#1b1b1f", "costume": "#b91c1c", "costume2": "#facc15", "prop": "#4b5563", "eye": "#15110f"}
@@ -42,12 +42,14 @@ def load(path):
 
 def mat_np(m): return np.array([[m[i][j] for j in range(4)] for i in range(4)], dtype=np.float64)  # row-vector convention: p' = p @ M
 
+TURN = np.eye(4)  # set per spec: a rotation about Y for files whose figure faces -z
+
 def skeleton(skel, skelroot, xc, scale):
     sk = UsdSkel.Skeleton(skel)
     joints = list(sk.GetJointsAttr().Get())
     names = [j.split("/")[-1] for j in joints]
     topo = UsdSkel.Topology(joints)
-    X = mat_np(xc.GetLocalToWorldTransform(skelroot))
+    X = mat_np(xc.GetLocalToWorldTransform(skelroot)) @ TURN
     W = [mat_np(b) @ X for b in sk.GetBindTransformsAttr().Get()]
     for w in W: w[3, :3] *= scale  # uniform scale on positions only; the rotation part stays orthonormal
     parents = [topo.GetParent(i) for i in range(len(joints))]
@@ -87,6 +89,10 @@ def mesh_part(prim, names, X, scale, subsets_wanted):
         N = np.array(nrm, dtype=np.float64) @ R
     else:
         N = None
+    # texture coordinates (primvars:st), per corner or per point
+    UV = None; uv_pv = UsdGeom.PrimvarsAPI(prim).GetPrimvar("st")
+    if uv_pv and uv_pv.Get() is not None:
+        raw = np.array(uv_pv.ComputeFlattened(), dtype=np.float64); UV = (raw, uv_pv.GetInterpolation() == "faceVarying")  # flattened: indexed primvars expand to one value per corner
     # skin weights
     ji = binding.GetJointIndicesPrimvar(); jw = binding.GetJointWeightsPrimvar()
     es = ji.GetElementSize()
@@ -96,6 +102,8 @@ def mesh_part(prim, names, X, scale, subsets_wanted):
         remap = np.array([names.index(j.split("/")[-1]) for j in bound]); idx = remap[idx]
     order = np.argsort(-wts, axis=1)[:, :4]
     idx4 = np.take_along_axis(idx, order, 1); w4 = np.take_along_axis(wts, order, 1)
+    if idx4.shape[1] < 4:  # a piece bound to a single bone (hair, brows) still needs four slots
+        pad = 4 - idx4.shape[1]; idx4 = np.pad(idx4, ((0, 0), (0, pad))); w4 = np.pad(w4, ((0, 0), (0, pad)))
     w4 = w4 / np.maximum(w4.sum(1, keepdims=True), 1e-9)
     # faces → subsets
     face_mat = np.full(len(fvc), -1)
@@ -104,10 +112,19 @@ def mesh_part(prim, names, X, scale, subsets_wanted):
     cy = np.array([P[fvi[offsets[f]:offsets[f] + fvc[f]], 1].mean() for f in range(len(fvc))])
     wanted = []  # (subset, material) in output order; a subset may be split into several materials
     for sub, spec in subsets_wanted.items():
-        sp = prim.GetChild(sub)
-        if not sp or not sp.IsA(UsdGeom.Subset): print(f"  warning: no subset {sub} in {prim.GetPath()}"); continue
-        faces = np.array(UsdGeom.Subset(sp).GetIndicesAttr().Get())
-        if isinstance(spec, str):
+        if sub == "*":  # the whole mesh (files without subsets: a hair piece, a face)
+            faces = np.arange(len(fvc))
+        else:
+            sp = prim.GetChild(sub)
+            if not sp or not sp.IsA(UsdGeom.Subset): print(f"  warning: no subset {sub} in {prim.GetPath()}"); continue
+            faces = np.array(UsdGeom.Subset(sp).GetIndicesAttr().Get())
+        if isinstance(spec, dict) and "bands" in spec:  # {"bands": [[height, material], …, [null, material]]}: faces by centroid height, lowest band first
+            lo = -1e9
+            for top, matname in spec["bands"]:
+                hi = 1e9 if top is None else float(top)
+                if matname is not None: wanted.append((sub, matname)); face_mat[faces[(cy[faces] >= lo) & (cy[faces] < hi)]] = len(wanted) - 1  # a null material drops the band (a body hidden under clothes)
+                lo = hi
+        elif isinstance(spec, str):
             wanted.append((sub, spec)); face_mat[faces] = len(wanted) - 1
         elif "below" in spec:  # {"below": [height, materialBelow, materialAbove]}: the Quaternius legs end in bare stubs, the bottom becomes the shoes
             h, lo, hi = spec["below"]
@@ -131,16 +148,45 @@ def mesh_part(prim, names, X, scale, subsets_wanted):
         else:
             # flat normals from the triangle itself
             tri = P[vidx].reshape(-1, 3, 3); fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]); fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-9); cn = np.repeat(fn, 3, axis=0)
-        key = np.c_[vidx, np.round(cn, 3)]
+        if UV is not None:
+            raw, per_corner = UV; cuv = raw[corners] if per_corner else raw[vidx]
+            cuv = np.c_[cuv[:, 0], 1 - cuv[:, 1]]  # glTF's v runs down
+        else:
+            cuv = np.zeros((len(vidx), 2))
+        key = np.c_[vidx, np.round(cn, 3), np.round(cuv, 5)]
         uniq, inv = np.unique(key, axis=0, return_inverse=True)
         uv = uniq[:, 0].astype(int)
-        out.setdefault(matname, []).append((P[uv].astype(np.float32), uniq[:, 1:4].astype(np.float32), idx4[uv].astype(np.uint16), w4[uv].astype(np.float32), inv.reshape(-1).astype(np.uint32)))
+        out.setdefault(matname, []).append((P[uv].astype(np.float32), uniq[:, 1:4].astype(np.float32), idx4[uv].astype(np.uint16), w4[uv].astype(np.float32), inv.reshape(-1).astype(np.uint32), uniq[:, 4:6].astype(np.float32)))
     merged = {}
     for m, chunks in out.items():
-        base = 0; ps, ns, js, ws, is_ = [], [], [], [], []
-        for p, n, j, w, i in chunks: ps.append(p); ns.append(n); js.append(j); ws.append(w); is_.append(i + base); base += len(p)
-        merged[m] = (np.concatenate(ps), np.concatenate(ns), np.concatenate(js), np.concatenate(ws), np.concatenate(is_))
+        base = 0; ps, ns, js, ws, is_, ts = [], [], [], [], [], []
+        for p, n, j, w, i, t in chunks: ps.append(p); ns.append(n); js.append(j); ws.append(w); is_.append(i + base); ts.append(t); base += len(p)
+        merged[m] = (np.concatenate(ps), np.concatenate(ns), np.concatenate(js), np.concatenate(ws), np.concatenate(is_), np.concatenate(ts))
     return merged
+
+def bound_textures(prim):
+    """The diffuse and normal map files of the material bound to a mesh (UsdPreviewSurface + UsdUVTexture), if any."""
+    mat = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0]
+    if not mat: return {}
+    out = {}
+    for sh in [UsdShade.Shader(c) for c in mat.GetPrim().GetChildren() if c.IsA(UsdShade.Shader)]:
+        if sh.GetIdAttr().Get() != "UsdPreviewSurface": continue
+        for name, key in (("diffuseColor", "diffuse"), ("normal", "normal")):
+            inp = sh.GetInput(name)
+            if inp and inp.HasConnectedSource():
+                tex = UsdShade.Shader(inp.GetConnectedSource()[0].GetPrim()); f = tex.GetInput("file")
+                if f and f.Get(): out[key] = f.Get().resolvedPath or f.Get().path
+    return out
+
+def image_bytes(path, max_size, kind):
+    """A texture file resized for the web: JPEG for colour maps without alpha, PNG otherwise."""
+    from PIL import Image
+    import io
+    im = Image.open(path)
+    if max(im.size) > max_size: im = im.resize((min(im.size[0], max_size), min(im.size[1], max_size)), Image.LANCZOS)
+    buf = io.BytesIO()
+    if im.mode == "RGBA" or kind == "normal": im.save(buf, format="PNG", optimize=True); return buf.getvalue(), "image/png"
+    im.convert("RGB").save(buf, format="JPEG", quality=86); return buf.getvalue(), "image/jpeg"
 
 class Glb:
     def __init__(self): self.bin = bytearray(); self.views = []; self.accessors = []
@@ -160,7 +206,9 @@ def main(spec_path):
     spec = json.load(open(spec_path))
     base = os.path.dirname(os.path.abspath(spec_path))
     scale = float(spec.get("scale", 1))
-    g = Glb(); nodes = []; meshes = []; materials = {}; skin_joints = None
+    global TURN
+    a = np.radians(float(spec.get("turn", 0))); TURN = np.array([[np.cos(a), 0, -np.sin(a), 0], [0, 1, 0, 0], [np.sin(a), 0, np.cos(a), 0], [0, 0, 0, 1]])
+    g = Glb(); nodes = []; meshes = []; materials = {}; images = []; textures = []; tex_index = {}; skin_joints = None
     names = parents = W = locals_ = None
     for pi, part in enumerate(spec["parts"]):
         path = expand(part["file"], base)
@@ -180,19 +228,43 @@ def main(spec_path):
             d = max(float(np.abs(a - b).max()) for a, b in zip(W, W2))
             if d > 1e-3: print(f"  warning: {os.path.basename(path)} bind pose differs by {d:.4f}")
         prims = []
+        textured = set(part.get("textured", []))  # output materials that take the mesh's own colour (and normal) map
         for mprim in mprims:
-            for matname, (P, N, J, Wt, I) in mesh_part(mprim, names, X, scale, part["subsets"]).items():
+            # "subsets" applies to every mesh in the file; "meshes": {name: subsets} picks per mesh (others are skipped)
+            mspec = part["meshes"].get(mprim.GetName()) if "meshes" in part else part["subsets"]
+            if mspec is None: continue
+            bound_name = UsdShade.MaterialBindingAPI(mprim).ComputeBoundMaterial()[0]; bound_name = bound_name.GetPrim().GetName() if bound_name else "material"
+            for matname, (P, N, J, Wt, I, T) in mesh_part(mprim, names, X, scale, mspec).items():
+                if matname == "@": matname = bound_name  # named after the USD material (a modular outfit piece keeps its own)
+                if "@" in textured: textured.add(matname)
                 if matname not in materials:
                     col = srgb2lin(hex2rgb(COLORS.get(matname, "#888888")))
-                    materials[matname] = {"name": matname, "pbrMetallicRoughness": {"baseColorFactor": col + [1], "metallicFactor": 0, "roughnessFactor": ROUGH.get(matname, 0.75)}, "doubleSide": False}
-                    materials[matname] = {k: v for k, v in materials[matname].items() if k != "doubleSide"}
+                    materials[matname] = {"name": matname, "pbrMetallicRoughness": {"baseColorFactor": col + [1], "metallicFactor": 0, "roughnessFactor": ROUGH.get(matname, 0.75)}}
                     if matname == "hair": materials[matname]["doubleSided"] = True
+                    if matname in textured:
+                        maps = bound_textures(mprim)
+                        for kind, slot in (("diffuse", "baseColorTexture"), ("normal", "normalTexture")):
+                            if kind not in maps: continue
+                            if kind == "normal" and not part.get("normals", False): continue
+                            tkey = (maps[kind], kind)
+                            if tkey not in tex_index:
+                                data, mime = image_bytes(maps[kind], int(part.get("textureSize", 1024)) if kind == "diffuse" else 512, kind)
+                                while len(g.bin) % 4: g.bin.append(0)
+                                g.views.append({"buffer": 0, "byteOffset": len(g.bin), "byteLength": len(data)}); g.bin += data
+                                images.append({"bufferView": len(g.views) - 1, "mimeType": mime}); textures.append({"source": len(images) - 1, "sampler": 0})
+                                tex_index[tkey] = len(textures) - 1
+                                print(f"  texture {os.path.basename(maps[kind])} ({kind}) → {len(data)//1024} KB")
+                            ref = {"index": tex_index[tkey]}
+                            if slot == "baseColorTexture": materials[matname]["pbrMetallicRoughness"]["baseColorTexture"] = ref; materials[matname]["pbrMetallicRoughness"]["baseColorFactor"] = [1, 1, 1, 1]
+                            else: materials[matname]["normalTexture"] = ref
                 mi = list(materials).index(matname)
-                prims.append({"attributes": {"POSITION": g.acc(P, 5126, "VEC3", True, 34962), "NORMAL": g.acc(N, 5126, "VEC3", False, 34962), "JOINTS_0": g.acc(J, 5123, "VEC4", False, 34962), "WEIGHTS_0": g.acc(Wt, 5126, "VEC4", False, 34962)}, "indices": g.acc(I, 5125, "SCALAR", False, 34963), "material": mi, "mode": 4})
+                attrs = {"POSITION": g.acc(P, 5126, "VEC3", True, 34962), "NORMAL": g.acc(N, 5126, "VEC3", False, 34962), "JOINTS_0": g.acc(J, 5123, "VEC4", False, 34962), "WEIGHTS_0": g.acc(Wt, 5126, "VEC4", False, 34962)}
+                if matname in textured: attrs["TEXCOORD_0"] = g.acc(T, 5126, "VEC2", False, 34962)
+                prims.append({"attributes": attrs, "indices": g.acc(I, 5125, "SCALAR", False, 34963), "material": mi, "mode": 4})
                 print(f"  {part['node']}/{matname}: {len(P)} vertices, {len(I)//3} triangles")
         meshes.append({"name": part["node"], "primitives": prims})
         nodes.append({"name": part["node"], "mesh": len(meshes) - 1, "skin": 0})
-    gltf = {"asset": {"version": "2.0", "generator": "forevercomiccon usd-to-glb"}, "scene": 0, "scenes": [{"name": "Scene", "nodes": [0] + list(range(len(names), len(nodes)))}], "nodes": nodes, "meshes": meshes, "skins": [skin], "materials": list(materials.values()), "accessors": g.accessors, "bufferViews": g.views, "buffers": [{"byteLength": len(g.bin)}]}
+    gltf = {"asset": {"version": "2.0", "generator": "forevercomiccon usd-to-glb"}, "scene": 0, "scenes": [{"name": "Scene", "nodes": [0] + list(range(len(names), len(nodes)))}], "nodes": nodes, "meshes": meshes, "skins": [skin], "materials": list(materials.values()), "images": images, "textures": textures, "samplers": [{"magFilter": 9729, "minFilter": 9987, "wrapS": 10497, "wrapT": 10497}], "accessors": g.accessors, "bufferViews": g.views, "buffers": [{"byteLength": len(g.bin)}]}
     for n in nodes:
         if "children" in n and not n["children"]: del n["children"]
     js = json.dumps(gltf, separators=(",", ":")).encode()
