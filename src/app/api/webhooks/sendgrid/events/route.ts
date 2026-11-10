@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       const sgId = ev.sg_message_id ? String(ev.sg_message_id).split(".")[0] : null;
       const [msg] = ev.fcc_log_id
         ? await db.select().from(schema.mailMessages).where(eq(schema.mailMessages.id, String(ev.fcc_log_id))).limit(1)
-        : sgId ? await db.select().from(schema.mailMessages).where(or(eq(schema.mailMessages.sendgridMessageId, sgId), sql`${schema.mailMessages.sendgridMessageId} LIKE ${sgId + "%"}`)).limit(1) : [];
+        : sgId ? await db.select().from(schema.mailMessages).where(or(eq(schema.mailMessages.sendgridMessageId, sgId), sql`${schema.mailMessages.sendgridMessageId} ILIKE ${sgId + "%"}`)).limit(1) : [];
       if (!msg) { await finishWebhook(recId, "ignored", "no matching message"); skipped++; continue; }
       const prev = msg.events ? (JSON.parse(msg.events) as unknown[]) : [];
       const entry = { event: ev.event, at: ev.timestamp ? new Date(Number(ev.timestamp) * 1000).toISOString() : new Date().toISOString(), email: ev.email, reason: ev.reason, response: ev.response, url: ev.url, status: ev.status };

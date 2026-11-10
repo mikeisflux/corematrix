@@ -1,8 +1,15 @@
 import { sql } from "drizzle-orm";
-import { blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { bigint as pgBigint, boolean, customType, doublePrecision, index, pgTable, primaryKey, text, uniqueIndex } from "drizzle-orm/pg-core";
+
+/**
+ * Postgres. Whole numbers are int8 (bigint, read as JS numbers): the columns hold millisecond timestamps, cents and
+ * counters alike, and one type keeps every comparison and sum honest. Booleans are real booleans. The one blob is bytea.
+ */
+const integer = (name: string) => pgBigint(name, { mode: "number" });
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 /** Registered accounts. Email + password sign-in; login_tokens are one-time links (password reset, email verification). */
-export const users = sqliteTable("users", {
+export const users = pgTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   displayName: text("display_name"),
@@ -15,14 +22,14 @@ export const users = sqliteTable("users", {
   coins: integer("coins").notNull().default(0), // arcade soft currency
   lastDailyCoinsAt: integer("last_daily_coins_at"),
   streak: integer("streak").notNull().default(0),
-  notifyEmail: integer("notify_email", { mode: "boolean" }).notNull().default(true),
+  notifyEmail: boolean("notify_email").notNull().default(true),
   stripeCustomerId: text("stripe_customer_id"), // legacy, unused
   dcPaymentMethodId: text("dc_payment_method_id"), // DivinityCoin saved card for plan renewals
   cardIp: text("card_ip"),
   cardUserAgent: text("card_user_agent"),
   avatar: text("avatar"), // JSON AvatarConfig (body, skin, hair, hairColor, outfit)
   passwordHash: text("password_hash"), // optional: scrypt hash for email+password sign-in (admins, mostly)
-  isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false), // superadmin: every admin area
+  isAdmin: boolean("is_admin").notNull().default(false), // superadmin: every admin area
   permissions: text("permissions"), // JSON list of admin areas for staff who are not superadmins (see lib/permissions.ts)
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at"),
@@ -31,14 +38,14 @@ export const users = sqliteTable("users", {
   referralTxId: text("referral_tx_id"), // the payment that earned it; a refund or dispute of it takes the credit back
 });
 
-export const sessions = sqliteTable("sessions", {
+export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   expiresAt: integer("expires_at").notNull(),
   createdAt: integer("created_at").notNull(),
 });
 
-export const loginTokens = sqliteTable("login_tokens", {
+export const loginTokens = pgTable("login_tokens", {
   token: text("token").primaryKey(),
   email: text("email").notNull(),
   expiresAt: integer("expires_at").notNull(),
@@ -51,7 +58,7 @@ export const loginTokens = sqliteTable("login_tokens", {
  * for where every space sits). Booth ids are permanent; the exhibitor in it
  * changes hands. We store the current exhibitor's setup inline.
  */
-export const booths = sqliteTable(
+export const booths = pgTable(
   "booths",
   {
     id: integer("id").primaryKey(), // layout index, 1..N
@@ -95,7 +102,7 @@ export const booths = sqliteTable(
     claimedAt: integer("claimed_at"),
     updatedAt: integer("updated_at"),
     lastSoldAt: integer("last_sold_at"),
-    hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
+    hidden: boolean("hidden").notNull().default(false),
     notForSaleUntil: integer("not_for_sale_until"), // landmark perk: shield window
     totalViews: integer("total_views").notNull().default(0),
     totalClicks: integer("total_clicks").notNull().default(0),
@@ -107,7 +114,7 @@ export const booths = sqliteTable(
 );
 
 /** Every money movement. amount is what the buyer paid. */
-export const transactions = sqliteTable(
+export const transactions = pgTable(
   "transactions",
   {
     id: text("id").primaryKey(),
@@ -136,7 +143,7 @@ export const transactions = sqliteTable(
 );
 
 /** Public activity feed. */
-export const events = sqliteTable(
+export const events = pgTable(
   "events",
   {
     id: text("id").primaryKey(),
@@ -151,7 +158,7 @@ export const events = sqliteTable(
 );
 
 /** Daily rollups per booth: the owner-facing metrics. */
-export const boothDaily = sqliteTable(
+export const boothDaily = pgTable(
   "booth_daily",
   {
     boothId: integer("booth_id").notNull(),
@@ -170,7 +177,7 @@ export const boothDaily = sqliteTable(
 );
 
 /** Referrer breakdown per booth (where their clicks come from). */
-export const boothReferrers = sqliteTable(
+export const boothReferrers = pgTable(
   "booth_referrers",
   {
     boothId: integer("booth_id").notNull(),
@@ -182,7 +189,7 @@ export const boothReferrers = sqliteTable(
 );
 
 /** Dedupe table for uniques: (booth, day, visitor hash). Pruned nightly. */
-export const visitorSeen = sqliteTable(
+export const visitorSeen = pgTable(
   "visitor_seen",
   {
     boothId: integer("booth_id").notNull(),
@@ -193,7 +200,7 @@ export const visitorSeen = sqliteTable(
 );
 
 /** Site-wide daily KPIs for the operator dashboard. */
-export const siteDaily = sqliteTable("site_daily", {
+export const siteDaily = pgTable("site_daily", {
   day: text("day").primaryKey(),
   visits: integer("visits").notNull().default(0),
   uniques: integer("uniques").notNull().default(0),
@@ -207,7 +214,7 @@ export const siteDaily = sqliteTable("site_daily", {
 });
 
 /** Chat: hall-wide lobby plus per-booth guestbooks. */
-export const messages = sqliteTable(
+export const messages = pgTable(
   "messages",
   {
     id: text("id").primaryKey(),
@@ -216,14 +223,14 @@ export const messages = sqliteTable(
     authorName: text("author_name").notNull(),
     authorBoothId: integer("author_booth_id"),
     body: text("body").notNull(),
-    hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
+    hidden: boolean("hidden").notNull().default(false),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("messages_room_idx").on(t.room, t.createdAt)],
 );
 
 /** Weekly seasons: leaderboard snapshots with winners. */
-export const seasons = sqliteTable("seasons", {
+export const seasons = pgTable("seasons", {
   id: text("id").primaryKey(), // e.g. 2026-W40
   startsAt: integer("starts_at").notNull(),
   endsAt: integer("ends_at").notNull(),
@@ -232,7 +239,7 @@ export const seasons = sqliteTable("seasons", {
 });
 
 /** Billboard slots (airship banner, rooftop signs) sold by the week. */
-export const billboards = sqliteTable(
+export const billboards = pgTable(
   "billboards",
   {
     id: text("id").primaryKey(),
@@ -256,7 +263,7 @@ export const billboards = sqliteTable(
   (t) => [index("billboards_slot_idx").on(t.slot, t.endsAt)],
 );
 
-export const notifications = sqliteTable(
+export const notifications = pgTable(
   "notifications",
   {
     id: text("id").primaryKey(),
@@ -271,14 +278,14 @@ export const notifications = sqliteTable(
   (t) => [index("notif_user_idx").on(t.userId, t.createdAt)],
 );
 
-export const settings = sqliteTable("settings", {
+export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
   updatedAt: integer("updated_at").notNull().default(sql`0`),
 });
 
 /** Arcade: coin movements and scores. */
-export const coinLedger = sqliteTable(
+export const coinLedger = pgTable(
   "coin_ledger",
   {
     id: text("id").primaryKey(),
@@ -291,7 +298,7 @@ export const coinLedger = sqliteTable(
   (t) => [index("coin_user_idx").on(t.userId, t.createdAt)],
 );
 
-export const gameScores = sqliteTable(
+export const gameScores = pgTable(
   "game_scores",
   {
     id: text("id").primaryKey(),
@@ -307,7 +314,7 @@ export const gameScores = sqliteTable(
 );
 
 /** One-time play tokens so scores can't be posted without starting a game. */
-export const gamePlays = sqliteTable("game_plays", {
+export const gamePlays = pgTable("game_plays", {
   id: text("id").primaryKey(),
   gameId: text("game_id").notNull(),
   userId: text("user_id").notNull(),
@@ -318,7 +325,7 @@ export const gamePlays = sqliteTable("game_plays", {
 /* ───────── Admin: mail, templates, webhooks, audit (ported from the Play Time admin) ───────── */
 
 /** Every email in or out. direction "in" = Inbound Parse; "out" = SendGrid sends (and drafts, status "draft"). */
-export const mailMessages = sqliteTable(
+export const mailMessages = pgTable(
   "mail_messages",
   {
     id: text("id").primaryKey(),
@@ -331,9 +338,9 @@ export const mailMessages = sqliteTable(
     subject: text("subject").notNull(),
     text: text("text"),
     html: text("html"),
-    read: integer("read", { mode: "boolean" }).notNull().default(false),
-    starred: integer("starred", { mode: "boolean" }).notNull().default(false),
-    archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    read: boolean("read").notNull().default(false),
+    starred: boolean("starred").notNull().default(false),
+    archived: boolean("archived").notNull().default(false),
     threadId: text("thread_id"),
     status: text("status"), // queued | sent | delivered | opened | clicked | bounced | spam | failed | draft | received
     statusMessage: text("status_message"),
@@ -350,7 +357,7 @@ export const mailMessages = sqliteTable(
   (t) => [index("mail_dir_idx").on(t.direction, t.archived, t.createdAt), index("mail_thread_idx").on(t.threadId), index("mail_to_idx").on(t.toEmail), uniqueIndex("mail_sg_idx").on(t.sendgridMessageId)],
 );
 
-export const mailAttachments = sqliteTable(
+export const mailAttachments = pgTable(
   "mail_attachments",
   {
     id: text("id").primaryKey(),
@@ -358,14 +365,14 @@ export const mailAttachments = sqliteTable(
     filename: text("filename").notNull(),
     contentType: text("content_type").notNull(),
     size: integer("size").notNull(),
-    data: blob("data", { mode: "buffer" }).notNull(),
-    inline: integer("inline", { mode: "boolean" }).notNull().default(false),
+    data: bytea("data").notNull(),
+    inline: boolean("inline").notNull().default(false),
     contentId: text("content_id"),
   },
   (t) => [index("mail_att_msg_idx").on(t.messageId)],
 );
 
-export const emailTemplates = sqliteTable("email_templates", {
+export const emailTemplates = pgTable("email_templates", {
   id: text("id").primaryKey(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
@@ -373,13 +380,13 @@ export const emailTemplates = sqliteTable("email_templates", {
   subject: text("subject").notNull(),
   html: text("html").notNull(),
   text: text("text"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
   version: integer("version").notNull().default(1),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
 
-export const emailTemplateVersions = sqliteTable(
+export const emailTemplateVersions = pgTable(
   "email_template_versions",
   {
     id: text("id").primaryKey(),
@@ -396,7 +403,7 @@ export const emailTemplateVersions = sqliteTable(
 );
 
 /** Every webhook delivery (DivinityCoin, SendGrid) with outcome; failed DivinityCoin events can be re-run from /admin/webhooks. */
-export const webhookEvents = sqliteTable(
+export const webhookEvents = pgTable(
   "webhook_events",
   {
     id: text("id").primaryKey(),
@@ -412,7 +419,7 @@ export const webhookEvents = sqliteTable(
   (t) => [uniqueIndex("wh_provider_event_idx").on(t.provider, t.eventId), index("wh_received_idx").on(t.provider, t.receivedAt)],
 );
 
-export const adminAuditLog = sqliteTable(
+export const adminAuditLog = pgTable(
   "admin_audit_log",
   {
     id: text("id").primaryKey(),
@@ -430,7 +437,7 @@ export const adminAuditLog = sqliteTable(
 );
 
 /** Uploaded banner artwork, one row per booth per slot, kept out of `booths` so floor reads stay light. */
-export const boothArt = sqliteTable(
+export const boothArt = pgTable(
   "booth_art",
   {
     boothId: integer("booth_id").notNull(),
@@ -447,7 +454,7 @@ export const boothArt = sqliteTable(
 );
 
 /** Cash-out requests: credit leaves the user's balance when requested; an admin pays by PayPal and marks it paid, or rejects it and the credit comes back. */
-export const payouts = sqliteTable(
+export const payouts = pgTable(
   "payouts",
   {
     id: text("id").primaryKey(),
@@ -468,7 +475,7 @@ export const payouts = sqliteTable(
 );
 
 /** Frame-rate capture from the hall: one row per visit, 1-second samples appended every few seconds. */
-export const perfSessions = sqliteTable(
+export const perfSessions = pgTable(
   "perf_sessions",
   {
     id: text("id").primaryKey(),
@@ -486,14 +493,14 @@ export const perfSessions = sqliteTable(
 );
 
 /** The arcade theater playlist: uploaded files (kept on disk under the data directory) and external video URLs, in play order. */
-export const theaterVideos = sqliteTable("theater_videos", {
+export const theaterVideos = pgTable("theater_videos", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   kind: text("kind").notNull(), // "file" (src = stored filename) | "url" (src = the address)
   src: text("src").notNull(),
   mime: text("mime"),
   bytes: integer("bytes").notNull().default(0),
-  duration: real("duration").notNull().default(0), // seconds; 0 = unknown
+  duration: doublePrecision("duration").notNull().default(0), // seconds; 0 = unknown
   position: integer("position").notNull().default(0),
   enabled: integer("enabled").notNull().default(1),
   status: text("status").notNull().default("ready"), // ready | processing (being downsampled for the screen)
@@ -503,7 +510,7 @@ export const theaterVideos = sqliteTable("theater_videos", {
 });
 
 /** Friend requests and friendships: one row per pair, from the requester; status flips to accepted. */
-export const friendships = sqliteTable(
+export const friendships = pgTable(
   "friendships",
   {
     id: text("id").primaryKey(),
@@ -517,7 +524,7 @@ export const friendships = sqliteTable(
 );
 
 /** An exhibitor's teams: named groups of people who staff their booths. */
-export const teams = sqliteTable(
+export const teams = pgTable(
   "teams",
   {
     id: text("id").primaryKey(),
@@ -529,7 +536,7 @@ export const teams = sqliteTable(
 );
 
 /** Team members: a friend (user id) or an email invite that attaches to the account when that person signs in. */
-export const teamMembers = sqliteTable(
+export const teamMembers = pgTable(
   "team_members",
   {
     id: text("id").primaryKey(),
@@ -545,7 +552,7 @@ export const teamMembers = sqliteTable(
 );
 
 /** Private messages between two visitors (by visitor id), kept so a deploy or restart does not lose them. */
-export const dms = sqliteTable(
+export const dms = pgTable(
   "dms",
   {
     id: text("id").primaryKey(),
@@ -560,7 +567,7 @@ export const dms = sqliteTable(
 );
 
 /** Sentinel: errors from browsers (the hall's error boundary and window errors) and from server routes, grouped by message. */
-export const sentinelErrors = sqliteTable(
+export const sentinelErrors = pgTable(
   "sentinel_errors",
   {
     id: text("id").primaryKey(),
@@ -581,7 +588,7 @@ export const sentinelErrors = sqliteTable(
 );
 
 /** Booth codes: handed out by the organisers, redeemed in the claim flow for a free booth of a given size. */
-export const boothCodes = sqliteTable(
+export const boothCodes = pgTable(
   "booth_codes",
   {
     id: text("id").primaryKey(),
@@ -597,7 +604,7 @@ export const boothCodes = sqliteTable(
   },
   (t) => [index("booth_codes_label_idx").on(t.label)],
 );
-export const codeRedemptions = sqliteTable(
+export const codeRedemptions = pgTable(
   "code_redemptions",
   {
     id: text("id").primaryKey(),
@@ -612,7 +619,7 @@ export const codeRedemptions = sqliteTable(
 
 /** Daily quests: one row per (player, day, quest). Progress is bumped by the thing itself (a booth opened, a round
  *  played, time at the theater); claimed_at is set when the coins are paid. */
-export const questDays = sqliteTable(
+export const questDays = pgTable(
   "quest_days",
   {
     userId: text("user_id").notNull(),
@@ -626,7 +633,7 @@ export const questDays = sqliteTable(
 );
 
 /** Items an exhibitor sells from the booth: a title, a price and the link to buy it. The picture is booth_art slot "product:<id>". */
-export const boothProducts = sqliteTable(
+export const boothProducts = pgTable(
   "booth_products",
   {
     id: text("id").primaryKey(),
@@ -644,7 +651,7 @@ export const boothProducts = sqliteTable(
 );
 
 /** Shop items a player owns (costumes, reaction packs; see lib/hall/items.ts). via: coins | sponsor:<booth> | admin. */
-export const userItems = sqliteTable(
+export const userItems = pgTable(
   "user_items",
   {
     userId: text("user_id").notNull(),
@@ -656,7 +663,7 @@ export const userItems = sqliteTable(
 );
 
 /** An item an exhibitor sponsors: free to anyone who claims it at their booth while the window is open. */
-export const sponsoredItems = sqliteTable(
+export const sponsoredItems = pgTable(
   "sponsored_items",
   {
     id: text("id").primaryKey(),
@@ -672,7 +679,7 @@ export const sponsoredItems = sqliteTable(
 );
 
 /** Booths a visitor saved to find again (the ★ on a storefront). Guests keep theirs in the browser instead. */
-export const favorites = sqliteTable(
+export const favorites = pgTable(
   "favorites",
   { userId: text("user_id").notNull(), boothId: integer("booth_id").notNull(), createdAt: integer("created_at").notNull() },
   (t) => [primaryKey({ columns: [t.userId, t.boothId] })],
@@ -680,7 +687,7 @@ export const favorites = sqliteTable(
 
 /** People a user does not want to hear from: their chat is hidden, their messages and friend requests are refused.
  *  A guest has only a player id (the visitor cookie); an account has a user id too, so both are kept. */
-export const blocks = sqliteTable(
+export const blocks = pgTable(
   "blocks",
   {
     id: text("id").primaryKey(),
@@ -695,7 +702,7 @@ export const blocks = sqliteTable(
 );
 
 /** A report about a person (harassment, spam, impersonation…) for the admins: who, why, and where it happened. */
-export const reports = sqliteTable(
+export const reports = pgTable(
   "reports",
   {
     id: text("id").primaryKey(),

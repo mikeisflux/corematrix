@@ -1,1 +1,0 @@
-ALTER TABLE `booths` ADD `banner_height` integer DEFAULT 6 NOT NULL;

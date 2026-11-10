@@ -47,7 +47,7 @@ fi
 
 healthy() {
   local p code
-  for p in / /app /api/hall; do
+  for p in / /app /api/hall /api/queue; do
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT$p" || true)"
     [ "$code" = "200" ] || return 1
   done
@@ -70,11 +70,10 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 git archive HEAD | tar -x -C "$BUILD_DIR"                       # the committed sources, nothing else
 for f in .env .env.local .env.production .env.production.local; do [ -f "$f" ] && cp "$f" "$BUILD_DIR/$f"; done
-# The build prerenders the home page from the database. A relative file: URL in the env files would point inside the
-# build folder, so hand the build the live file's absolute path (an exported variable wins over the env files).
+# The build prerenders the home page from the database (DATABASE_URL in the env files, a postgres:// URL in production).
 if [ -z "${DATABASE_URL:-}" ]; then
   url="$( { cat .env.production.local .env.local .env.production .env 2>/dev/null || true; } | grep '^DATABASE_URL=' | head -1 | cut -d= -f2- | tr -d '"'"'"'"' || true)"
-  case "$url" in file:/*) export DATABASE_URL="$url";; file:*) rel="${url#file:}"; rel="${rel#./}"; export DATABASE_URL="file:$APP_DIR/$rel";; esac
+  case "$url" in postgres*) export DATABASE_URL="$url";; pglite:/*) export DATABASE_URL="$url";; pglite:*) rel="${url#pglite:}"; rel="${rel#./}"; export DATABASE_URL="pglite:$APP_DIR/$rel";; esac
 fi
 if [ -d .next/cache ]; then mkdir -p "$BUILD_DIR/.next"; cp -r .next/cache "$BUILD_DIR/.next/cache"; fi   # minutes off the build
 
@@ -93,14 +92,19 @@ if [ "${avail_mb:-0}" -lt 2500 ]; then
 fi
 (cd "$BUILD_DIR" && NODE_OPTIONS="--max-old-space-size=2560 ${NODE_OPTIONS:-}" npm run build) || build_failed $?
 
-# Migrations run automatically when the app boots (ensureMigrated); nothing to do here.
 log "swapping the build in"
-rm -rf .next.prev node_modules.prev .next.failed
+rm -rf .next.prev node_modules.prev dist.prev .next.failed
 [ -d .next ] && mv .next .next.prev
 [ -d node_modules ] && mv node_modules node_modules.prev
+[ -d dist ] && mv dist dist.prev
 mv "$BUILD_DIR/.next" .next
 mv "$BUILD_DIR/node_modules" node_modules
+mv "$BUILD_DIR/dist" dist
 rm -rf "$BUILD_DIR"
+
+# Migrations run here, once, before the workers come up (they also run on boot, behind an advisory lock, as a safety net).
+log "database migrations"
+npm run -s db:migrate || { echo "✗ migrations failed; the previous build is still serving. Fix the database and run this again."; mv .next .next.failed; mv .next.prev .next; [ -d dist.prev ] && { rm -rf dist; mv dist.prev dist; }; [ -d node_modules.prev ] && { rm -rf node_modules; mv node_modules.prev node_modules; }; exit 1; }
 
 log "pm2 reload"
 reload
@@ -108,7 +112,7 @@ reload
 log "health check"
 if wait_healthy; then
   echo "OK http://127.0.0.1:$PORT/ /app /api/hall → 200 ($AFTER)"
-  rm -rf .next.prev node_modules.prev
+  rm -rf .next.prev node_modules.prev dist.prev
   exit 0
 fi
 
@@ -118,6 +122,7 @@ if [ -d .next.prev ]; then
   log "rolling back to the previous build ($BEFORE)"
   mv .next .next.failed
   mv .next.prev .next
+  if [ -d dist.prev ]; then rm -rf dist.failed; mv dist dist.failed; mv dist.prev dist; fi
   if [ -d node_modules.prev ]; then rm -rf node_modules.failed; mv node_modules node_modules.failed; mv node_modules.prev node_modules; fi
   reload
   if wait_healthy; then echo "rolled back: the previous build is serving again. The failed build is in .next.failed for a look."; else echo "rollback did not come up healthy either; check pm2 logs fcc"; fi

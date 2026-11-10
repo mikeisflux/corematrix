@@ -20,13 +20,13 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get("q") || "").trim(), size = url.searchParams.get("size") || "", status = url.searchParams.get("status") || "all";
   const t = schema.boothCodes;
   const conds = [];
-  if (q) conds.push(sql`(${t.code} LIKE ${like(q.toUpperCase().replace(/[^A-Z0-9]/g, ""))} OR ${t.label} LIKE ${like(q)} ESCAPE '\\')`);
+  if (q) conds.push(sql`(${t.code} ILIKE ${like(q.toUpperCase().replace(/[^A-Z0-9]/g, ""))} OR ${t.label} ILIKE ${like(q)} ESCAPE '\\')`);
   if (size) conds.push(eq(t.size, size));
   if (status === "open") conds.push(sql`${t.revokedAt} IS NULL AND ${t.uses} < ${t.maxUses} AND (${t.expiresAt} IS NULL OR ${t.expiresAt} > ${now()})`);
   else if (status === "used") conds.push(sql`${t.uses} >= ${t.maxUses}`);
   else if (status === "revoked") conds.push(sql`${t.revokedAt} IS NOT NULL`);
   const where = conds.length ? and(...conds) : undefined;
-  const cols = { id: t.id, code: t.code, size: t.size, label: t.label, maxUses: t.maxUses, uses: t.uses, expiresAt: t.expiresAt, createdAt: t.createdAt, revokedAt: t.revokedAt, redeemedBy: sql<string>`(select group_concat(u.email, ', ') from code_redemptions r join users u on u.id = r.user_id where r.code_id = booth_codes.id)`, booths: sql<string>`(select group_concat(r.booth_id, ', ') from code_redemptions r where r.code_id = booth_codes.id)` };
+  const cols = { id: t.id, code: t.code, size: t.size, label: t.label, maxUses: t.maxUses, uses: t.uses, expiresAt: t.expiresAt, createdAt: t.createdAt, revokedAt: t.revokedAt, redeemedBy: sql<string>`(select string_agg(u.email, ', ') from code_redemptions r join users u on u.id = r.user_id where r.code_id = booth_codes.id)`, booths: sql<string>`(select string_agg(r.booth_id::text, ', ') from code_redemptions r where r.code_id = booth_codes.id)` };
   if (url.searchParams.get("export") === "csv") {
     const rows = await db.select(cols).from(t).where(where).orderBy(desc(t.createdAt)).limit(10000);
     return csvResponse("booth-codes.csv", toCsv(["code", "size", "label", "uses", "max_uses", "expires_at", "revoked_at", "redeemed_by", "booths", "created_at"], rows.map((r) => [`${r.code.slice(0, 3)}-${r.code.slice(3, 7)}-${r.code.slice(7)}`, r.size, r.label, r.uses, r.maxUses, r.expiresAt ? new Date(r.expiresAt).toISOString() : "", r.revokedAt ? new Date(r.revokedAt).toISOString() : "", r.redeemedBy, r.booths, new Date(r.createdAt).toISOString()])));

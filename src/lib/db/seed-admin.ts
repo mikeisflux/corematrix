@@ -8,7 +8,8 @@
  */
 import { eq } from "drizzle-orm";
 import { randomBytes, scryptSync } from "node:crypto";
-import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 import * as schema from "./schema";
 import { newCode, newId, now } from "@/lib/util";
 import { HOUSE_BOOTH_IDS } from "@/lib/config";
@@ -24,7 +25,7 @@ function hash(password: string): string {
   return `scrypt$${salt}$${scryptSync(password, salt, 64).toString("hex")}`;
 }
 
-export async function seedSuperadmin(db: LibSQLDatabase<typeof schema>): Promise<void> {
+export async function seedSuperadmin(db: Db): Promise<void> {
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.email, SUPERADMIN_EMAIL)).limit(1);
   let adminId = existing?.id;
   if (existing) {
@@ -57,7 +58,7 @@ export async function seedSuperadmin(db: LibSQLDatabase<typeof schema>): Promise
 /** Ordinary booths the superadmin holds: claimed once, then left exactly as they are styled and laid out. */
 const ADMIN_BOOTH_IDS = [471]; // 1902, the island at the front of Hall E
 
-async function seedAdminBooth(db: LibSQLDatabase<typeof schema>, ownerId: string, id: number): Promise<void> {
+async function seedAdminBooth(db: Db, ownerId: string, id: number): Promise<void> {
   const space = boothSpace(id);
   if (!space) return;
   const [row] = await db.select({ ownerId: schema.booths.ownerId }).from(schema.booths).where(eq(schema.booths.id, id)).limit(1);
@@ -71,7 +72,7 @@ async function seedAdminBooth(db: LibSQLDatabase<typeof schema>, ownerId: string
 }
 
 /** A space taken off the plan disappears from the hall: if someone owned it, the operator has to move or refund them. */
-async function warnRemovedOwned(db: LibSQLDatabase<typeof schema>): Promise<void> {
+async function warnRemovedOwned(db: Db): Promise<void> {
   const rows = await db.select({ label: schema.booths.label, ownerId: schema.booths.ownerId, valueCents: schema.booths.valueCents }).from(schema.booths);
   for (const r of rows) if (r.ownerId && REMOVED_LABELS.has(r.label)) console.warn(`[seed] WARNING: booth ${r.label} is owned (user ${r.ownerId}, value ${r.valueCents}c) but no longer on the floor plan; move or refund the owner`);
 }
@@ -82,7 +83,7 @@ async function warnRemovedOwned(db: LibSQLDatabase<typeof schema>): Promise<void
  * on every boot so it is always maxed out; a booth someone else already owns
  * is left alone.
  */
-async function seedHouseBooth(db: LibSQLDatabase<typeof schema>, ownerId: string, id: number): Promise<void> {
+async function seedHouseBooth(db: Db, ownerId: string, id: number): Promise<void> {
   const space = boothSpace(id);
   if (!space) return;
   const [row] = await db.select({ ownerId: schema.booths.ownerId }).from(schema.booths).where(eq(schema.booths.id, id)).limit(1);

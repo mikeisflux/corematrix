@@ -1,5 +1,44 @@
 # Deploying on a VPS
 
+## The database: Postgres (and Redis for several workers)
+
+The app runs on Postgres. Without a `DATABASE_URL` it starts an embedded Postgres (PGlite) in `data/pg`, which is
+fine for development and a tiny site, not for production. On the VPS, once:
+
+```bash
+sudo apt install -y postgresql redis-server
+sudo -u postgres psql -c "create user fcc with password 'CHOOSE_A_PASSWORD';" -c "create database forevercomiccon owner fcc;"
+```
+
+Put in `/srv/fcc/app/.env`:
+
+```
+DATABASE_URL=postgres://fcc:CHOOSE_A_PASSWORD@127.0.0.1:5432/forevercomiccon
+REDIS_URL=redis://127.0.0.1:6379
+WEB_CONCURRENCY=3            # pm2 workers; leave one CPU for Postgres, Redis and nginx (a 4-vCPU box: 3)
+```
+
+**Moving an existing site off the SQLite file** (one time, a few minutes): stop the site so nothing changes under it,
+copy the data, deploy, start.
+
+```bash
+sudo -u fcc pm2 stop fcc
+cd /srv/fcc/app && sudo -u fcc git pull --ff-only
+sudo -u fcc npm ci --no-audit --no-fund
+sudo -u fcc npm run db:copy -- data/forevercomiccon.db      # creates the tables in Postgres and copies every row (safe to repeat)
+sudo -u fcc /srv/fcc/app/scripts/deploy.sh --no-pull        # builds, migrates, starts the workers
+```
+
+`db:copy` reads the whole SQLite file and inserts table by table, skipping rows already present, so it can be run again
+if interrupted. Keep the SQLite file until you have checked the site; nothing deletes it. Uploaded images that were
+moved to R2 keep working (the references are rows like any other).
+
+Migrations run in `deploy.sh` before the workers reload (`npm run db:migrate`), and again on boot behind a Postgres
+advisory lock, so several workers starting at once never race. New tables and columns come from
+`npm run db:generate` after editing `src/lib/db/schema.ts`.
+
+Back up with `pg_dump` (for example nightly: `sudo -u postgres pg_dump forevercomiccon | gzip > /srv/fcc/backups/$(date +%F).sql.gz`).
+
 `scripts/deploy.sh` builds and reloads the app under pm2 on port 3000. What sits in front of it decides most of what a
 visitor feels: the hall is a 3D game that pulls a hundred small files on arrival and streams a film, and a Node process
 behind a bare port is the slowest way to serve those. This is the setup the app is tuned for.
@@ -136,7 +175,7 @@ curl -sI https://forevercomiccon.com/_next/static/chunks/ 2>/dev/null | head -1
 
 ## Uploaded images on Cloudflare R2
 
-Booth art and logos are stored in the SQLite database by default. To move them to R2: create a bucket, create an R2 API
+Booth art and logos are stored in the database by default. To move them to R2: create a bucket, create an R2 API
 token with Object Read & Write on it, and in **Admin → Settings → Storage** enter the account id, the token's access key
 id and secret, the bucket name and the bucket's public URL (enable the r2.dev subdomain or connect a custom domain). Add
 a CORS rule on the bucket (bucket → Settings → CORS policy) allowing `GET` and `HEAD` from the site's origin, or the hall

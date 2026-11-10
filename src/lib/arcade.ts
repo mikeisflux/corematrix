@@ -111,7 +111,7 @@ export async function finishPlay(userId: string, playId: string, score: number, 
   let prize = 0;
   // prizes pay a few times per game per day, however many winning scores come in
   const [won] = s >= g.prizeAt ? await db.select({ n: sql<number>`count(*)` }).from(schema.coinLedger)
-    .where(and(eq(schema.coinLedger.userId, userId), eq(schema.coinLedger.reason, "prize"), sql`${schema.coinLedger.ref} LIKE ${`${p.gameId}:%`}`, gte(schema.coinLedger.createdAt, now() - 86_400_000))) : [{ n: 0 }];
+    .where(and(eq(schema.coinLedger.userId, userId), eq(schema.coinLedger.reason, "prize"), sql`${schema.coinLedger.ref} ILIKE ${`${p.gameId}:%`}`, gte(schema.coinLedger.createdAt, now() - 86_400_000))) : [{ n: 0 }];
   if (s >= g.prizeAt && Number(won?.n ?? 0) < 3) {
     prize = g.prize;
     await addCoins(userId, prize, "prize", `${p.gameId}:${s}`);
@@ -140,8 +140,8 @@ export async function leaderboard(gameId: GameId, scope: "today" | "all", limit 
   const rows = await db
     .select({
       userId: schema.gameScores.userId,
-      playerName: schema.gameScores.playerName,
-      boothId: schema.gameScores.boothId,
+      playerName: sql<string>`max(${schema.gameScores.playerName})`, // one row per player: the name and booth as aggregates, as Postgres requires
+      boothId: sql<number | null>`max(${schema.gameScores.boothId})`,
       score: sql<number>`max(${schema.gameScores.score})`,
       at: sql<number>`max(${schema.gameScores.createdAt})`,
     })

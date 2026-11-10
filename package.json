@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "models": "node scripts/export-models.mjs",
     "models:compress": "node scripts/compress-models.mjs",
-    "start:next": "next start"
+    "start:next": "next start",
+    "db:copy": "tsx scripts/sqlite-to-postgres.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

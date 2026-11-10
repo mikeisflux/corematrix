@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     tx.buyerId ? db.select({ id: schema.users.id, email: schema.users.email, displayName: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, tx.buyerId)) : [null],
     tx.sellerId ? db.select({ id: schema.users.id, email: schema.users.email, displayName: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, tx.sellerId)) : [null],
     db.select({ id: schema.booths.id, name: schema.booths.name, ownerId: schema.booths.ownerId, tier: schema.booths.tier, valueCents: schema.booths.valueCents }).from(schema.booths).where(eq(schema.booths.id, tx.boothId)),
-    db.select({ id: schema.webhookEvents.id, type: schema.webhookEvents.type, status: schema.webhookEvents.status, receivedAt: schema.webhookEvents.receivedAt, error: schema.webhookEvents.error }).from(schema.webhookEvents).where(sql`${schema.webhookEvents.payload} LIKE ${`%${id}%`}`).orderBy(desc(schema.webhookEvents.receivedAt)).limit(20),
+    db.select({ id: schema.webhookEvents.id, type: schema.webhookEvents.type, status: schema.webhookEvents.status, receivedAt: schema.webhookEvents.receivedAt, error: schema.webhookEvents.error }).from(schema.webhookEvents).where(sql`${schema.webhookEvents.payload} ILIKE ${`%${id}%`}`).orderBy(desc(schema.webhookEvents.receivedAt)).limit(20),
     db.select({ id: schema.mailMessages.id, subject: schema.mailMessages.subject, status: schema.mailMessages.status, toEmail: schema.mailMessages.toEmail, createdAt: schema.mailMessages.createdAt }).from(schema.mailMessages).where(eq(schema.mailMessages.txId, id)).orderBy(desc(schema.mailMessages.createdAt)),
   ]);
   let meta: unknown = null; try { meta = tx.meta ? JSON.parse(tx.meta) : null; } catch { meta = tx.meta; }

@@ -12,8 +12,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") || "").trim();
   const u = schema.users;
-  const where = q ? or(sql`${u.email} LIKE ${like(q)} ESCAPE '\\'`, sql`${u.displayName} LIKE ${like(q)} ESCAPE '\\'`, sql`${u.handle} LIKE ${like(q)} ESCAPE '\\'`, eq(u.id, q)) : undefined;
-  const cols = { id: u.id, email: u.email, displayName: u.displayName, handle: u.handle, creditCents: u.creditCents, coins: u.coins, isAdmin: u.isAdmin, permissions: u.permissions, createdAt: u.createdAt, lastSeenAt: u.lastSeenAt, referredBy: u.referredBy, booths: sql<number>`(select count(*) from booths p where p.owner_id = ${u.id})`, spentCents: sql<number>`(select coalesce(sum(amount_cents),0) from transactions t where t.buyer_id = ${u.id} and t.status = 'paid')` };
+  const where = q ? or(sql`${u.email} ILIKE ${like(q)} ESCAPE '\\'`, sql`${u.displayName} ILIKE ${like(q)} ESCAPE '\\'`, sql`${u.handle} ILIKE ${like(q)} ESCAPE '\\'`, eq(u.id, q)) : undefined;
+  const cols = { id: u.id, email: u.email, displayName: u.displayName, handle: u.handle, creditCents: u.creditCents, coins: u.coins, isAdmin: u.isAdmin, permissions: u.permissions, createdAt: u.createdAt, lastSeenAt: u.lastSeenAt, referredBy: u.referredBy, booths: sql<number>`(select count(*) from booths p where p.owner_id = users.id)`, spentCents: sql<number>`(select coalesce(sum(amount_cents),0) from transactions t where t.buyer_id = users.id and t.status = 'paid')` };
   if (url.searchParams.get("export") === "csv") {
     const rows = await db.select(cols).from(u).where(where).orderBy(desc(u.createdAt)).limit(10000);
     return csvResponse("users.csv", toCsv(["id", "email", "name", "handle", "booths", "spent_cents", "credit_cents", "coins", "admin", "created_at", "last_seen_at"], rows.map((r) => [r.id, r.email, r.displayName, r.handle, r.booths, r.spentCents, r.creditCents, r.coins, r.isAdmin, new Date(r.createdAt).toISOString(), r.lastSeenAt ? new Date(r.lastSeenAt).toISOString() : ""])));

@@ -83,6 +83,8 @@ Admin: `scripts/create-admin.ts` above (or list emails in `ADMIN_EMAILS`), then 
   else packed every two seconds, so traffic per person stays flat as the crowd grows. The bus and the roster live in
   one process by default; set `REDIS_URL` and several pm2 workers share them (`docs/DEPLOY.md`). The floor takes
   `HALL_CAPACITY` walkers (400); past that, newcomers wait in a first-come line and are walked in as people leave.
+- **Database**: Postgres (`DATABASE_URL=postgres://…`); with no URL an embedded Postgres (PGlite) runs in `data/pg`,
+  so development needs no server. `npm run db:copy -- <file>` moves an old SQLite database across; see `docs/DEPLOY.md`.
 - **Cron**: two endpoints keep the economy honest. `/api/cron/daily` charges plan renewals, expires
   lapsed ones, closes seasons and prunes dedupe rows; `/api/cron/weekly` (Monday) closes the season
   and sends digests. Protect them with `CRON_SECRET` (`?secret=` or a Bearer token). `vercel.json`

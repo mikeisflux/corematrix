@@ -51,3 +51,7 @@ data/
 
 # agent worktrees (local only)
 .claude/worktrees/
+
+# the Node server bundle (npm run build) and local databases
+/dist/
+/data/

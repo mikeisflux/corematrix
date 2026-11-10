@@ -113,7 +113,7 @@ export async function chargeRenewal(boothId: number, periodStart: number): Promi
   const pm = booth.subscriptionId?.startsWith("pm:") ? booth.subscriptionId.slice(3) : user.dcPaymentMethodId;
   const ref = periodReference(boothId, periodStart);
   if (booth.subscriptionId?.startsWith("comp:")) { await renewPlan(boothId, 0, "comp", ref); return { ok: true }; }
-  const [already] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, boothId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
+  const [already] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, boothId), eq(schema.transactions.kind, "tier"), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} ILIKE ${ref + "%"}`)).limit(1);
   if (already) return { ok: true };
   if (!pm) { await recordFailedPeriod(boothId, "no saved card on file"); return { ok: false, error: "no saved card" }; }
   const s = await getSettings(["SITE_NAME"]);
@@ -172,11 +172,11 @@ export async function onPlanChargeEvent(type: string, ref: string, d: DivinityWe
   const parsed = parseReference(ref);
   if (!parsed) return { status: "ignored", note: "bad plan reference" };
   if (type === "payment.succeeded") {
-    const [paid] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} LIKE ${ref + "%"}`)).limit(1);
+    const [paid] = await db.select({ id: schema.transactions.id }).from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.status, "paid"), sql`${schema.transactions.providerRef} ILIKE ${ref + "%"}`)).limit(1);
     if (paid) return { status: "ignored", note: "period already recorded" };
     // the first-period purchase that made this exact charge (its reference is recorded before charging), if any; a renewal
     // must never settle some other pending plan purchase on the same booth
-    const [pendingFirst] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.kind, "tier"), sql`${schema.transactions.status} IN ('pending','failed')`, sql`json_extract(${schema.transactions.meta}, '$.chargeRef') = ${ref}`)).orderBy(desc(schema.transactions.createdAt)).limit(1);
+    const [pendingFirst] = await db.select().from(schema.transactions).where(and(eq(schema.transactions.boothId, parsed.boothId), eq(schema.transactions.kind, "tier"), sql`${schema.transactions.status} IN ('pending','failed')`, sql`(${schema.transactions.meta}::jsonb ->> 'chargeRef') = ${ref}`)).orderBy(desc(schema.transactions.createdAt)).limit(1);
     if (pendingFirst) {
       if (pendingFirst.status === "failed") await db.update(schema.transactions).set({ status: "pending" }).where(and(eq(schema.transactions.id, pendingFirst.id), eq(schema.transactions.status, "failed"))); // it went through after all
       try { await divinitycoin.captureHold(ref); } catch { /* retry from Admin → Webhooks */ }

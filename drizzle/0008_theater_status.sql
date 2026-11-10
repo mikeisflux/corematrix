@@ -1,1 +1,0 @@
-ALTER TABLE `theater_videos` ADD `status` text DEFAULT 'ready' NOT NULL;
