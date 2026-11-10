@@ -7,6 +7,7 @@ import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_
 import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
+import { agent, useAgent, agentDone, bumpAgent, talkToAgent } from "@/lib/hall/agent";
 import { Html } from "@react-three/drei";
 import { live, type LivePlayer } from "@/lib/hall/live";
 import { getPrefs, usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
@@ -334,7 +335,7 @@ export function Player() {
     const onKey = (e: KeyboardEvent) => {
       if (mode !== "walk") return;
       const t = e.target as HTMLElement; if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
-      if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); else if (useHall.getState().nearBot) useHall.getState().setPanel("conbot"); }
+      if (e.key === "e" || e.key === "E" || e.key === "Enter") { if (near.current) select(near.current); else if (useHall.getState().nearBot) useHall.getState().setPanel("conbot"); else if (agent.near && !agent.talking) talkToAgent(); }
       if (e.key === "v" || e.key === "V") toggleFirstPerson();
       if (e.key === "c" || e.key === "C") toggleSit();
       const n = Number(e.key); if (n >= 1 && n <= EMOTES.length) { const em = EMOTES[n - 1]; social.pending.e = { n: em.id, t: Date.now() }; social.pending.dirty = true; bumpSocial(); }
@@ -484,6 +485,20 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
     const t = clock.elapsedTime;
     npcs.forEach((n, i) => {
       let moving = false;
+      // the agent: within talking distance the HUD offers E; while he talks he stands still and faces the walker
+      if (i === 0 && n.config.costume === "agent") {
+        agent.x = n.x; agent.z = n.z;
+        agent.dist = Math.hypot(player.x - n.x, player.z - n.z);
+        const nearNow = useHall.getState().mode === "walk" && agent.dist < 9;
+        if (nearNow !== agent.near) { agent.near = nearNow; if (!nearNow) agentDone(); bumpAgent(); }
+        if (agent.talking && Date.now() > agent.until) agentDone();
+        if (agent.talking) {
+          motions[i].speed = 0;
+          const g0 = refs.current[0];
+          if (g0) { const want = Math.atan2(player.x - n.x, player.z - n.z); let diff = want - n.heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); n.heading += diff * Math.min(1, d * 8); g0.position.set(n.x, 0, n.z); g0.rotation.y = n.heading; g0.visible = true; }
+          return;
+        }
+      }
       // stop to look at something now and then, then move on
       if (t < n.pauseUntil) motions[i].speed = 0;
       else if (t > n.nextPause) { n.pauseUntil = t + 2 + Math.random() * 5; n.nextPause = n.pauseUntil + 6 + Math.random() * 25; motions[i].speed = 0; }
@@ -522,7 +537,20 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
       }
     });
   });
-  return <>{npcs.map((n, i) => <group key={i} ref={(el) => { refs.current[i] = el; }}><AvatarModel config={n.config} motion={motions[i]} /></group>)}</>;
+  return <>{npcs.map((n, i) => <group key={i} ref={(el) => { refs.current[i] = el; }}><AvatarModel config={n.config} motion={motions[i]} />{i === 0 && n.config.costume === "agent" && <AgentBubble />}</group>)}</>;
+}
+
+/** The agent's speech bubble, over his head while he is talking. */
+function AgentBubble() {
+  const a = useAgent();
+  const [, tick] = useState(0);
+  useEffect(() => { if (!a.line) return; const t = setTimeout(() => tick((n) => n + 1), Math.max(50, a.until - Date.now() + 20)); return () => clearTimeout(t); }, [a.line, a.until]);
+  if (!a.line || a.until < Date.now()) return null;
+  return (
+    <Html position={[0, 9.4, 0]} center zIndexRange={[45, 0]} style={{ pointerEvents: "none" }}>
+      <div className="max-w-[240px] rounded-2xl border border-white/15 bg-white px-3 py-1.5 text-center text-[12px] font-medium text-slate-900 shadow-lg">{a.line}</div>
+    </Html>
+  );
 }
 
 /* ---------- other live visitors, shared session ---------- */

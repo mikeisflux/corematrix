@@ -13,6 +13,7 @@ import { useSocial } from "@/lib/hall/social";
 import { PerfOverlay } from "./PerfOverlay";
 import { ArtPreview } from "./ArtPreview";
 import { useTheater, setTheaterSound, setTheaterOpen } from "@/lib/hall/theater";
+import { useAgent, talkToAgent, answerAgent, AGENT_REPLIES } from "@/lib/hall/agent";
 import { Minimap } from "./Minimap";
 import { usePrefs, toggleFirstPerson } from "@/lib/hall/prefs";
 import { Tips } from "./Tips";
@@ -115,6 +116,7 @@ export function Hud() {
   const setMode = useHall((s) => s.setMode);
   const near = useHall((s) => s.near);
   const nearBot = useHall((s) => s.nearBot);
+  const ag = useAgent();
   const nearSeat = useHall((s) => s.nearSeat);
   const nearSeatOk = useHall((s) => s.nearSeatOk);
   const toastAction = useHall((s) => s.toastAction);
@@ -255,6 +257,20 @@ export function Hud() {
           <span>{seated ? <><b>Seated</b> · tap or move to stand up</> : nearSeatOk ? <><b>{nearSeat!.booth != null ? "Sit at your table" : "Take a seat"}</b>{nearSeat!.booth == null ? " · theater bench" : ""}</> : <><b>Crew only</b> · {me ? "ask the exhibitor to add you to their team" : "sign in if you're on the crew"}</>}</span>
           {(seated || nearSeatOk) && <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">C</span>}
         </button>
+      )}
+      {mode === "walk" && !nearBooth && !nearBot && ag.near && !ag.talking && panel === "none" && !touring && (
+        <button data-agent-prompt onClick={talkToAgent} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24">
+          <span className="text-lg">🕶️</span>
+          <span><b>The agent</b> is looking at you</span>
+          <span className="mono rounded-md bg-white/10 px-1.5 text-[11px]">E</span>
+        </button>
+      )}
+      {mode === "walk" && ag.talking && panel === "none" && (
+        <div data-agent-talk className="pointer-events-auto absolute bottom-[19rem] left-1/2 w-[min(92vw,420px)] -translate-x-1/2 panel rounded-2xl px-4 py-3 text-sm fade-up md:bottom-24">
+          <div className="flex items-center gap-2"><span className="text-lg">🕶️</span><span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">The agent</span></div>
+          <p className="mt-1 text-base font-semibold">{ag.line}</p>
+          {ag.asked && <div className="mt-2 flex flex-wrap gap-2">{AGENT_REPLIES.map((r, i) => <button key={r.say} className="btn-ghost text-xs" onClick={() => answerAgent(i)}>{r.say}</button>)}</div>}
+        </div>
       )}
       {mode === "walk" && !nearBooth && nearBot && panel === "none" && !touring && (
         <button onClick={() => setPanel("conbot")} className="pointer-events-auto absolute bottom-[19rem] left-1/2 -translate-x-1/2 panel flex items-center gap-3 rounded-full px-4 py-2 text-sm fade-up md:bottom-24">
