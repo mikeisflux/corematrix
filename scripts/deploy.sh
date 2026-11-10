@@ -70,6 +70,12 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 git archive HEAD | tar -x -C "$BUILD_DIR"                       # the committed sources, nothing else
 for f in .env .env.local .env.production .env.production.local; do [ -f "$f" ] && cp "$f" "$BUILD_DIR/$f"; done
+# A leftover DATABASE_URL=file:… in any env file (Next reads .env.local ahead of .env) sends the build to the old SQLite
+# file and it dies prerendering. setup-server.sh cleans that up; refuse to build until it has.
+if grep -qsE '^DATABASE_URL=["'"'"']?file:' .env .env.local .env.production .env.production.local; then
+  echo "✗ an env file still points DATABASE_URL at the old SQLite file. Run once:  sudo $APP_DIR/scripts/setup-server.sh"
+  echo "  (it fixes the env files, creates the Postgres database, copies the data and deploys). The live site was not touched."; exit 1
+fi
 # The build prerenders the home page from the database (DATABASE_URL in the env files, a postgres:// URL in production).
 if [ -z "${DATABASE_URL:-}" ]; then
   url="$( { cat .env.production.local .env.local .env.production .env 2>/dev/null || true; } | grep '^DATABASE_URL=' | head -1 | cut -d= -f2- | tr -d '"'"'"'"' || true)"

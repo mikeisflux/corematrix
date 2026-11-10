@@ -1,5 +1,19 @@
 # Deploying on a VPS
 
+## The short version
+
+With the code checked out at `/srv/fcc/app` (owner `fcc`) and Caddy or nginx in front of port 3000, one command does
+the rest and is safe to run again any time:
+
+```bash
+sudo /srv/fcc/app/scripts/setup-server.sh
+```
+
+It installs Postgres, Redis, ffmpeg and pm2 if missing, creates the database and a password (kept in `.env`), makes
+sure the env files point at Postgres and nowhere else, copies an old SQLite file into Postgres the first time, and then
+runs `scripts/deploy.sh`: pull, build in a side folder, migrate, start the workers, health check, roll back on failure.
+Every later release is just `sudo -u fcc /srv/fcc/app/scripts/deploy.sh`. The sections below say what each piece does.
+
 ## The database: Postgres (and Redis for several workers)
 
 The app runs on Postgres. Without a `DATABASE_URL` it starts an embedded Postgres (PGlite) in `data/pg`, which is
