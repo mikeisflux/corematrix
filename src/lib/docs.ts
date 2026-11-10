@@ -188,6 +188,7 @@ export const DOCS: DocSection[] = [
         "**Teams** (🎟️): an exhibitor's crew. Members can sit at the booth's chairs and are listed as staff; a member the owner marks as **manager** can also edit the booth from their own dashboard.",
         "**Voice chat**: optional push-to-talk with people within a few feet; see Voice chat.",
         "**Away**: switch tabs and you stay on the floor, marked away, for a couple of minutes.",
+        "**Who else is around**: besides real visitors (green triangle over the head), the floor has a crowd of extras, ConBot the mascot, and one federal agent in a black suit, shades and an earpiece who walks the main cross aisle around the clock. None of them are real people, and the agent's suit is not in the costume picker.",
       ] },
     ],
   },

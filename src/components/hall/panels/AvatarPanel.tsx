@@ -4,7 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { api, useHall, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, type AvatarConfig } from "@/lib/hall/store";
 import { AvatarModel } from "../Avatar";
 import { PanelHeader } from "./common";
-import { COSTUMES, COSTUME_IDS, PREMIUM_COSTUMES } from "@/lib/hall/costumes";
+import { COSTUMES, COSTUME_IDS, PREMIUM_COSTUMES, STAFF_COSTUMES } from "@/lib/hall/costumes";
 import { useShop, refreshShop } from "@/lib/hall/shop";
 import { itemById } from "@/lib/hall/items";
 
@@ -56,7 +56,7 @@ export function AvatarPanel() {
         <div><label className="label">Pants</label><Swatches list={OUTFIT_COLORS} value={avatar.pants} onPick={(pants) => setAvatar({ pants })} /></div>
         <div>
           <label className="label">Cosplay</label>
-          <div className="grid grid-cols-3 gap-1">{COSTUME_IDS.map((c) => { const item = PREMIUM_COSTUMES.includes(c) ? itemById(`costume:${c}`) : null; const locked = !!item && !shop.owned.has(item.id); return <button key={c} title={locked ? `${COSTUMES[c].blurb} · ${item!.coins} coins in the shop` : COSTUMES[c].blurb} onClick={() => { if (locked) { setPanel("shop"); return; } setAvatar({ costume: c }); }} className={`rounded-lg px-1 py-1.5 text-[11px] ${(avatar.costume ?? "none") === c ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"}`}>{locked ? "🔒 " : ""}{COSTUMES[c].name}</button>; })}</div>
+          <div className="grid grid-cols-3 gap-1">{COSTUME_IDS.filter((c) => !STAFF_COSTUMES.includes(c)).map((c) => { const item = PREMIUM_COSTUMES.includes(c) ? itemById(`costume:${c}`) : null; const locked = !!item && !shop.owned.has(item.id); return <button key={c} title={locked ? `${COSTUMES[c].blurb} · ${item!.coins} coins in the shop` : COSTUMES[c].blurb} onClick={() => { if (locked) { setPanel("shop"); return; } setAvatar({ costume: c }); }} className={`rounded-lg px-1 py-1.5 text-[11px] ${(avatar.costume ?? "none") === c ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"}`}>{locked ? "🔒 " : ""}{COSTUMES[c].name}</button>; })}</div>
           <p className="mt-1 text-[10px] text-slate-500">Original looks only. A costume sets its own outfit colours. 🔒 ones are in the <button className="underline" onClick={() => setPanel("shop")}>shop</button> for coins, or free at a booth that sponsors them.</p>
         </div>
         <button className="btn-primary w-full" onClick={() => { setMode("walk"); setPanel("none"); }}>Walk the floor →</button>

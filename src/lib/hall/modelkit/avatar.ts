@@ -304,6 +304,21 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const scarfRing = new THREE.TorusGeometry(0.4, 0.13, 7, 18).rotateX(Math.PI / 2).scale(1, 1, 0.82).translate(0, 1.6, 0.02);
   const scarfStrips = [-1, 1].map((s) => new THREE.BoxGeometry(0.3, 1.1, 0.1).translate(s * 0.17, 1.02, zF(1.02) + 0.1));
   torso.add(mesh("cos_scarf", merge(scarfRing, ...scarfStrips), costume2));
+  // the suit: a white shirt front with a collar notch, a tie down to the belt, dark glasses and an earpiece. The shirt
+  // and tie are flat decals bent to the torso (each vertex pushed to the front surface at its own height).
+  const bend = (g: THREE.BufferGeometry, lift: number) => { const a = g.attributes.position as THREE.BufferAttribute; for (let i = 0; i < a.count; i++) a.setZ(i, zF(a.getY(i)) + lift); a.needsUpdate = true; g.computeVertexNormals(); return g; };
+  const shirtShape = new THREE.Shape(); shirtShape.moveTo(-0.38, 1.68); shirtShape.lineTo(-0.13, 1.68); shirtShape.lineTo(0, 1.5); shirtShape.lineTo(0.13, 1.68); shirtShape.lineTo(0.38, 1.68); shirtShape.lineTo(0, 0.88); shirtShape.lineTo(-0.38, 1.68);
+  torso.add(mesh("cos_shirtfront", bend(new THREE.ShapeGeometry(shirtShape, 6), 0.07), costume));
+  const tieShape = new THREE.Shape(); tieShape.moveTo(-0.07, 1.54); tieShape.lineTo(0.07, 1.54); tieShape.lineTo(0.1, 1.4); tieShape.lineTo(0.05, 1.32); tieShape.lineTo(0.1, 0.2); tieShape.lineTo(0, 0.02); tieShape.lineTo(-0.1, 0.2); tieShape.lineTo(-0.05, 1.32); tieShape.lineTo(-0.1, 1.4); tieShape.lineTo(-0.07, 1.54);
+  torso.add(mesh("cos_tie", bend(new THREE.ShapeGeometry(tieShape, 8), 0.085), costume2));
+  const frontZ = (HEAD_R + 0.02) * HEAD_SCALE[2];
+  const lenses = new THREE.BoxGeometry(0.66, 0.15, 0.06).translate(0, hc + 0.12, frontZ - 0.02);
+  const bridge = new THREE.BoxGeometry(0.1, 0.04, 0.04).translate(0, hc + 0.15, frontZ);
+  const temples = [-1, 1].map((s) => new THREE.BoxGeometry(0.03, 0.03, 0.72).translate(s * 0.34, hc + 0.13, frontZ - 0.38));
+  head.add(mesh("cos_shades", merge(lenses, bridge, ...temples), prop));
+  const bud = sphere(0.06, 8, 6).translate(0.74, hc - 0.02, -0.02);
+  const wire = new THREE.CylinderGeometry(0.012, 0.012, 0.42, 6).rotateZ(0.25).rotateX(0.35).translate(0.74, hc - 0.26, -0.12);
+  head.add(mesh("cos_earpiece", merge(bud, wire), costume2));
   // proton-style pack on the back: a box, a tank on its side and a hose stub
   const packBox = new THREE.BoxGeometry(1.05, 1.35, 0.5).translate(0, 0.62, -0.92);
   const packTank = new THREE.CylinderGeometry(0.2, 0.2, 0.95, 10).rotateZ(Math.PI / 2).translate(0, -0.1, -1.05);
@@ -336,7 +351,7 @@ export interface AvatarLook { body: "a" | "b"; skin: string; hair: string; hairC
 export function applyAvatarLook(root: THREE.Object3D, look: AvatarLook): Record<string, string> {
   const costume = isCostumeId(look.costume) ? COSTUMES[look.costume] : COSTUMES.none;
   const parts = new Set<string>(costume.parts);
-  const hasChest = parts.has("cos_chest") || parts.has("cos_emblem_star") || parts.has("cos_emblem_bolt") || parts.has("cos_emblem_ring");
+  const hasChest = parts.has("cos_chest") || parts.has("cos_emblem_star") || parts.has("cos_emblem_bolt") || parts.has("cos_emblem_ring") || parts.has("cos_tie"); // a tie and a lanyard would overlap
   root.traverse((o) => {
     if ((HAIR_NODES as readonly string[]).includes(o.name)) o.visible = !costume.hideHair && o.name === `hair_${look.hair}`;
     else if ((COSTUME_PARTS as readonly string[]).includes(o.name)) o.visible = parts.has(o.name);

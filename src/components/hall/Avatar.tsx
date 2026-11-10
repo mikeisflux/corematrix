@@ -455,7 +455,7 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
     const r = rnd(42);
     const corridors = hallLayout().filter((b) => b.facing === 1).map((b) => b.x + b.w / 2 + 5);
     const unique = Array.from(new Set(corridors.map((x) => Math.round(x))));
-    return Array.from({ length: size }, (): Npc => {
+    const list = Array.from({ length: size }, (): Npc => {
       const roll = r();
       const kind: Npc["kind"] = roll < 0.18 ? "plaza" : roll < 0.32 ? "cross" : "aisle";
       const corridor = unique[Math.floor(r() * unique.length)];
@@ -467,6 +467,13 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
       if (kind === "cross") { const dir = r() < 0.5 ? 1 : -1; return { ...base, kind, x: X0 + 20 + r() * (HALL_LENGTH - 40), z: CROSS_Z0 + r() * (CROSS_Z1 - CROSS_Z0), vx: dir, vz: 0, tx: 0, tz: 0 }; }
       return { ...base, kind, x: corridor + (r() - 0.5) * 4, z: Z_FRONT + r() * (Z_BACK - Z_FRONT), vx: 0, vz: r() < 0.5 ? 1 : -1, tx: 0, tz: 0 };
     }).map((n) => { const fp = freePoint(n.x, n.z); return { ...n, x: fp.x, z: fp.z }; }); // never start inside a cabinet row, the stage or a booth
+    // one agent is always on the floor: dark suit, shades, earpiece, walking the cross aisle the length of the hall
+    if (list.length) {
+      const config: AvatarConfig = { ...DEFAULT_AVATAR, body: "a", skin: SKIN_TONES[Math.min(2, SKIN_TONES.length - 1)], hair: "short", hairColor: "#1c1917", shirt: "#0b0b10", pants: "#0b0b10", costume: "agent" };
+      const fp = freePoint(X0 + HALL_LENGTH * 0.45, (CROSS_Z0 + CROSS_Z1) / 2);
+      list[0] = { config, kind: "cross", x: fp.x, z: fp.z, vx: 1, vz: 0, tx: 0, tz: 0, speed: 3.6, pauseUntil: 0, nextPause: 12, heading: 0 };
+    }
+    return list;
   }, [size]);
   const npcs = useMemo(() => roster.slice(0, count), [roster, count]);
   const refs = useRef<(THREE.Group | null)[]>([]);

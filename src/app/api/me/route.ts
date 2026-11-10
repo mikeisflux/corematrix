@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { favoritesOf, blocksOf } from "@/lib/safety";
-import { isCostumeId } from "@/lib/hall/costumes";
+import { isCostumeId, STAFF_COSTUMES } from "@/lib/hall/costumes";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { currentUser } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
@@ -61,7 +61,7 @@ export async function PATCH(req: Request) {
     const a = body.avatar as Record<string, unknown>;
     const hex = (v: unknown, d: string) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
     // a shop costume stays on only when it is owned: the client can ask for anything, the floor shows what was paid for
-    const costume = isCostumeId(a.costume) ? a.costume : "none";
+    const costume = isCostumeId(a.costume) && (!STAFF_COSTUMES.includes(a.costume) || u.isAdmin) ? a.costume : "none"; // the show's own looks stay with the show
     const needs = costumeItem(costume);
     const wearable = !needs || (await ownedItemsCached(u.id)).has(needs);
     set.avatar = JSON.stringify({ body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });

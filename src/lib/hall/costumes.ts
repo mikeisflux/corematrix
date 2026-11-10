@@ -5,7 +5,7 @@
  * avatar panel and the API validators. No three.js here so it is client- and
  * server-safe.
  */
-export const COSTUME_PARTS = ["cos_cape", "cos_mask", "cos_cowl", "cos_cowl_eyes", "cos_helmet", "cos_hat", "cos_antenna", "cos_chest", "cos_belt", "cos_emblem_star", "cos_emblem_bolt", "cos_emblem_ring", "cos_pads", "cos_hood", "cos_robe", "cos_scarf", "cos_pack", "cos_saber", "cos_wand", "cos_blaster"] as const;
+export const COSTUME_PARTS = ["cos_shirtfront", "cos_tie", "cos_shades", "cos_earpiece", "cos_cape", "cos_mask", "cos_cowl", "cos_cowl_eyes", "cos_helmet", "cos_hat", "cos_antenna", "cos_chest", "cos_belt", "cos_emblem_star", "cos_emblem_bolt", "cos_emblem_ring", "cos_pads", "cos_hood", "cos_robe", "cos_scarf", "cos_pack", "cos_saber", "cos_wand", "cos_blaster"] as const;
 export type CostumePart = (typeof COSTUME_PARTS)[number];
 
 export interface Costume {
@@ -18,7 +18,7 @@ export interface Costume {
   colors: { costume: string; costume2: string; cape: string; shirt: string; pants: string; prop?: string; glow?: string };
 }
 
-export type CostumeId = "none" | "caped" | "vigilante" | "ranger" | "sorcerer" | "android" | "speedster" | "hunter" | "royal" | "starfall" | "nightfox" | "techknight" | "jester" | "deepsea" | "phoenix" | "lightknight" | "darklord" | "ghostcatcher" | "wizardstudent";
+export type CostumeId = "none" | "agent" | "caped" | "vigilante" | "ranger" | "sorcerer" | "android" | "speedster" | "hunter" | "royal" | "starfall" | "nightfox" | "techknight" | "jester" | "deepsea" | "phoenix" | "lightknight" | "darklord" | "ghostcatcher" | "wizardstudent";
 export const COSTUMES: Record<CostumeId, Costume> = {
   none: { name: "No costume", blurb: "Just you.", parts: [], colors: { costume: "#888888", costume2: "#888888", cape: "#888888", shirt: "", pants: "" } },
   caped: { name: "Caped hero", blurb: "Cape, domino mask, star on the chest.", parts: ["cos_cape", "cos_mask", "cos_emblem_star", "cos_belt"], colors: { costume: "#b91c1c", costume2: "#facc15", cape: "#b91c1c", shirt: "#1d4ed8", pants: "#1d4ed8" } },
@@ -39,6 +39,7 @@ export const COSTUMES: Record<CostumeId, Costume> = {
   lightknight: { name: "Hooded knight", blurb: "Hooded desert robe, a sash, and a humming blue blade in hand.", parts: ["cos_hood", "cos_robe", "cos_belt", "cos_saber"], hideHair: true, colors: { costume: "#c9b58c", costume2: "#5b4636", cape: "#b8a27a", shirt: "#e7dcc3", pants: "#5b4636", prop: "#a1a1aa", glow: "#60a5fa" } },
   darklord: { name: "Hooded lord", blurb: "Black hood, black robe, black cape, and a red blade.", parts: ["cos_hood", "cos_robe", "cos_cape", "cos_belt", "cos_saber"], hideHair: true, colors: { costume: "#0f0f10", costume2: "#3f3f46", cape: "#050505", shirt: "#18181b", pants: "#09090b", prop: "#71717a", glow: "#ef4444" } },
   ghostcatcher: { name: "Ghost catcher", blurb: "Tan jumpsuit, proton pack on the back, blaster in hand, red ring patch.", parts: ["cos_pack", "cos_blaster", "cos_belt", "cos_emblem_ring"], colors: { costume: "#b8a27a", costume2: "#dc2626", cape: "#b8a27a", shirt: "#c4b08a", pants: "#b09a72", prop: "#4b5563", glow: "#fb923c" } },
+  agent: { name: "Federal agent", blurb: "Black suit, white shirt, dark tie, shades and an earpiece. Nothing to see here.", parts: ["cos_shirtfront", "cos_tie", "cos_shades", "cos_earpiece"], colors: { costume: "#f8fafc", costume2: "#111827", cape: "#000000", shirt: "#0b0b10", pants: "#0b0b10", prop: "#0a0a0a" } },
   wizardstudent: { name: "Wizard student", blurb: "School robe, striped house scarf, and a wand at the ready.", parts: ["cos_robe", "cos_cape", "cos_scarf", "cos_wand"], colors: { costume: "#1f2937", costume2: "#b91c1c", cape: "#111827", shirt: "#374151", pants: "#1f2937", prop: "#6b3f1d", glow: "#fde68a" } },
   phoenix: { name: "Phoenix", blurb: "Flame cape, mask and a bolt that reads as fire.", parts: ["cos_cape", "cos_mask", "cos_emblem_bolt", "cos_belt"], colors: { costume: "#dc2626", costume2: "#fb923c", cape: "#ea580c", shirt: "#b91c1c", pants: "#450a0a" } },
 };
@@ -47,4 +48,6 @@ export const PREMIUM_COSTUMES: readonly CostumeId[] = ["starfall", "nightfox", "
 export const COSTUME_IDS = Object.keys(COSTUMES) as CostumeId[];
 export const isCostumeId = (v: unknown): v is CostumeId => typeof v === "string" && Object.hasOwn(COSTUMES, v); // not `in`: "constructor" or "__proto__" would pass and crash every viewer
 /** Costumes handed to crowd figures (everything but "none"). */
-export const CROWD_COSTUMES = COSTUME_IDS.filter((c) => c !== "none" && !PREMIUM_COSTUMES.includes(c));
+/** Looks worn by the show's own characters (the agent on patrol): not in the picker, not on the random crowd, not for visitors. */
+export const STAFF_COSTUMES: readonly CostumeId[] = ["agent"];
+export const CROWD_COSTUMES = COSTUME_IDS.filter((c) => c !== "none" && !PREMIUM_COSTUMES.includes(c) && !STAFF_COSTUMES.includes(c));
