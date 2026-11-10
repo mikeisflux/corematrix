@@ -309,7 +309,7 @@ export const LANDINGS = {
         h: "What makes it a convention, not a website",
         p: ["Most \"virtual conventions\" are a grid of links. This one is a place. You pick an avatar and walk eight halls of pipe-and-drape booths, see who else is on the floor, and stop at whatever catches your eye, just like you would at a big show."],
         bullets: [
-          "A real floor plan: Halls A to H, numbered booths, publisher islands, corner booths and an Artists' Alley.",
+          "A real floor plan: Halls A to H, numbered booths, publisher islands, corner booths, an Artists' Alley, a main boulevard with cut-through lanes, and directory kiosks that show you where you are.",
           "Every booth belongs to a real exhibitor: publishers, indie creators, comic shops, toy makers and fan projects.",
           "Click a banner and you're on the exhibitor's own site, store or Kickstarter.",
           `An arcade with ${GAME_COUNT} cabinet games, a theater screen and a mascot who answers questions.`,

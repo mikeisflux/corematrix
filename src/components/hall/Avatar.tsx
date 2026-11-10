@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, dragged } from "@/lib/hall/store";
-import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, type BoothSpace } from "@/lib/hall/layout";
+import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, KIOSKS, type BoothSpace } from "@/lib/hall/layout";
 import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES } from "@/lib/hall/costumes";
@@ -89,6 +89,8 @@ function blocked(x: number, z: number): boolean {
   for (const row of CABINET_ROWS) if (Math.abs(x - row.x) < row.w / 2 + R && Math.abs(z - row.z) < row.d / 2 + R) return true;
   for (const o of PLAZA_BLOCKS) if (Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R) return true;
   if (Math.hypot(x - ARCADE.x, z - ARCADE.z) < PAD_RADIUS + R) return true;
+  // directory kiosks (same numbers as Hall.tsx): a 3.8 × 1.6 ft base, turned along the boulevard
+  for (const k of KIOSKS) { const dx = x - k.x, dz = z - k.z; const [ax, az] = k.rot === 0 ? [dx, dz] : [dz, dx]; if (Math.abs(ax) < 1.9 + R && Math.abs(az) < 0.8 + R) return true; }
   // structural columns in the front and back concourses (same spots as Hall.tsx), base radius 2.2
   if (Math.abs(z - (Z_FRONT - 4)) < 2.2 + R || Math.abs(z - (Z_BACK + 4)) < 2.2 + R) {
     const c = Math.round((x - X0 - SLOT) / PITCH / 4) * 4;

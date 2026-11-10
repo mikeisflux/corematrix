@@ -21,6 +21,12 @@ export const DOCS: DocSection[] = [
     summary: "What ForeverComicCon is, how the floor is laid out, and the two ways to see it.",
     blocks: [
       { p: "ForeverComicCon is one exhibit hall laid out like a real comic convention and open all day, every day. Publishers, artists, shops and fan projects own numbered booths along the aisles; the arcade and the theater sit in the middle; Artists' Alley runs along the east end. Walking the floor is free and needs no account." },
+      { h: "Finding your way", bullets: [
+        "**The plan**: Halls A to H run west to east along the building. Aisles are numbered 100 to 2800 and hang a number sign at the front, at the back and over the boulevard; booth numbers run along each aisle (odd numbers on the west side, even on the east). Artists' Alley rows are lettered AA-A to AA-L, with their own signs.",
+        "**The boulevard**: a 30 ft main aisle crosses the hall halfway back, with the arcade and theater in the middle. Halfway down each half a cut-through lane lets you change aisles without walking to the end.",
+        "**Directory kiosks**: the dark pylons with a lit map beside every entrance and along the boulevard show the plan with a YOU ARE HERE dot. Click one (or press 🔍) to search booths, artists and shops; a result walks you there.",
+        "**Floor arrows** on the boulevard point to Artists' Alley, the exhibit halls and the arcade. The **minimap** (bottom left on a computer, M to hide) shows where you and everyone else are; click it to walk to a spot.",
+      ] },
       { h: "Map and walk", bullets: [
         "The hall opens on the **map**: an overhead view. Drag to orbit, scroll to zoom, use WASD or the arrows to pan, click any booth to open it.",
         "Press the 🚶 button (bottom right on a desktop, bottom left on a phone) to **walk** the floor as your avatar. The same button, now 🗺️, takes you back to the map.",

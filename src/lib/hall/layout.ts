@@ -1,41 +1,78 @@
 /**
  * The show floor. One long exhibit hall laid out like a major show: aisles
  * numbered 100…3400 run front-to-back, booths line both sides of every aisle
- * (odd numbers west, even east), a wide cross aisle splits the hall in the
- * middle, Halls A–H are slices along the length, Artists' Alley fills the
- * east end with 6×10 tables, and the arcade sits dead center.
+ * (odd numbers west, even east), a wide main boulevard splits the hall in the
+ * middle with a cut-through lane halfway down every half, Halls A–H are slices
+ * along the length, Artists' Alley fills the east end with 6×10 tables, and the
+ * arcade sits dead center behind an entrance plaza.
  *
  * Everything here is deterministic: the 3D scene, the floor-plan map, the
  * claim picker and the OG images all agree on where a booth is. Units are
  * feet; +x runs east along the hall, +z runs toward the back wall, the hall
  * is centered on the origin.
+ *
+ * THE PLAN IS THE CONTRACT. Booth ids, numbers, kinds, sizes and zones are
+ * fixed by the grid below and must never change: exhibitors own them in the
+ * database. The spacing (aisle widths, the boulevard, the cut lanes, the
+ * concourses) is free to change, and has: ids are assigned on the original
+ * 2024 grid (`LEGACY`), then every space is placed on the current geometry.
+ * `scripts/dev/layout-check.mjs` prints the plan hash; it must still read
+ * PLAN_HASH after any edit here.
  */
 import { BOOTH_SIZES, type BoothSize, type Zone, ZONES } from "@/lib/config";
 
-export const AISLE_W = 10; // walking corridor
-export const PITCH = 30; // one aisle + booths on both sides
+export const AISLE_W = 12; // walking corridor between two rows of booths (real shows run 10; 12 reads right next to the figures)
 export const SLOT = 10; // booth depth along an aisle
-export const SLOTS_PER_HALF = 8; // booths per aisle side per half (front and back of the cross aisle)
-export const CROSS = 16; // cross aisle width
-export const FRONT = 34; // entrance concourse depth
-export const BACK = 22; // back-wall concourse
+export const PITCH = AISLE_W + 2 * SLOT; // one aisle + booths on both sides
+export const SLOTS_PER_HALF = 8; // booths per aisle side per half (front and back of the boulevard)
+export const CUT = 8; // cut-through lane halfway down each half, so nobody walks 80 ft to change aisles
+export const CUT_AFTER = 4; // booth slots before the cut lane (tables: CUT_AFTER_AA)
+export const CROSS = 30; // the main boulevard
+export const FRONT = 48; // entrance plaza depth
+export const BACK = 28; // back-wall concourse
 export const EXHIBIT_AISLES = 28; // numbered 100…2800
 export const AA_AISLES = 6; // Artists' Alley aisles east of the exhibit floor
 export const AA_SLOT = 6; // table width along an aisle
 export const AA_PER_HALF = 13;
+export const CUT_AFTER_AA = 7; // tables before the cut lane in Artists' Alley
 export const HALLS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
 
 const TOTAL_AISLES = EXHIBIT_AISLES + AA_AISLES;
 export const HALL_LENGTH = TOTAL_AISLES * PITCH + AISLE_W; // x extent
-export const HALF_DEPTH = SLOTS_PER_HALF * SLOT; // booth run per half
+export const HALF_DEPTH = SLOTS_PER_HALF * SLOT + CUT; // booth run per half, cut lane included
 export const HALL_DEPTH = FRONT + HALF_DEPTH * 2 + CROSS + BACK; // z extent
 export const X0 = -HALL_LENGTH / 2;
 export const Z0 = -HALL_DEPTH / 2; // front wall (entrances)
 export const Z_FRONT = Z0 + FRONT; // where booths start
-export const Z_CROSS0 = Z_FRONT + HALF_DEPTH; // cross aisle start
+export const Z_CROSS0 = Z_FRONT + HALF_DEPTH; // boulevard start
 export const Z_CROSS1 = Z_CROSS0 + CROSS;
 export const Z_BACK = Z_CROSS1 + HALF_DEPTH; // where booths end
 export const ARCADE = { x: 0, z: (Z_CROSS0 + Z_CROSS1) / 2, w: 78, d: 86 }; // center plaza, booths inside are removed
+/** z of booth slot `s` (0-based) in a half that starts at zStart: the cut lane opens after CUT_AFTER slots. */
+export const slotZ = (zStart: number, s: number) => zStart + s * SLOT + (s >= CUT_AFTER ? CUT : 0);
+/** z of table `s` in an Artists' Alley half: 13 tables and the cut lane fill 86 of the half's 88 ft. */
+export const tableZ = (zStart: number, s: number) => zStart + s * AA_SLOT + (s >= CUT_AFTER_AA ? CUT : 0);
+/** The cut lanes' z ranges (front half, back half), for floors and walkers; Artists' Alley's sit 2 ft further back because its tables are 6 ft, not 10. */
+export const CUT_LANES: Array<[number, number]> = [[Z_FRONT + CUT_AFTER * SLOT, Z_FRONT + CUT_AFTER * SLOT + CUT], [Z_CROSS1 + CUT_AFTER * SLOT, Z_CROSS1 + CUT_AFTER * SLOT + CUT]];
+export const AA_CUT_LANES: Array<[number, number]> = [[Z_FRONT + CUT_AFTER_AA * AA_SLOT, Z_FRONT + CUT_AFTER_AA * AA_SLOT + CUT], [Z_CROSS1 + CUT_AFTER_AA * AA_SLOT, Z_CROSS1 + CUT_AFTER_AA * AA_SLOT + CUT]];
+/** Where the Artists' Alley block starts along x (its first aisle's west tables). */
+export const X_AA = X0 + EXHIBIT_AISLES * PITCH;
+/** Entrance doors along the front wall (centres), nine of them. */
+export const DOORS = Array.from({ length: 9 }, (_, i) => X0 + 60 + i * ((HALL_LENGTH - 120) / 8));
+/** Directory kiosks ("you are here" maps): one beside every entrance on the plaza, and down the boulevard every fourth aisle, clear of the arcade. */
+export const KIOSKS: Array<{ x: number; z: number; rot: number }> = [
+  ...DOORS.map((x) => ({ x: x + 20, z: Z0 + 13, rot: 0 })),
+  ...Array.from({ length: Math.floor((EXHIBIT_AISLES + AA_AISLES) / 4) + 1 }, (_, i) => X0 + i * 4 * PITCH + SLOT + AISLE_W / 2).filter((x) => Math.abs(x - ARCADE.x) > ARCADE.w / 2 + 10 && x > X0 + 20 && x < X0 + HALL_LENGTH - 20).map((x) => ({ x, z: ARCADE.z, rot: Math.PI / 2 })),
+];
+/** The original grid the ids, numbers, zones and prices were assigned on. Never change these numbers. */
+const LEGACY = (() => {
+  const AISLE_W = 10, PITCH = 30, CROSS = 16, FRONT = 34, BACK = 22;
+  const HALL_LENGTH = TOTAL_AISLES * PITCH + AISLE_W, HALF_DEPTH = SLOTS_PER_HALF * SLOT, HALL_DEPTH = FRONT + HALF_DEPTH * 2 + CROSS + BACK;
+  const X0 = -HALL_LENGTH / 2, Z0 = -HALL_DEPTH / 2, Z_FRONT = Z0 + FRONT, Z_CROSS0 = Z_FRONT + HALF_DEPTH, Z_CROSS1 = Z_CROSS0 + CROSS;
+  return { AISLE_W, PITCH, HALL_LENGTH, X0, Z_FRONT, Z_CROSS0, Z_CROSS1, ARCADE: { x: 0, z: (Z_CROSS0 + Z_CROSS1) / 2, w: 78, d: 86 } };
+})();
+/** sha1 of the plan (id|label|kind|size|zone|hall|price per space); see scripts/dev/layout-check.mjs. */
+export const PLAN_HASH = "acd3fd6c189c82b26405956ffd4f96f56a3a4b82";
 // Clear height to the ceiling deck; the box trusses hang just under it. The tallest booth signage is a landmark tower
 // (~31 ft) with its hanging sign 7 ft above: at 40 ft the signs sat in the girders, so the roof is 52.
 export const CEILING = 52;
@@ -57,37 +94,51 @@ export interface BoothSpace {
   priceCents: number;
 }
 
-const halfKey = (z: number) => (z < (Z_CROSS0 + Z_CROSS1) / 2 ? "F" : "B");
-const inArcade = (x: number, z: number, w: number, d: number) => Math.abs(x - ARCADE.x) < (w + ARCADE.w) / 2 && Math.abs(z - ARCADE.z) < (d + ARCADE.d) / 2;
-const hallOf = (x: number) => HALLS[Math.min(HALLS.length - 1, Math.max(0, Math.floor(((x - X0) / HALL_LENGTH) * HALLS.length)))];
-const zoneOf = (x: number, z: number, kind: "exhibitor" | "artist"): Zone => {
+const inArcadeLegacy = (x: number, z: number, w: number, d: number) => Math.abs(x - LEGACY.ARCADE.x) < (w + LEGACY.ARCADE.w) / 2 && Math.abs(z - LEGACY.ARCADE.z) < (d + LEGACY.ARCADE.d) / 2;
+const hallOfLegacy = (x: number) => HALLS[Math.min(HALLS.length - 1, Math.max(0, Math.floor(((x - LEGACY.X0) / LEGACY.HALL_LENGTH) * HALLS.length)))];
+const zoneOfLegacy = (x: number, z: number, kind: "exhibitor" | "artist"): Zone => {
   if (kind === "artist") return "artist";
-  if (Math.abs(x) < ARCADE.w / 2 + PITCH * 2.5) return "headliner";
-  if (z < Z_FRONT + SLOT * 2.01) return "front";
+  if (Math.abs(x) < LEGACY.ARCADE.w / 2 + LEGACY.PITCH * 2.5) return "headliner";
+  if (z < LEGACY.Z_FRONT + SLOT * 2.01) return "front";
   return "standard";
 };
 const price = (size: BoothSize, zone: Zone) => Math.round((BOOTH_SIZES[size].priceCents * ZONES[zone].mult) / 100) * 100;
 
+/** Where a space sits on the grid: aisle index, half (0 front, 1 back), side (-1 west, 1 east) and slot. */
+type Grid = { a: number; half: 0 | 1; side: -1 | 1; s: number; shape: "10x10" | "corner" | "island" | "table" };
+/** Centre of a grid cell on a geometry: the live one by default, the legacy one for the id pass. */
+function cellCenter(g: Grid, geo: { X0: number; PITCH: number; AISLE_W: number; Z_FRONT: number; Z_CROSS1: number }, live: boolean): { x: number; z: number } {
+  const ax = geo.X0 + g.a * geo.PITCH + SLOT; // corridor start (west booths occupy ax-10..ax)
+  const cx = g.side === -1 ? ax - SLOT / 2 : ax + geo.AISLE_W + SLOT / 2;
+  const zStart = g.half === 0 ? geo.Z_FRONT : geo.Z_CROSS1;
+  if (g.shape === "table") return { x: cx, z: (live ? tableZ(zStart, g.s) : zStart + 1 + g.s * AA_SLOT) + AA_SLOT / 2 };
+  const z = (live ? slotZ(zStart, g.s) : zStart + g.s * SLOT) + SLOT / 2;
+  if (g.shape === "island") return { x: cx + SLOT / 2, z: z + SLOT / 2 }; // straddles this corridor's east booths and the next corridor's west booths
+  if (g.shape === "corner") return { x: cx, z: z + SLOT / 2 }; // two slots along the aisle
+  return { x: cx, z };
+}
+const LIVE_GEO = { X0, PITCH, AISLE_W, Z_FRONT, Z_CROSS1 };
+
 function build(): BoothSpace[] {
-  const out: BoothSpace[] = [];
+  const out: Array<BoothSpace & { grid: Grid }> = [];
   let id = 1;
-  const push = (b: Omit<BoothSpace, "id" | "hall" | "zone" | "priceCents">) => {
-    if (inArcade(b.x, b.z, b.w, b.d)) return;
-    const zone = zoneOf(b.x, b.z, b.kind);
-    out.push({ ...b, id: id++, hall: hallOf(b.x), zone, priceCents: price(b.size, zone) });
+  const push = (grid: Grid, b: Omit<BoothSpace, "id" | "hall" | "zone" | "priceCents" | "x" | "z">) => {
+    // membership, numbering, hall, zone and price come from the legacy grid; the position from the live one
+    const old = cellCenter(grid, LEGACY, false);
+    if (inArcadeLegacy(old.x, old.z, b.w, b.d)) return;
+    const zone = zoneOfLegacy(old.x, old.z, b.kind);
+    const pos = cellCenter(grid, LIVE_GEO, true);
+    out.push({ ...b, ...pos, id: id++, hall: hallOfLegacy(old.x), zone, priceCents: price(b.size, zone), grid });
   };
-  // Exhibit aisles: corridor at x=[ax, ax+10]; west booths face east (+1), east booths face west (-1).
+  // Exhibit aisles: corridor at x=[ax, ax+AISLE_W]; west booths face east (+1), east booths face west (-1).
   for (let a = 0; a < EXHIBIT_AISLES; a++) {
-    const ax = X0 + a * PITCH + SLOT; // corridor start (west booths occupy ax-10..ax)
+    const axOld = LEGACY.X0 + a * LEGACY.PITCH + SLOT;
     const num = (a + 1) * 100;
-    // island rows: in headliner aisles, the two slots next to the cross aisle on the east side of
+    // island rows: in headliner aisles, the two slots next to the boulevard on the east side of
     // this corridor merge with the west side of the next corridor into one 20×20 island.
-    const islandAisle = Math.abs(ax + AISLE_W / 2) < ARCADE.w / 2 + PITCH * 2.5 && a % 2 === 0 && a + 1 < EXHIBIT_AISLES;
+    const islandAisle = Math.abs(axOld + LEGACY.AISLE_W / 2) < LEGACY.ARCADE.w / 2 + LEGACY.PITCH * 2.5 && a % 2 === 0 && a + 1 < EXHIBIT_AISLES;
     for (const half of [0, 1] as const) {
-      const zStart = half === 0 ? Z_FRONT : Z_CROSS1;
       for (const side of [-1, 1] as const) {
-        // side -1: west booths (x center ax - 5), facing +1 toward corridor; side 1: east booths (ax+15), facing -1.
-        const cx = side === -1 ? ax - SLOT / 2 : ax + AISLE_W + SLOT / 2;
         const facing: 1 | -1 = side === -1 ? 1 : -1;
         let s = 0;
         while (s < SLOTS_PER_HALF) {
@@ -96,46 +147,42 @@ function build(): BoothSpace[] {
           const label = `${num + slotNum}`;
           const nearCross = half === 0 ? s === SLOTS_PER_HALF - 2 : s === 0;
           const nearFront = half === 0 && s === 0;
-          const z = zStart + s * SLOT + SLOT / 2;
           if (islandAisle && side === 1 && (nearCross || nearFront)) {
-            // 20×20 island straddling this corridor's east booths and the next corridor's west booths
-            push({ label, kind: "exhibitor", size: "20x20", aisle: num, x: cx + SLOT / 2, z: z + SLOT / 2, w: 20, d: 20, facing: 0, rotationY: 0 });
+            push({ a, half, side, s, shape: "island" }, { label, kind: "exhibitor", size: "20x20", aisle: num, w: 20, d: 20, facing: 0, rotationY: 0 });
             s += 2; continue;
           }
           if (nearCross && !(islandAisle && side === 1)) {
-            // corner booth: 20×10 (two slots along the aisle) at the cross-aisle end
-            push({ label, kind: "exhibitor", size: "20x10", aisle: num, x: cx, z: z + SLOT / 2, w: SLOT, d: 20, facing, rotationY: 0 });
+            // corner booth: 20×10 (two slots along the aisle) at the boulevard end
+            push({ a, half, side, s, shape: "corner" }, { label, kind: "exhibitor", size: "20x10", aisle: num, w: SLOT, d: 20, facing, rotationY: 0 });
             s += 2; continue;
           }
-          push({ label, kind: "exhibitor", size: "10x10", aisle: num, x: cx, z, w: SLOT, d: SLOT, facing, rotationY: 0 });
+          push({ a, half, side, s, shape: "10x10" }, { label, kind: "exhibitor", size: "10x10", aisle: num, w: SLOT, d: SLOT, facing, rotationY: 0 });
           s += 1;
         }
       }
     }
   }
-  // The west side of the aisle after an island aisle has a hole where the island took its two slots; skip those.
-  const islands = out.filter((b) => b.size === "20x20");
-  const covered = (b: BoothSpace) => islands.some((i) => Math.abs(i.x - b.x) < (i.w + b.w) / 2 - 0.1 && Math.abs(i.z - b.z) < (i.d + b.d) / 2 - 0.1);
+  // The west side of the aisle after an island aisle has a hole where the island took its two slots; skip those (judged on the legacy grid, where the island and the slots it swallows line up exactly).
+  const legacyBox = (b: BoothSpace & { grid: Grid }) => ({ ...cellCenter(b.grid, LEGACY, false), w: b.w, d: b.d });
+  const islands = out.filter((b) => b.size === "20x20").map(legacyBox);
+  const covered = (b: BoothSpace & { grid: Grid }) => { const o = legacyBox(b); return islands.some((i) => Math.abs(i.x - o.x) < (i.w + o.w) / 2 - 0.1 && Math.abs(i.z - o.z) < (i.d + o.d) / 2 - 0.1); };
   const exhibitors = out.filter((b) => b.size === "20x20" || !covered(b));
   // Artists' Alley: 6 aisles east of the exhibit floor, 6×10 tables both sides, lettered rows.
   const rows: BoothSpace[] = [];
   for (let a = 0; a < AA_AISLES; a++) {
-    const ax = X0 + (EXHIBIT_AISLES + a) * PITCH + SLOT;
     const rowLetter = String.fromCharCode(65 + a * 2), rowLetter2 = String.fromCharCode(66 + a * 2);
     for (const half of [0, 1] as const) {
-      const zStart = half === 0 ? Z_FRONT : Z_CROSS1;
       for (const side of [-1, 1] as const) {
-        const cx = side === -1 ? ax - SLOT / 2 : ax + AISLE_W + SLOT / 2;
         for (let s = 0; s < AA_PER_HALF; s++) {
-          const z = zStart + s * AA_SLOT + AA_SLOT / 2 + 1;
           const n = half * AA_PER_HALF + s + 1;
-          rows.push({ id: 0, label: `AA-${side === -1 ? rowLetter : rowLetter2}${String(n).padStart(2, "0")}`, kind: "artist", size: "6x10", hall: "H", aisle: a + 1, zone: "artist", x: cx, z, w: SLOT, d: AA_SLOT, facing: side === -1 ? 1 : -1, rotationY: 0, priceCents: price("6x10", "artist") });
+          const pos = cellCenter({ a: EXHIBIT_AISLES + a, half, side, s, shape: "table" }, LIVE_GEO, true);
+          rows.push({ id: 0, label: `AA-${side === -1 ? rowLetter : rowLetter2}${String(n).padStart(2, "0")}`, kind: "artist", size: "6x10", hall: "H", aisle: a + 1, zone: "artist", ...pos, w: SLOT, d: AA_SLOT, facing: side === -1 ? 1 : -1, rotationY: 0, priceCents: price("6x10", "artist") });
         }
       }
     }
   }
   let n = 1;
-  return [...exhibitors, ...rows].map((b) => ({ ...b, id: n++ }));
+  return [...exhibitors.map(({ grid: _g, ...b }) => b), ...rows].map((b) => ({ ...b, id: n++ }));
 }
 
 /**

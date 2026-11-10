@@ -3,9 +3,10 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { ceilingTexture, floorTexture, glassTexture, ledTexture, ribbedTexture, signTexture, wallTexture } from "./textures";
+import { ceilingTexture, directoryTexture, floorTexture, glassTexture, ledTexture, ribbedTexture, signTexture, wallTexture } from "./textures";
+import { useHall, dragged } from "@/lib/hall/store";
 import { TwoSided } from "./Booth";
-import { AISLE_W, ARCADE, BACK, CEILING, EXHIBIT_AISLES, AA_AISLES, FRONT, HALLS, HALL_DEPTH, HALL_LENGTH, HALF_DEPTH, PITCH, SLOT, X0, Z0, Z_CROSS0, Z_CROSS1, Z_FRONT, Z_BACK, CROSS } from "@/lib/hall/layout";
+import { AISLE_W, ARCADE, BACK, CEILING, EXHIBIT_AISLES, AA_AISLES, FRONT, HALLS, HALL_DEPTH, HALL_LENGTH, HALF_DEPTH, PITCH, SLOT, X0, Z0, Z_CROSS0, Z_CROSS1, Z_FRONT, Z_BACK, CROSS, CUT, CUT_AFTER, CUT_AFTER_AA, AA_SLOT, CUT_LANES, AA_CUT_LANES, X_AA, KIOSKS, DOORS } from "@/lib/hall/layout";
 
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
@@ -24,8 +25,7 @@ const TRUSS_COLS = Math.floor(HALL_LENGTH / 30);
 const TRUSS = 2.2; // box-truss section
 const TRUSS_Y = CEILING - TRUSS / 2 - 0.2;
 const FIXTURE_Y = TRUSS_Y - TRUSS / 2 - 0.45;
-/** Entrance doors along the front wall, loading docks along the back wall. */
-const DOORS = Array.from({ length: 9 }, (_, i) => X0 + 60 + i * ((HALL_LENGTH - 120) / 8));
+/** Loading docks along the back wall (the entrance doors come from the layout, since the kiosks stand beside them). */
 const DOCKS = Array.from({ length: 6 }, (_, i) => X0 + 95 + i * ((HALL_LENGTH - 190) / 5));
 const PILLAR_COUNT = (Math.floor(AISLES / 4) + 1) * 2;
 const CAN_COLORS = ["#ff2bd6", "#00e5ff", "#ffd166", "#5ee6c3", "#ff6b6b", "#8f7bff"];
@@ -52,7 +52,9 @@ export function Hall({ night }: { night: boolean }) {
   const frontFloor = useMemo(() => floorTexture("polished", [HALL_LENGTH / 12, (FRONT - 2) / 12]), []);
   const backFloor = useMemo(() => floorTexture("polished", [HALL_LENGTH / 12, (BACK - 2) / 12]), []);
   const carpet = useMemo(() => floorTexture("carpet", [1, HALF_DEPTH / 10]), []);
-  const runner = useMemo(() => floorTexture("cross", [HALL_LENGTH / 8, CROSS / 8]), []);
+  const runner = useMemo(() => floorTexture("cross", [HALL_LENGTH / 8, 14 / 8]), []);
+  const boulevard = useMemo(() => floorTexture("carpet", [HALL_LENGTH / 10, CROSS / 10]), []);
+  const laneFloor = useMemo(() => floorTexture("polished", [HALL_LENGTH / 12, CUT / 12]), []);
   const wallLong = useMemo(() => wallTexture((HALL_LENGTH + 4) / 80), []);
   const wallEnd = useMemo(() => wallTexture((HALL_DEPTH + 4) / 80), []);
   const roofSign = useMemo(() => signTexture(["FOREVERCOMICCON", "EXHIBIT HALL"], { bg: "#0b0f1a", fg: "#ffd166", w: 1024, h: 256, size: 86 }), []);
@@ -60,12 +62,18 @@ export function Hall({ night }: { night: boolean }) {
   const pillars = useRef<THREE.InstancedMesh>(null);
   const bases = useRef<THREE.InstancedMesh>(null);
   useEffect(() => {
-    // aisle carpets: two runs per aisle that stop at the cross aisle, so no two carpets ever overlap
+    // aisle carpets: four runs per aisle (each half breaks at its cut lane, which shows the slab), so no two carpets ever overlap
     let i = 0;
-    for (let a = 0; a < AISLES; a++) for (const zc of [(Z_FRONT + Z_CROSS0) / 2, (Z_CROSS1 + Z_BACK) / 2]) {
-      put(carpets, i, X0 + a * PITCH + SLOT + AISLE_W / 2, 0.02, zc, 0, -Math.PI / 2);
-      carpets.current?.setColorAt(i, col.set(a >= EXHIBIT_AISLES ? "#8b5cf6" : "#2a4cc0"));
-      i++;
+    const o = new THREE.Object3D();
+    for (let a = 0; a < AISLES; a++) {
+      const aa = a >= EXHIBIT_AISLES;
+      const cutAt = aa ? CUT_AFTER_AA * AA_SLOT : CUT_AFTER * SLOT; // where the lane opens, from the half's start
+      for (const zStart of [Z_FRONT, Z_CROSS1]) for (const [z0, z1] of [[zStart, zStart + cutAt], [zStart + cutAt + CUT, zStart + HALF_DEPTH]]) {
+        o.position.set(X0 + a * PITCH + SLOT + AISLE_W / 2, 0.02, (z0 + z1) / 2); o.rotation.set(-Math.PI / 2, 0, 0); o.scale.set(1, z1 - z0, 1); o.updateMatrix();
+        carpets.current?.setMatrixAt(i, o.matrix);
+        carpets.current?.setColorAt(i, col.set(aa ? "#8b5cf6" : "#2a4cc0"));
+        i++;
+      }
     }
     let p = 0;
     for (let c = 0; c <= AISLES; c += 4) for (const z of [Z_FRONT - 4, Z_BACK + 4]) { const x = X0 + c * PITCH + SLOT; put(pillars, p, x, CEILING / 2, z); put(bases, p, x, 0.6, z); p++; }
@@ -81,15 +89,26 @@ export function Hall({ night }: { night: boolean }) {
         <meshStandardMaterial map={slab} color={night ? "#6a707c" : "#ffffff"} roughness={0.95} />
       </mesh>
       {/* aisle carpets (instanced; the Artists' Alley aisles are tinted purple) */}
-      <instancedMesh frustumCulled={false} ref={carpets} args={[undefined, undefined, AISLES * 2]}>
-        <planeGeometry args={[AISLE_W, HALF_DEPTH]} />
+      <instancedMesh frustumCulled={false} ref={carpets} args={[undefined, undefined, AISLES * 4]}>
+        <planeGeometry args={[AISLE_W, 1]} />
         <meshStandardMaterial map={carpet} color={night ? "#8e9bf2" : "#ffffff"} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </instancedMesh>
-      {/* the woven red runner down the cross aisle */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, (Z_CROSS0 + Z_CROSS1) / 2]}>
+      {/* the main boulevard: charcoal carpet the full width, the woven red runner down its middle */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, (Z_CROSS0 + Z_CROSS1) / 2]}>
         <planeGeometry args={[HALL_LENGTH, CROSS]} />
-        <meshStandardMaterial map={runner} color={night ? "#8a8aa8" : "#ffffff"} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+        <meshStandardMaterial map={boulevard} color={night ? "#2b2f3a" : "#3a3f4c"} roughness={1} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, (Z_CROSS0 + Z_CROSS1) / 2]}>
+        <planeGeometry args={[HALL_LENGTH, 14]} />
+        <meshStandardMaterial map={runner} color={night ? "#8a8aa8" : "#ffffff"} roughness={1} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
+      </mesh>
+      {/* cut-through lanes halfway down each half: polished slab between the booth rows (Artists' Alley's sit 2 ft further back) */}
+      {[...CUT_LANES.map(([z0, z1]) => ({ z0, z1, x0: X0, x1: X_AA })), ...AA_CUT_LANES.map(([z0, z1]) => ({ z0, z1, x0: X_AA, x1: X0 + HALL_LENGTH }))].map((l, i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[(l.x0 + l.x1) / 2, 0.02, (l.z0 + l.z1) / 2]}>
+          <planeGeometry args={[l.x1 - l.x0, l.z1 - l.z0]} />
+          <meshStandardMaterial map={laneFloor} color={floorTint} roughness={0.55} metalness={0.05} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+        </mesh>
+      ))}
       {/* polished concrete concourses at the entrance and along the back wall */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, Z0 + FRONT / 2]}>
         <planeGeometry args={[HALL_LENGTH, FRONT - 2]} />
@@ -134,6 +153,8 @@ export function Hall({ night }: { night: boolean }) {
         <meshStandardMaterial color={night ? "#2b3140" : "#4b5361"} roughness={0.7} />
       </instancedMesh>
       <HangingSigns night={night} />
+      <Kiosks night={night} />
+      <FloorDecals />
     </group>
   );
 }
@@ -288,6 +309,7 @@ function HangingSigns({ night }: { night: boolean }) {
   const hallSigns = useMemo(() => HALLS.map((h) => signTexture([`HALL ${h}`], { bg: "#111827", fg: "#ffffff", w: 1024, h: 320, size: 230, accentBar: "#ffd166" })), []);
   const aisleSigns = useMemo(() => Array.from({ length: EXHIBIT_AISLES }, (_, a) => signTexture([String((a + 1) * 100)], { bg: "#1d4ed8", fg: "#ffffff", w: 512, h: 256, size: 196, accentBar: "#93c5fd" })), []);
   const aaSign = useMemo(() => signTexture(["ARTISTS' ALLEY"], { bg: "#7c3aed", fg: "#ffffff", w: 1024, h: 208, size: 130 }), []);
+  const rowSigns = useMemo(() => Array.from({ length: AA_AISLES }, (_, a) => signTexture([`AA ${String.fromCharCode(65 + a * 2)}·${String.fromCharCode(66 + a * 2)}`], { bg: "#6d28d9", fg: "#ffffff", w: 512, h: 256, size: 150, accentBar: "#c4b5fd" })), []);
   const arcadeSign = useMemo(() => signTexture(["ARCADE"], { bg: "#0a0a14", fg: "#ff2bd6", w: 1024, h: 256, size: 150, dy: 0.07 }), []);
   const hallW = HALL_LENGTH / HALLS.length;
   return (
@@ -298,12 +320,19 @@ function HangingSigns({ night }: { night: boolean }) {
           {[-14, 14].map((x) => <mesh key={x} position={[x, 7, 0]}><cylinderGeometry args={[0.12, 0.12, 10, 4]} /><meshStandardMaterial color="#9ca3af" /></mesh>)}
         </group>
       ))}
-      {aisleSigns.map((t, a) => (
-        <group key={a} position={[X0 + a * PITCH + SLOT + AISLE_W / 2, CEILING - 12, Z_FRONT - 3]}>
+      {/* aisle numbers at the front, at the back and over the boulevard (the arcade span has its own marquee) */}
+      {aisleSigns.map((t, a) => { const x = X0 + a * PITCH + SLOT + AISLE_W / 2; return [Z_FRONT - 3, Z_BACK + 3, ...(Math.abs(x - ARCADE.x) > ARCADE.w / 2 + 6 ? [ARCADE.z] : [])].map((z) => (
+        <group key={`${a}-${z}`} position={[x, CEILING - 12, z]}>
           <TwoSided w={9} h={4.5}><meshBasicMaterial map={t} toneMapped={false} /></TwoSided>
           <mesh position={[0, 7, 0]}><cylinderGeometry args={[0.1, 0.1, 10, 4]} /><meshStandardMaterial color="#9ca3af" /></mesh>
         </group>
-      ))}
+      )); })}
+      {rowSigns.map((t, a) => { const x = X0 + (EXHIBIT_AISLES + a) * PITCH + SLOT + AISLE_W / 2; return [Z_FRONT - 3, Z_BACK + 3, ARCADE.z].map((z) => (
+        <group key={`${a}-${z}`} position={[x, CEILING - 12, z]}>
+          <TwoSided w={9} h={4.5}><meshBasicMaterial map={t} toneMapped={false} /></TwoSided>
+          <mesh position={[0, 7, 0]}><cylinderGeometry args={[0.1, 0.1, 10, 4]} /><meshStandardMaterial color="#9ca3af" /></mesh>
+        </group>
+      )); })}
       <group position={[X0 + EXHIBIT_AISLES * PITCH + (AA_AISLES * PITCH) / 2, CEILING - 7, Z_FRONT - 12]}>
         <TwoSided w={70} h={14}><meshBasicMaterial map={aaSign} toneMapped={false} /></TwoSided>
       </group>
@@ -311,6 +340,54 @@ function HangingSigns({ night }: { night: boolean }) {
         <TwoSided w={60} h={15}><meshBasicMaterial map={arcadeSign} toneMapped={false} /></TwoSided>
         <pointLight position={[0, -4, 6]} intensity={night ? 400 : 0} distance={90} color="#ff2bd6" />
       </group>
+    </group>
+  );
+}
+
+/** Directory kiosks: a "you are here" plan beside every entrance and down the boulevard. Click one and the search panel opens. */
+function Kiosks({ night }: { night: boolean }) {
+  const setPanel = useHall((s) => s.setPanel);
+  const header = useMemo(() => signTexture(["DIRECTORY"], { bg: "#0b1020", fg: "#ffd166", w: 512, h: 128, size: 76, accentBar: "#ffd166" }), []);
+  const hint = useMemo(() => signTexture(["Click to search", "booths · artists · shops"], { bg: "#111827", fg: "#e2e8f0", w: 512, h: 200, size: 46 }), []);
+  const maps = useMemo(() => KIOSKS.map((k) => directoryTexture(k.x, k.z)), []);
+  return (
+    <group>
+      {KIOSKS.map((k, i) => (
+        <group key={i} position={[k.x, 0, k.z]} rotation={[0, k.rot, 0]} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); setPanel("search"); }} onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+          <mesh position={[0, 4.3, 0]}><boxGeometry args={[3.4, 8.6, 0.5]} /><meshStandardMaterial color="#111827" metalness={0.4} roughness={0.5} /></mesh>
+          <mesh position={[0, 0.15, 0]}><boxGeometry args={[3.8, 0.3, 1.6]} /><meshStandardMaterial color="#1f2937" roughness={0.7} /></mesh>
+          {[1, -1].map((s) => (
+            <group key={s} rotation={[0, s === 1 ? 0 : Math.PI, 0]}>
+              <mesh position={[0, 7.7, 0.26]}><planeGeometry args={[3.1, 0.78]} /><meshStandardMaterial map={header} emissiveMap={header} emissive="#fff" emissiveIntensity={night ? 1 : 0.4} /></mesh>
+              <mesh position={[0, 5.4, 0.26]}><planeGeometry args={[3.1, 3.1 * 560 / 1024]} /><meshStandardMaterial map={maps[i]} emissiveMap={maps[i]} emissive="#fff" emissiveIntensity={night ? 0.8 : 0.35} /></mesh>
+              <mesh position={[0, 3.2, 0.26]}><planeGeometry args={[3.1, 1.2]} /><meshStandardMaterial map={hint} emissiveMap={hint} emissive="#fff" emissiveIntensity={night ? 0.6 : 0.2} /></mesh>
+            </group>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Direction decals on the boulevard floor beside each kiosk: which way to Artists' Alley, the halls, the arcade. */
+function FloorDecals() {
+  const spots = useMemo(() => KIOSKS.filter((k) => k.rot !== 0), []);
+  const tex = useMemo(() => {
+    const mk = (t: string) => signTexture([t], { bg: "#111827", fg: "#ffffff", w: 1024, h: 160, size: 96, accentBar: "#ffd166" });
+    return { alley: mk("ARTISTS' ALLEY  ▶"), halls: mk("◀  EXHIBIT HALLS"), arcadeE: mk("ARCADE · THEATER  ▶"), arcadeW: mk("◀  ARCADE · THEATER") };
+  }, []);
+  return (
+    <group>
+      {spots.map((k, i) => {
+        const north = k.x < X_AA - 40 ? tex.alley : tex.halls;
+        const south = k.x < ARCADE.x ? tex.arcadeE : tex.arcadeW;
+        return [[Z_CROSS0 + 5, north], [Z_CROSS1 - 5, south]].map(([z, t], j) => (
+          <mesh key={`${i}-${j}`} rotation={[-Math.PI / 2, 0, 0]} position={[k.x + (j ? 10 : -10), 0.035, z as number]}>
+            <planeGeometry args={[16, 2.5]} />
+            <meshStandardMaterial map={t as THREE.Texture} roughness={0.9} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+          </mesh>
+        ));
+      })}
     </group>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import * as THREE from "three";
+import { hallLayout, ARCADE, HALLS, HALL_DEPTH, HALL_LENGTH, X0, X_AA, Z0, Z_CROSS0, Z_CROSS1 } from "@/lib/hall/layout";
 
 /** Generated textures, keyed by their content. Bounded: the claim designer's live preview and the mascot's speech bubbles
  *  mint a new key per keystroke or line, so the oldest are evicted and their GPU copies freed. */
@@ -600,4 +601,48 @@ export function coverFit(tex: THREE.Texture, fit: number) {
 export function dropLogo(url: string) {
   logoCache.get(url)?.dispose();
   logoCache.delete(url);
+}
+
+/**
+ * A directory kiosk's face: the floor plan with the halls lettered, the boulevard, Artists' Alley and the arcade
+ * marked, and a "YOU ARE HERE" dot where this kiosk stands.
+ */
+export function directoryTexture(hereX: number, hereZ: number): THREE.CanvasTexture {
+  const key = `directory|${hereX.toFixed(0)}|${hereZ.toFixed(0)}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const W = 1024, H = 560, pad = 28, top = 96;
+  const [c, g] = mk(W, H);
+  g.fillStyle = "#0b1020"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#ffd166"; g.fillRect(0, 0, W, 10);
+  g.fillStyle = "#ffffff"; g.font = '800 44px "Inter", Arial, sans-serif'; g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("DIRECTORY", pad, 54);
+  g.font = '600 22px "Inter", Arial, sans-serif'; g.fillStyle = "#94a3b8"; g.textAlign = "right";
+  g.fillText("Halls A–H · Artists' Alley east · Arcade & Theater centre · press 🔍 to search", W - pad, 56);
+  const mw = W - pad * 2, mh = H - top - pad;
+  const sx = (x: number) => pad + ((x - X0) / HALL_LENGTH) * mw, sz = (z: number) => top + ((z - Z0) / HALL_DEPTH) * mh;
+  g.fillStyle = "#141b30"; g.fillRect(pad, top, mw, mh);
+  // boulevard and the Artists' Alley block
+  g.fillStyle = "#3b1d1d"; g.fillRect(pad, sz(Z_CROSS0), mw, sz(Z_CROSS1) - sz(Z_CROSS0));
+  g.fillStyle = "rgba(124,58,237,0.18)"; g.fillRect(sx(X_AA), top, pad + mw - sx(X_AA), mh);
+  for (const b of hallLayout()) {
+    g.fillStyle = b.kind === "artist" ? "#6d4fb3" : b.size === "20x20" ? "#4b5a8a" : "#2f3a5e";
+    g.fillRect(sx(b.x - b.w / 2), sz(b.z - b.d / 2), Math.max(1.5, (b.w / HALL_LENGTH) * mw), Math.max(1.5, (b.d / HALL_DEPTH) * mh));
+  }
+  g.fillStyle = "#2a1540"; g.fillRect(sx(ARCADE.x - ARCADE.w / 2), sz(ARCADE.z - ARCADE.d / 2), (ARCADE.w / HALL_LENGTH) * mw, (ARCADE.d / HALL_DEPTH) * mh);
+  g.strokeStyle = "#ff2bd6"; g.lineWidth = 2; g.strokeRect(sx(ARCADE.x - ARCADE.w / 2), sz(ARCADE.z - ARCADE.d / 2), (ARCADE.w / HALL_LENGTH) * mw, (ARCADE.d / HALL_DEPTH) * mh);
+  g.fillStyle = "#ff8ae8"; g.font = '800 20px "Inter", Arial, sans-serif'; g.textAlign = "center"; g.fillText("ARCADE", sx(ARCADE.x), sz(ARCADE.z));
+  g.fillStyle = "#c4b5fd"; g.fillText("ARTISTS' ALLEY", (sx(X_AA) + pad + mw) / 2, sz(Z0) + 22);
+  // hall letters along the top of the plan
+  g.fillStyle = "#e2e8f0"; g.font = '800 30px "Inter", Arial, sans-serif';
+  HALLS.forEach((h, i) => g.fillText(h, pad + ((i + 0.5) / HALLS.length) * mw, top - 18));
+  g.fillStyle = "#64748b"; g.font = '600 16px "Inter", Arial, sans-serif'; g.textAlign = "left"; g.fillText("ENTRANCES", pad + 4, top + 16); g.textAlign = "right"; g.fillText("LOADING DOCKS", pad + mw - 4, top + mh - 14);
+  // you are here
+  const hx = sx(hereX), hz = sz(hereZ);
+  g.fillStyle = "#ffd166"; g.beginPath(); g.arc(hx, hz, 11, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "#0b1020"; g.lineWidth = 3; g.stroke();
+  g.font = '800 22px "Inter", Arial, sans-serif'; g.textAlign = hx > W / 2 ? "right" : "left"; g.textBaseline = "middle";
+  const lx = hx + (hx > W / 2 ? -18 : 18), ly = hz < top + 40 ? hz + 24 : hz - 24;
+  g.lineWidth = 6; g.strokeStyle = "#0b1020"; g.strokeText("YOU ARE HERE", lx, ly); g.fillStyle = "#ffd166"; g.fillText("YOU ARE HERE", lx, ly);
+  return finish(c, key);
 }
