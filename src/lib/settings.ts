@@ -23,6 +23,7 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "SUPPORT_EMAIL", label: "Support email", group: "Site", hint: "hello@forevercomiccon.com" },
   { key: "ANNOUNCEMENT", label: "Announcement bar text", group: "Site", hint: "optional — shown on the home page HUD" },
   { key: "MAINTENANCE_MODE", label: "Maintenance mode", group: "Site", hint: "true / false — checkout is paused, admins can still sign in" },
+  { key: "HALL_CAPACITY", label: "Floor capacity (people walking at once)", group: "Site", hint: "400 (default). Past this, newcomers who press Walk see the waiting room and are let in first come, first served as others leave. The map, booths, chat and theater stay open to everyone. Admins never queue." },
 
   // Storage: uploaded images (booth art, logos) on Cloudflare R2 instead of the database
   { key: "R2_ACCOUNT_ID", label: "Cloudflare account id", group: "Storage", hint: "The 32-character id shown on the R2 overview page (the first part of the S3 endpoint <id>.r2.cloudflarestorage.com)" },

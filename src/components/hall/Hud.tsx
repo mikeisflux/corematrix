@@ -145,6 +145,7 @@ export function Hud() {
       {loaded && <ChatDock />}
       {loaded && <ArtPreview />}
       {loaded && <PortfolioBook />}
+      {loaded && <WaitingRoom />}
       {loaded && <Minimap />}
       {loaded && <Tips />}
       {loaded && <SignupNudge />}
@@ -337,6 +338,35 @@ function FeaturedStrip() {
         </button>
       ))}
       <a href="/app/seasons" className="px-2 text-[11px] text-slate-400 hover:text-white">seasons →</a>
+    </div>
+  );
+}
+
+/** The hall is full: where you stand in line, the estimate, and what you can do meanwhile. Closes itself when you are in. */
+function WaitingRoom() {
+  const q = useHall((s) => s.queue);
+  const setQueue = useHall((s) => s.setQueue);
+  const setMode = useHall((s) => s.setMode);
+  if (!q) return null;
+  const mins = Math.max(1, Math.round(q.etaSec / 60));
+  if (q.admitted) return (
+    <div data-waiting-room className="pointer-events-auto absolute inset-x-0 top-24 z-[60] mx-auto w-[min(92vw,420px)] panel rounded-2xl border-emerald-400/40 px-5 py-4 text-sm fade-up">
+      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">You&apos;re in</div>
+      <div className="mt-1 text-base font-semibold">A spot opened up. Walking you onto the floor…</div>
+    </div>
+  );
+  return (
+    <div data-waiting-room className="pointer-events-auto absolute inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+      <div className="panel w-[min(92vw,460px)] rounded-2xl px-6 py-5 text-sm fade-up">
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">The hall is full</div>
+        <h2 className="mt-1 text-xl font-bold">You&apos;re in line to walk the floor</h2>
+        <p className="mt-2 text-slate-300">{q.capacity} people are walking right now, the most the floor takes at once. You are <b className="text-white">number {q.position}</b> in line{q.ahead > 0 ? `, ${q.ahead} ahead of you` : ""}. The line moves as people leave; we&apos;ll walk you in the moment a spot opens. Estimated wait: about <b className="text-white">{mins} minute{mins === 1 ? "" : "s"}</b>.</p>
+        <p className="mt-2 text-xs text-slate-400">Keep this tab open to hold your place. Meanwhile the map, every booth, the chat and the theater are open: click any booth on the map to visit it.</p>
+        <div className="mt-4 flex items-center gap-2">
+          <button onClick={() => { setQueue(null); setMode("map"); }} className="btn-primary">Browse the map while I wait</button>
+          <span className="text-[11px] text-slate-500">The waiting room comes back when a spot opens.</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -142,6 +142,9 @@ interface HallState {
   setHovered: (id: number | null) => void;
   select: (id: number | null) => void;
   setPanel: (p: HallState["panel"]) => void;
+  /** The waiting room: set while the floor is full and this visitor is in line (or just admitted). */
+  queue: { position: number; ahead: number; etaSec: number; capacity: number; admitted?: boolean } | null;
+  setQueue: (q: HallState["queue"]) => void;
   toggleNight: () => void;
   setRide: (r: boolean) => void;
   setFlyTo: (id: number | null) => void;
@@ -194,6 +197,8 @@ export const useHall = create<HallState>((set, get) => ({
   hovered: null,
   selected: null,
   panel: "none",
+  queue: null,
+  setQueue: (queue) => set({ queue }),
   night: false,
   ride: false,
   flyTo: null,

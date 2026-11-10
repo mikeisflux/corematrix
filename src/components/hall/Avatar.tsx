@@ -293,8 +293,11 @@ export function Player() {
     const st = useHall.getState(); // the heartbeat closure outlives renders: read who we are now, not when it was made
     const body = leave ? { leave: true } : { x: pos.current.x, z: pos.current.z, h: heading.current, s: seat.current ? 3 : motion.speed, n: (st.me?.displayName || "Visitor").slice(0, 40), a: st.avatar, e: pend.e && fresh(pend.e.t) ? pend.e : null, r: pend.r && fresh(pend.r.t) ? pend.r : null, w: away || document.hidden || undefined };
     pend.dirty = false;
+    // over the hall's socket when it is open (a frame, not a request); the POST stays for leaving the page and for browsers on the stream
+    if (!leave && live.ws && live.ws.readyState === 1) { live.ws.send(JSON.stringify({ t: "p", ...body })); return; }
     void fetch("/api/presence", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" }, keepalive: true })
-      .then((r) => r.ok ? r.json() : null).then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
+      .then(async (r) => { if (r.ok) return r.json(); const j = await r.json().catch(() => null); if (j?.code === "queue") { const q = await fetch("/api/queue").then((x) => x.json()).catch(() => null); if (q) { const st = useHall.getState(); if (q.admitted) { st.setQueue({ ...q, admitted: true }); } else { st.setMode("map"); st.setQueue(q); } } } return null; })
+      .then((j) => { if (j?.id && j.id !== live.me) { live.me = j.id; live.version++; } }).catch(() => {});
   };
   // tell the floor when we leave walk mode or the page; while the tab is in the background (no frames run) a slow
   // heartbeat keeps our spot as "away" instead of letting it time out. Leaving also remembers the spot, so the next
@@ -566,7 +569,7 @@ export function Others() {
       const list = Array.from(live.players.keys()).filter((id) => id !== live.me);
       setIds(list);
       const st = useHall.getState();
-      st.setStats({ walking: list.length + (st.mode === "walk" ? 1 : 0) });
+      st.setStats({ walking: Math.max(live.total, list.length + (st.mode === "walk" ? 1 : 0)) });
     }
   });
   return <>{ids.map((id) => <Other key={id} id={id} />)}</>;

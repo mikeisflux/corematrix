@@ -77,8 +77,12 @@ Admin: `scripts/create-admin.ts` above (or list emails in `ADMIN_EMAILS`), then 
   `/api/webhooks/sendgrid/inbound?key=<INBOUND_EMAIL_KEY>`. Delivery events (delivered, opened,
   bounced…): point the Event Webhook at `/api/webhooks/sendgrid/events?key=<SENDGRID_EVENT_KEY>`.
   Templates are seeded on first use and editable at `/admin/emails/templates`.
-- **Realtime**: SSE from an in-process bus. Fine on one instance (Fly, Railway, a VPS). For
-  multi-instance, swap `src/lib/realtime.ts` for Redis pub/sub.
+- **Realtime**: a WebSocket per open tab (`/api/ws`, served by `server/index.ts`, the Node server that
+  `npm run build` bundles into `dist/server.cjs`), with the `/api/live` server-sent stream and POSTed presence as
+  the fallback. Each visitor gets its own view of the floor: the nearest people at five updates a second, everyone
+  else packed every two seconds, so traffic per person stays flat as the crowd grows. The bus and the roster live in
+  one process by default; set `REDIS_URL` and several pm2 workers share them (`docs/DEPLOY.md`). The floor takes
+  `HALL_CAPACITY` walkers (400); past that, newcomers wait in a first-come line and are walked in as people leave.
 - **Cron**: two endpoints keep the economy honest. `/api/cron/daily` charges plan renewals, expires
   lapsed ones, closes seasons and prunes dedupe rows; `/api/cron/weekly` (Monday) closes the season
   and sends digests. Protect them with `CRON_SECRET` (`?secret=` or a Bearer token). `vercel.json`

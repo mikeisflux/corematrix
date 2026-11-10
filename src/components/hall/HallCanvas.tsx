@@ -2,6 +2,14 @@
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { HallSnapshot } from "@/lib/hall-snapshot";
 import { live, applyRoster, type LivePlayer } from "@/lib/hall/live";
+
+/** The floor is full and we are in line: show the waiting room; once admitted, walk in. */
+function onQueue(q: { position: number; ahead: number; etaSec: number; capacity: number; admitted?: boolean }) {
+  const st = useHall.getState();
+  if (q.admitted) { st.setQueue({ ...q, admitted: true }); st.setMode("walk"); st.setPanel("none"); setTimeout(() => { if (useHall.getState().queue?.admitted) useHall.getState().setQueue(null); }, 4000); return; }
+  if (st.mode === "walk") st.setMode("map");
+  st.setQueue(q);
+}
 import { social, showBubble, bumpSocial, emitChat, viewingDm } from "@/lib/hall/social";
 import { usePrefs } from "@/lib/hall/prefs";
 import { openDm, player } from "./Avatar";
@@ -95,15 +103,18 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
     const refreshMe = () => { if (document.hidden || !useHall.getState().me) return; api<MeResponse>("/api/me").then((d) => { if (alive) { setMe(d.user, d.booths); if (d.user) { useHall.getState().setFavorites(d.favorites ?? []); useHall.getState().setBlocked(d.blocked ?? { uids: [], pids: [] }); } } }).catch(() => {}); };
     document.addEventListener("visibilitychange", refreshMe);
     const refresh = setInterval(refreshMe, 120_000);
-    let es = new EventSource("/api/live");
-    let sseId = "";
+    // The live feed: the hall's WebSocket when the server offers one (presence reports ride it too), else the
+    // server-sent stream with presence over POST. Either way one connection at a time, reopened with a growing delay.
+    let streamId = "";
+    let sock: WebSocket | null = null, es: EventSource | null = null;
+    let wsFailures = 0, backoff = 1000, retry: ReturnType<typeof setTimeout> | null = null;
     const onMessage = (ev: MessageEvent) => {
       const m = JSON.parse(ev.data) as LiveMessage;
-      if (m.type === "hello") { sseId = m.id; social.dm.me = social.dm.me || m.id; return; }
+      if (m.type === "hello") { streamId = m.id; if (!live.me) { live.me = m.id; live.version++; } social.dm.me = social.dm.me || m.id; return; }
       if (m.type === "event") pushEvent(m.event);
       else if (m.type === "booth") upsertBooth({ ...m.booth });
       else if (m.type === "presence") setStats({ online: Math.max(1, m.online) });
-      else if (m.type === "players") { applyRoster(m.players as LivePlayer[]); friendsOnFloor(m.players as LivePlayer[]); }
+      else if (m.type === "players") { applyRoster(m as unknown as Parameters<typeof applyRoster>[0]); friendsOnFloor(Array.from(live.players.values())); }
       else if (m.type === "notice") { const n = m.notice; social.noticeVersion++; bumpSocial(); const me = useHall.getState().me; if (me && useHall.getState().panel !== "me") useHall.getState().setMe({ ...me, unread: (me.unread ?? 0) + 1 }, useHall.getState().myBooths); setToast(`${NOTICE_ICON[n.type] ?? "🔔"} ${n.title}`, () => useHall.getState().setPanel("me")); }
       else if (m.type === "chat") { emitChat(m.message); if (m.message.playerId && !useHall.getState().isBlocked({ uid: m.message.authorUid, id: m.message.playerId })) showBubble(m.message.playerId, m.message.body); }
       else if (m.type === "voice") handleVoiceSignal(m.signal);
@@ -127,17 +138,38 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
       else if (m.type === "team" && m.quiet) { api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)).catch(() => {}); }
       else if (m.type === "team") { setToast(`🎟️ ${m.from.name} added you to ${m.name}: you can sit at their booth now`, () => useHall.getState().setPanel("me")); api<{ user: Me | null; booths: Array<{ id: number; name: string | null; valueCents: number; tier: string; color: string }> }>("/api/me").then((d) => setMe(d.user, d.booths)).catch(() => {}); }
       else if (m.type === "stats") setStats({ totalSalesCents: m.totalSalesCents, totalViews: m.totalViews, claimed: m.claimed });
+      else if (m.type === "queue") { onQueue(m); }
+      else if (m.type === "error") { if (m.code === "full") setToast(`🚪 ${m.message}`); }
     };
-    es.onmessage = onMessage;
-    // a non-200 (a deploy, a restart) closes an EventSource for good: reopen it with a growing delay
-    let backoff = 1000, retry: ReturnType<typeof setTimeout> | null = null;
-    // only ever one stream: a reconnect (from either path) closes whatever was open first, or every message is handled twice
-    const reopen = () => { if (retry) { clearTimeout(retry); retry = null; } es.close(); sseId = ""; es = new EventSource("/api/live"); es.onmessage = onMessage; es.onopen = () => { backoff = 1000; }; watch(es); };
-    const watch = (src: EventSource) => { src.onerror = () => { if (src.readyState !== EventSource.CLOSED || !alive || src !== es) return; retry = setTimeout(() => { retry = null; if (!alive) return; es.close(); es = new EventSource("/api/live"); es.onmessage = onMessage; es.onopen = () => { backoff = 1000; }; watch(es); }, backoff); backoff = Math.min(30_000, backoff * 2); }; };
-    watch(es);
+    const closeAll = () => { if (sock) { const w = sock; sock = null; live.ws = null; w.onclose = null; w.onerror = null; w.close(); } if (es) { es.onerror = null; es.close(); es = null; } streamId = ""; };
+    const later = () => { if (retry || !alive) return; retry = setTimeout(() => { retry = null; if (alive) connect(); }, backoff); backoff = Math.min(15_000, backoff * 2); };
+    const openStream = () => {
+      es = new EventSource("/api/live"); const mine = es;
+      mine.onmessage = onMessage; mine.onopen = () => { backoff = 1000; };
+      mine.onerror = () => { if (mine !== es || mine.readyState !== EventSource.CLOSED) return; closeAll(); later(); };
+    };
+    const connect = () => {
+      closeAll();
+      if (wsFailures >= 2 || typeof WebSocket === "undefined") { openStream(); return; }
+      const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws`;
+      let opened = false; const w = new WebSocket(url); sock = w;
+      const giveUp = setTimeout(() => { if (!opened && sock === w) { wsFailures++; w.onclose = null; w.close(); sock = null; openStream(); } }, 5000);
+      w.onopen = () => { opened = true; clearTimeout(giveUp); backoff = 1000; live.ws = w; };
+      w.onmessage = (ev) => onMessage(ev as MessageEvent);
+      w.onerror = () => { /* onclose follows */ };
+      w.onclose = (ev) => {
+        clearTimeout(giveUp); if (sock !== w) return; sock = null; live.ws = null;
+        // 4401: the server saw no visitor cookie yet (a first visit; the page's first API call sets one): try again right away
+        if (ev.code === 4401) { if (retry) clearTimeout(retry); retry = setTimeout(() => { retry = null; if (alive) connect(); }, 400); return; }
+        if (!opened) { wsFailures++; openStream(); } else later();
+      };
+    };
+    connect();
     const check = setInterval(() => {
-      if (live.me && sseId && live.me !== sseId) reopen();
-    }, 2000);
+      // registered under a cookie that was replaced in a parallel request: reconnect under the real one
+      if (live.me && streamId && live.me !== streamId) { closeAll(); connect(); }
+      if (useHall.getState().queue && !useHall.getState().queue?.admitted) { if (live.ws?.readyState === 1) live.ws.send(JSON.stringify({ t: "queue" })); else api<{ type: "queue"; position: number; ahead: number; etaSec: number; capacity: number; admitted?: boolean }>("/api/queue").then(onQueue).catch(() => {}); }
+    }, 3000);
     return () => {
       alive = false;
       if (hallRetry) clearTimeout(hallRetry);
@@ -146,7 +178,7 @@ export function HallCanvas({ initial }: { initial?: HallSnapshot }) {
       if (retry) clearTimeout(retry);
       clearInterval(refresh);
       document.removeEventListener("visibilitychange", refreshMe);
-      es.close();
+      closeAll();
     };
   }, [setBooths, upsertBooth, pushEvent, setStats, setMe, setBillboards, setFeatured, setToast]);
 

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { getBooth } from "@/lib/economy";
 import { fetchPublic } from "@/lib/safe-fetch";
 import { fileUrl, isRef, r2Get, r2Readable, refKey } from "@/lib/r2";
@@ -29,8 +31,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       });
     }
   }
-  // only a static image file: any other local path would make every visitor's logo load hit it (page views, clicks...)
-  if (p.logoUrl && /^\/(?!\/)[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/i.test(p.logoUrl) && !p.logoUrl.includes("..")) return NextResponse.redirect(new URL(p.logoUrl, _req.url), 307);
+  // only a static image file, served straight from public/ (a redirect built from the request URL pointed at the wrong host behind the custom server)
+  if (p.logoUrl && /^\/(?!\/)[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/i.test(p.logoUrl) && !p.logoUrl.includes("..")) {
+    const file = await fs.readFile(path.join(process.cwd(), "public", p.logoUrl)).catch(() => null);
+    if (file) { const ext = p.logoUrl.split(".").pop()!.toLowerCase(); return new NextResponse(new Uint8Array(file), { headers: { ...SAFE, "Content-Type": ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : ext === "gif" ? "image/gif" : "image/png", "Cache-Control": "public, max-age=86400" } }); }
+  }
   if (p.logoUrl?.startsWith("http")) {
     // proxied so textures stay same-origin; only public hosts, no redirects, capped size
     const r = await fetchPublic(p.logoUrl, { timeoutMs: 4000, maxBytes: 2_000_000 }).catch(() => null);

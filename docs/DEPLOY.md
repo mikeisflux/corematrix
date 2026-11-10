@@ -59,7 +59,7 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_buffering off;
     proxy_cache off;
-    proxy_read_timeout 1h;       # /api/live is a long-lived server-sent-events stream
+    proxy_read_timeout 1h;       # /api/live is a long-lived server-sent-events stream; /api/ws a WebSocket (both need the upgrade headers below)
   }
 
   location / {
@@ -144,3 +144,20 @@ cannot use the images as WebGL textures. Press **Test R2** (it writes, reads, ch
 a probe object), set `R2_ENABLED` to `true`, then **Move existing uploads to R2**. Nothing changes for visitors: the
 `/api/art/…` and `/api/logo/…` links redirect to the bucket; without a public URL the server streams the objects itself
 from `/api/f/…`. The signing is done in `src/lib/r2.ts` with no SDK (AWS Signature V4 over fetch).
+
+## The WebSocket and several workers
+
+The hall opens a WebSocket at `/api/ws` (presence reports and the live feed; it falls back to the `/api/live` stream and
+POSTs when the socket cannot open). nginx must pass the upgrade: inside the `location /` block add
+
+```nginx
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;   # with: map $http_upgrade $connection_upgrade { default upgrade; "" close; } in the http block
+```
+
+`npm run build` writes `dist/server.cjs` (Next plus the socket) and `npm start` / pm2 run it. One worker serves one
+floor; to run several (pm2 cluster mode) install Redis, set `REDIS_URL=redis://127.0.0.1:6379` in `.env` and
+optionally `WEB_CONCURRENCY=<workers>` (default: one per CPU), then `pm2 startOrReload ecosystem.config.cjs`. With
+Redis the live feed, the floor roster, the online count and the waiting line are shared across workers; without it
+the config runs one worker whatever WEB_CONCURRENCY says.
