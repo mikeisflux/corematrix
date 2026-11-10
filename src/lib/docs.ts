@@ -37,7 +37,7 @@ export const DOCS: DocSection[] = [
     summary: "Every key, mouse action and touch gesture on the floor, plus the address parameters you can share.",
     blocks: [
       { h: "Keyboard and mouse (walk mode)", table: { head: ["Key", "Does"], rows: [
-        ["W / ↑, S / ↓", "Walk forward and back"], ["A / D", "Sidestep"], ["← / →", "Turn"], ["Shift (hold)", "Run"], ["Drag the mouse", "Look around; drag down to look up at the hanging signs and the roof"], ["M", "Big map of the whole hall; click a spot to walk there"], ["Rest the mouse on a cover or print (2–3 s)", "See it full size; move off to close"],
+        ["W / ↑, S / ↓", "Walk forward and back"], ["A / D", "Sidestep"], ["← / →", "Turn"], ["Shift (hold)", "Run"], ["Drag the mouse", "Look around; drag down to look up at the hanging signs and the roof"], ["M", "Big map of the whole hall; click a spot to walk there"], ["Rest the mouse on a cover or print (about 2 s)", "See it full size; a small bar shows the hold; move off to close"],
         ["E or Enter", "Open the booth you are at, or talk to ConBot when you are next to it"], ["C", "Sit on a theater bench, or at your own booth's chair"], ["V", "Switch between first and third person"], ["M", "Back to the map"],
         ["1 to 8", "Play an emote (wave, dance, cheer, clap, bow, point, laugh, facepalm)"], ["T (hold)", "Talk, when voice chat is on (see Voice chat)"], ["Esc", "Close the open panel"],
       ] } },
@@ -58,7 +58,7 @@ export const DOCS: DocSection[] = [
       { h: "What is in the storefront", bullets: [
         "**Links**: website, GlobalComix, ArtStation, DeviantArt, Instagram, Facebook, X. All open in a new tab.",
         "**Who is here**: whether the exhibitor is on the floor right now, how many people are browsing, and a Say hi button that opens a direct message.",
-        "**On the table**: the comics standing on the table, or, when the exhibitor has switched the table to prints, framed pieces from their portfolio. Tap a cover for a full-size view; Buy opens the exhibitor's store. In the hall itself, rest the mouse on a cover, or on one of an artist's framed prints, for a couple of seconds and it opens full size over the hall; move the mouse away to close it.",
+        "**On the table**: the comics standing on the table, or, when the exhibitor has switched the table to prints, framed pieces from their portfolio. Tap a cover for a full-size view; Buy opens the exhibitor's store. In the hall itself, rest the mouse on a cover, or on one of an artist's framed prints, for about two seconds (a small bar at the bottom shows the hold) and it opens full size over the hall; move the mouse away to close it. Prints that rotate through a portfolio hold still while you point at them.",
         "**Shop**: items the exhibitor sells, with prices. Opening one shows the picture, price and a Buy button; buying happens on the exhibitor's own site in a new tab, and the press counts for the booth.",
         "**Portfolio**: the artist's pieces. On an Artists' Alley table the three framed prints on the drape flip through the portfolio while you stand there; a booth switched to prints flips through it on the table stands. Tap a piece for the full view, Buy a print where there is one, and Commission me to ask for a commission by email or on their site.",
         "**About**, **Signage** (their banner art), the numbers (value, rank, visits this week), and the ownership history.",

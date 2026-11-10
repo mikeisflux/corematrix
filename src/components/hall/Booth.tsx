@@ -138,9 +138,16 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const bare = space?.kind !== "artist" && booth.tableMode === "none";
   const standCount = space?.size === "20x20" ? TABLE_STANDS * 4 : (space?.d ?? 10) >= 20 ? TABLE_STANDS * 2 : TABLE_STANDS; // stands are numbered per edge/table, closed island edges included
   const nearMe = useHall((s) => s.near === booth.id);
-  const printOffset = useFlip(printsOnTable && gallery.length > standCount && (hovered || selected || nearMe), gallery.length);
+  const [printHov, setPrintHov] = useState(false); // pointing at a print holds the rotation still
+  const printOffset = useFlip(printsOnTable && gallery.length > standCount && (hovered || selected || nearMe) && !printHov, gallery.length);
+  const printOffsetRef = useRef(0); printOffsetRef.current = printOffset;
+  const pieceAt = (stand: number) => gallery.length > standCount ? (printOffsetRef.current + stand) % gallery.length : stand;
   const printClick = (e: { stopPropagation: () => void }) => { if (dragged(e)) return; e.stopPropagation(); if (!preview) select(booth.id); };
-  const printHover = (k: number, over: boolean) => { if (!over) { cancelPreview(); return; } holdPreview(galleryUrls[k], `${booth.name ?? "Booth"} · piece ${k + 1} of ${gallery.length}`); };
+  const printHover = (stand: number, over: boolean) => {
+    setPrintHov(over);
+    if (!over) { cancelPreview(); return; }
+    holdPreview(() => { const k = pieceAt(stand); return galleryUrls[k] ? { url: galleryUrls[k], caption: `${booth.name ?? "Booth"} · piece ${k + 1} of ${gallery.length}` } : null; });
+  };
   const prints = printsOnTable ? { pieces: gallery, offset: printOffset, total: standCount, onClick: printClick, onHover: printHover } : undefined;
   const banner = useMemo(() => {
     const t = wideUrl ? logoTexture(wideUrl) : bannerTexture({ name: booth.name ?? "", tagline: booth.tagline, color: booth.color, accent: booth.accent, style: booth.style, label: booth.label, wide: booth.size === "20x10" || booth.size === "20x20" });
@@ -199,7 +206,7 @@ export const Booth = memo(function Booth({ booth, night, hovered, selected, prev
   const bookHover = (n: number, over: boolean) => {
     if (!over) { cancelPreview(); return; }
     const v = booth.art?.[`book:${n}`]; if (!v) return;
-    holdPreview(`/api/art/${booth.id}/book:${n}?v=${v}`, `${booth.name ?? "Booth"} · comic ${n + 1}`);
+    holdPreview({ url: `/api/art/${booth.id}/book:${n}?v=${v}`, caption: `${booth.name ?? "Booth"} · comic ${n + 1}` });
   };
   const common = {
     onPointerOver: (e: { stopPropagation: () => void }) => { e.stopPropagation(); if (!preview) { setHovered(booth.id); document.body.style.cursor = "pointer"; } },
@@ -367,7 +374,8 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover,
         const tex = prints.pieces[k]; if (!tex) return null;
         return (
           // a matted 4:5 print leaning on the easel like a cover would
-          <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={prints.onClick} onPointerOver={() => prints.onHover(k, true)} onPointerOut={() => prints.onHover(k, false)}>
+          <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={prints.onClick} onPointerOver={() => prints.onHover(first + i, true)} onPointerOut={() => prints.onHover(first + i, false)}>
+            <mesh position={[0.12, 0.6, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[1.25, 1.6]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} /></mesh>
             <mesh position={[-0.05, 0.55, 0]} material={MAT_WHITE}><boxGeometry args={[0.06, 1.1, 0.9]} /></mesh>
             <mesh position={[0, 0.55, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 0.9]} /><meshStandardMaterial map={tex} roughness={0.6} /></mesh>
           </group>
@@ -375,6 +383,7 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover,
       }) : books && Array.from({ length: n }, (_, i) => books.get(first + i)).map((tex, i) => tex && (
         // stand i sits at x 0.35, top at y 3.03; the book leans back against the easel and faces the aisle (+x)
         <group key={i} position={[0.3, 3.03, -len / 2 + (i + 0.5) * (len / n)]} rotation={[0, 0, 0.14]} onClick={(e) => onBook?.(first + i, e)} onPointerOver={() => onHover?.(first + i, true)} onPointerOut={() => onHover?.(first + i, false)}>
+          <mesh position={[0.12, 0.6, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[1.25, 1.6]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} /></mesh>
           <mesh position={[-0.05, 0.54, 0]}><boxGeometry args={[0.08, 1.08, 0.72]} /><meshStandardMaterial color="#f1f5f9" roughness={0.8} /></mesh>
           <mesh position={[0, 0.54, 0]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.72, 1.08]} /><meshStandardMaterial map={tex} roughness={0.55} /></mesh>
         </group>
@@ -383,12 +392,13 @@ function Table({ x, z, rot, cloth, wide, art, books, first = 0, onBook, onHover,
   );
 }
 /** The portfolio pieces standing on an exhibitor's table stands (table mode "prints"); `total` is the booth's stand count. */
-type TablePrints = { pieces: THREE.Texture[]; offset: number; total: number; onClick: (e: { stopPropagation: () => void }) => void; onHover: (k: number, over: boolean) => void };
+type TablePrints = { pieces: THREE.Texture[]; offset: number; total: number; onClick: (e: { stopPropagation: () => void }) => void; onHover: (stand: number, over: boolean) => void };
 
-/** A rotating offset into a set of `count` pieces: advances one every 2.5 s while `on`, so a set bigger than its frames gets seen. */
+/** A rotating offset into a set of `count` pieces: advances one every 6 s while `on` (slow enough to point at one), so a set bigger than its frames gets seen. */
+const FLIP_MS = 6000;
 function useFlip(on: boolean, count: number) {
   const [offset, setOffset] = useState(0);
-  useEffect(() => { if (!on || count < 2) return; const t = setInterval(() => setOffset((o: number) => (o + 1) % count), 2500); return () => clearInterval(t); }, [on, count]);
+  useEffect(() => { if (!on || count < 2) return; const t = setInterval(() => setOffset((o: number) => (o + 1) % count), FLIP_MS); return () => clearInterval(t); }, [on, count]);
   return count ? offset % count : 0;
 }
 
@@ -399,11 +409,18 @@ function useFlip(on: boolean, count: number) {
  */
 function PrintWall({ x, pieces, urls, active, boothId, name }: { x: number; pieces: THREE.Texture[]; urls: string[]; active: boolean; boothId: number; name: string }) {
   const near = useHall((s) => s.near === boothId);
-  const offset = useFlip((active || near) && pieces.length > 3, pieces.length);
+  const [hov, setHov] = useState(false); // pointing at a print holds the set still
+  const offset = useFlip((active || near) && pieces.length > 3 && !hov, pieces.length);
+  const offsetRef = useRef(0); offsetRef.current = offset;
+  const over = (i: number) => { setHov(true); holdPreview(() => { const k = (offsetRef.current + i) % pieces.length; return urls[k] ? { url: urls[k], caption: `${name} · piece ${k + 1} of ${pieces.length}` } : null; }); };
+  const out = () => { setHov(false); cancelPreview(); };
   return (
     <group position={[x + 0.03, 2.3, 0]}>
       {[-3.2, 0, 3.2].map((z, i) => (
-        <mesh key={z} position={[0, 0, z]} rotation={[0, Math.PI / 2, 0]} onPointerOver={() => { const k = (offset + i) % pieces.length; holdPreview(urls[k], `${name} · piece ${k + 1} of ${pieces.length}`); }} onPointerOut={() => cancelPreview()}><planeGeometry args={[1.2, 1.5]} /><meshStandardMaterial map={pieces[(offset + i) % pieces.length]} roughness={0.7} /></mesh>
+        <group key={z} position={[0, 0, z]} rotation={[0, Math.PI / 2, 0]} onPointerOver={() => over(i)} onPointerOut={out}>
+          <mesh position={[0, 0, 0.02]}><planeGeometry args={[1.7, 2.1]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} /></mesh>
+          <mesh><planeGeometry args={[1.2, 1.5]} /><meshStandardMaterial map={pieces[(offset + i) % pieces.length]} roughness={0.7} /></mesh>
+        </group>
       ))}
     </group>
   );
