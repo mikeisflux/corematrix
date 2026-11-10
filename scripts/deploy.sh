@@ -53,7 +53,14 @@ healthy() {
   done
 }
 wait_healthy() { local i; for i in $(seq 1 30); do if healthy; then return 0; fi; sleep 2; done; return 1; }
-reload() { "$PM2" startOrReload ecosystem.config.cjs --update-env; "$PM2" save >/dev/null 2>&1 || true; }
+reload() {
+  # pm2 keeps a process's exec mode and script across reloads: one that still runs the old `npm start` in fork mode
+  # would stay that way, so when the config wants a cluster it is deleted first (a few seconds down) and started fresh
+  if "$PM2" describe fcc 2>/dev/null | grep -qE 'fork_mode|/npm' && node -e 'const c=require("./ecosystem.config.cjs");process.exit(c.apps[0].exec_mode==="cluster"?0:1)'; then
+    log "replacing the fork-mode process with the cluster"; "$PM2" delete fcc >/dev/null 2>&1 || true
+  fi
+  "$PM2" startOrReload ecosystem.config.cjs --update-env; "$PM2" save >/dev/null 2>&1 || true
+}
 
 # A build that dies with no message (the kernel's out-of-memory killer, usually) must say so, and say that the live
 # site was not touched: the staged build never reaches the swap.

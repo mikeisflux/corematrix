@@ -13,8 +13,14 @@ import { seedSuperadmin } from "./seed-admin";
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 const url = process.env.DATABASE_URL?.trim() || "pglite:./data/pg";
 export const isPostgresServer = /^postgres(ql)?:\/\//.test(url);
+if (!isPostgresServer && process.env.NODE_ENV === "production") console.warn(`[db] no postgres:// DATABASE_URL in the environment: using the embedded database at ${url}. Set DATABASE_URL (in .env) for a real site.`);
 
-const g = globalThis as unknown as { __fccDb?: Db; __fccDbRaw?: unknown; __fccMigrated?: Promise<void> };
+// one connection per process, shared by every copy of this module (Next's chunks and the custom server bundle), but
+// only for the URL it was opened with: a copy that ran before the env files were loaded must not hand its fallback
+// database to the ones that run after
+const g = globalThis as unknown as { __fccDb?: Db; __fccDbRaw?: unknown; __fccDbUrl?: string; __fccMigrated?: Promise<void> };
+if (g.__fccDb && g.__fccDbUrl !== url) { g.__fccDb = undefined; g.__fccDbRaw = undefined; g.__fccMigrated = undefined; }
+g.__fccDbUrl = url;
 
 function connect(): Db {
   if (isPostgresServer) {

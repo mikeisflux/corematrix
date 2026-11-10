@@ -19,7 +19,7 @@ module.exports = {
       autorestart: true,
       max_memory_restart: "1200M",
       kill_timeout: 8000,
-      env: { NODE_ENV: "production", PORT: "3000" },
+      env: { ...env, NODE_ENV: "production", PORT: env.PORT || "3000" }, // the .env values travel with the process, so nothing depends on who loads the file first
       out_file: "/srv/fcc/logs/out.log",
       error_file: "/srv/fcc/logs/err.log",
       merge_logs: true,
