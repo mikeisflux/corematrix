@@ -57,3 +57,6 @@ data/
 /data/
 /models-src/*.glb
 !/models-src/*.anim.glb
+
+# local Redis snapshot (a redis-server started from the repo directory writes it here)
+dump.rdb
