@@ -7,7 +7,7 @@
     },
     "avatar-b": {
       "file": "/models/avatar-b.glb",
-      "bytes": 2872916,
+      "bytes": 2872924,
       "generated": true
     },
     "table": {
@@ -47,5 +47,5 @@
       "license": "CC0 — RobotExpressive by Tomás Laulhé"
     }
   },
-  "generatedAt": "2026-11-11T03:18:50.757Z"
+  "generatedAt": "2026-11-11T03:29:01.911Z"
 }
