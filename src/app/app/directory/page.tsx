@@ -27,7 +27,13 @@ export default async function Directory({ searchParams }: { searchParams: Promis
   const taken = new Set(booths.map((p) => p.id));
   const rows = booths.filter((p) => (!category || p.category === category) && (!q || p.name?.toLowerCase().includes(q) || p.tagline?.toLowerCase().includes(q) || p.label.toLowerCase() === q.replace("#", "")));
   const open = hallLayout().filter((b) => !taken.has(b.id));
-  const available = [...open.filter((b) => b.zone === "headliner").slice(0, 6), ...open.filter((b) => b.zone === "front").slice(0, 6), ...open.filter((b) => b.zone === "standard").slice(0, 6), ...open.filter((b) => b.kind === "artist").slice(0, 6)];
+  // every open space, grouped by the kind of space (islands first), each group in zone order (busiest first), then
+  // by hall and number, so an exhibitor can see exactly what is left of each type
+  const zoneOrder: Record<string, number> = { headliner: 0, front: 1, standard: 2, artist: 3 };
+  const groups = (["20x20", "20x10", "10x10", "6x10"] as const).map((size) => ({
+    size,
+    spaces: open.filter((b) => b.size === size).sort((a, b) => zoneOrder[a.zone] - zoneOrder[b.zone] || a.hall.localeCompare(b.hall) || a.aisle - b.aisle || a.label.localeCompare(b.label, undefined, { numeric: true })),
+  })).filter((g) => g.spaces.length > 0);
   return (
     <Shell wide>
       <JsonLd data={graph(itemListLd(await siteOrigin(), "ForeverComicCon exhibitors", booths.map((b) => ({ name: b.name ?? `Booth ${b.label}`, path: `/app/booth/${b.id}` }))), breadcrumbLd(await siteOrigin(), [["Home", "/"], ["Exhibitors", "/app/directory"]]))} />
@@ -56,16 +62,30 @@ export default async function Directory({ searchParams }: { searchParams: Promis
       </div>
       <h2 className="mt-10 text-xl font-bold">Open spaces</h2>
       <p className="text-sm text-slate-400">Pick a space and set up your booth. Artist Alley tables from {formatMoney(BOOTH_SIZES["6x10"].priceCents)}, 10×10 booths from {formatMoney(BOOTH_SIZES["10x10"].priceCents)}, islands from {formatMoney(BOOTH_SIZES["20x20"].priceCents)}.</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {available.map((b) => (
-          <Link key={b.id} href={`/app?booth=${b.id}`} className="rounded-xl border border-dashed border-white/15 p-3 hover:border-amber-300/60">
-            <span className="mono block font-bold">{b.kind === "artist" ? b.label : `Booth ${b.label}`}</span>
-            <span className="block text-[11px] text-slate-400">{BOOTH_SIZES[b.size].short} · {ZONES[b.zone].name}</span>
-            <span className="block text-[10px] text-slate-500">{describeSpace(b)}</span>
-            <span className="mono block text-xs text-amber-300">{formatMoney(b.priceCents)}</span>
-          </Link>
-        ))}
-      </div>
+      <nav aria-label="Space types" className="mt-3 flex flex-wrap gap-2 text-xs">
+        {groups.map((g) => <a key={g.size} href={`#open-${g.size}`} className="rounded-full border border-white/10 px-3 py-1 text-slate-300 hover:border-amber-300/50 hover:text-white">{BOOTH_SIZES[g.size].name}s <span className="mono text-slate-500">{g.spaces.length}</span></a>)}
+      </nav>
+      {groups.map((g) => {
+        const sz = BOOTH_SIZES[g.size]; const prices = g.spaces.map((b) => b.priceCents); const lo = Math.min(...prices), hi = Math.max(...prices);
+        return (
+          <section key={g.size} id={`open-${g.size}`} className="mt-8 scroll-mt-20">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-lg font-bold">{sz.name}s <span className="text-sm font-normal text-slate-400">{sz.short} · {g.spaces.length} open</span></h3>
+              <span className="mono text-xs text-amber-300">{lo === hi ? formatMoney(lo) : `${formatMoney(lo)} to ${formatMoney(hi)}`}</span>
+            </div>
+            <p className="text-xs text-slate-400">{sz.blurb}</p>
+            <div className="mt-2 grid gap-1.5 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+              {g.spaces.map((b) => (
+                <Link key={b.id} href={`/app?booth=${b.id}`} title={describeSpace(b)} className="rounded-lg border border-dashed border-white/15 px-2 py-1.5 hover:border-amber-300/60">
+                  <span className="mono block text-sm font-bold">{b.kind === "artist" ? b.label : b.label}</span>
+                  <span className="block truncate text-[10px] text-slate-400">{b.kind === "artist" ? `Table · row ${b.aisle}` : `Hall ${b.hall} · ${ZONES[b.zone].name}`}</span>
+                  <span className="mono block text-[11px] text-amber-300">{formatMoney(b.priceCents)}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </Shell>
   );
 }
