@@ -65,8 +65,9 @@ const MAPS = {
         { s: `${S}Shoulder`, t: `clavicle_${l}` },
         { s: `${S}Arm`, t: `upperarm_${l}`, dir: [`${S}ForeArm`, `lowerarm_${l}`], hinge: arm, hingeFallback: [0, -sign, 0] },
         { s: `${S}ForeArm`, t: `lowerarm_${l}`, dir: [`${S}Hand`, `hand_${l}`], hinge: arm, hingeFallback: [0, -sign, 0] },
-        // the capture's wrists carry few markers: the hand follows the forearm and takes part of the measured turn
-        { s: `${S}Hand`, t: `hand_${l}`, dir: [`${S}HandIndex1`, `middle_01_${l}`], side: [null, null, `index_01_${l}`, `pinky_01_${l}`], sideSrc: [0, 0, -1], damp: 0.6 },
+        // the database splits the wrist in two: "Hand" turns the forearm over (palm up or down) and "FingerBase" under
+        // it bends the hand itself. Our hand takes the lower one, which carries both: a clap needs the palms to meet.
+        { s: `${S}FingerBase`, t: `hand_${l}`, dir: [`${S}HandIndex1`, `middle_01_${l}`], side: [null, null, `index_01_${l}`, `pinky_01_${l}`], sideSrc: [0, 0, -1] },
         { s: `${S}UpLeg`, t: `thigh_${l}`, dir: [`${S}Leg`, `calf_${l}`], hinge: leg, hingeFallback: [1, 0, 0] },
         { s: `${S}Leg`, t: `calf_${l}`, dir: [`${S}Foot`, `foot_${l}`], hinge: leg, hingeFallback: [1, 0, 0] },
         { s: `${S}Foot`, t: `foot_${l}` }, { s: `${S}ToeBase`, t: `ball_${l}` },
