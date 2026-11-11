@@ -8,11 +8,13 @@
    "clips": {
     "walk": {
      "clip": "Walking_A",
-     "arms": "swing"
+     "arms": "swing",
+     "gait": "walk"
     },
     "run": {
      "clip": "Running_A",
-     "arms": "swing"
+     "arms": "swing",
+     "gait": "run"
     },
     "sit": {
      "clip": "Sit_Chair_Idle",

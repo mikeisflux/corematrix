@@ -33,7 +33,11 @@ python3 -m venv .venv && .venv/bin/pip install usd-core numpy   # the USD reader
    clip's hips pinned at seat height. The chibi sources carry their arms wide, which reads wrong on a human body, so
    the idle, walk and run clips take the `arms` option (`hang` / `swing`): the upper arm hangs straight from the
    shoulder, swings a capped fraction of the opposite leg's pitch, the elbow keeps a slight bend, and the hand stays at
-   rest; the emotes keep the source arms, pulled in by the map's `inward` degrees.
+   rest; the emotes keep the source arms, pulled in by the map's `inward` degrees. The legs of the walk and run are
+   not retargeted at all (`gait: walk|run`): the chibi stride lifts the knee to hip height, so they are generated from
+   the textbook gait curves (hip +30/-10 degrees walking, +47/-17 running; knee 60 / 95 at mid swing; plantar flexion
+   at toe-off; a 3 / 9 degree lean), phase-locked to the source clip's cycle. The hall plays the clips at the figure's
+   real ground speed over the clips' own (4.1 and 8.5 ft/s), so feet do not slide.
 3. **Assembly** – `npm run dev`, then `node scripts/export-models.mjs` (`/dev/models` in the browser): lifts the costume
    parts, badge and lanyard off the procedural figure in `src/lib/hall/modelkit/avatar.ts`, refits them onto the new
    head, torso and hand (`modelkit/assemble.ts`), bakes the far-crowd `lod` mesh, and writes `public/models/avatar-*.glb`

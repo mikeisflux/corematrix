@@ -41,7 +41,9 @@ function Instances({ body }: { body: AvatarConfig["body"] }) {
   const mesh = useMemo(() => {
     const lod = scene.getObjectByName("lod") as THREE.Mesh | undefined;
     if (!lod?.geometry.getAttribute("_part")) return null;
-    const g = lod.geometry.clone();
+    // the compressed file stores the lod positions quantized under a scaled, offset node: bake that node's transform in,
+    // or every stand-in is drawn a third of its size
+    const g = lod.geometry.clone(); scene.updateMatrixWorld(true); g.applyMatrix4(lod.matrixWorld);
     for (const name of ["iSkin", "iShirt", "iPants", "iHair"]) g.setAttribute(name, new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3));
     g.setAttribute("iFlags", new THREE.InstancedBufferAttribute(new Float32Array(CAP), 1));
     const im = new THREE.InstancedMesh(g, tintMaterial(), CAP);

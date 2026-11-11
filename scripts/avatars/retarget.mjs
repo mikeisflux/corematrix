@@ -158,7 +158,8 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
       }
       tl.set(n, { t: pos, q, s: r.s }); tw.set(n, pw.clone().multiply(new Matrix4().compose(pos, q, r.s)));
     }
-    if (opts.arms && ARMS[map.arms ?? "ue"]) relaxArms(tgtRig, tl, tw, tgtRestW, order, ARMS[map.arms ?? "ue"], opts.arms, map, opts.armsOut);
+    if (opts.gait && GAITS[opts.gait] && ARMS[map.arms ?? "ue"]) applyGait(tgtRig, tl, tw, tgtRestW, order, ARMS[map.arms ?? "ue"], GAITS[opts.gait], (2 * Math.PI * t) / Math.max(1e-6, dur));
+    if (opts.arms && ARMS[map.arms ?? "ue"]) relaxArms(tgtRig, tl, tw, tgtRestW, order, ARMS[map.arms ?? "ue"], opts.arms, map, opts.armsOut, opts.gait && GAITS[opts.gait]);
     if (opts.ground !== false) {
       // keep the lowest foot on the floor: longer legs lift a foot higher for the same thigh swing than the source did
       const feet = tgtRig.nodes.filter((n) => /^(Foot_[LR](_end)?|foot_[lr]|ball_[lr])$/.test(n.getName()));
@@ -173,10 +174,53 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
   return { times, tracks, dur };
 }
 
+/**
+ * Leg motion for walking and running, generated from the textbook gait curves (Winter; Inman & Saunders) instead of
+ * copied from the chibi source, whose legs swing far too high for a human: hip flexion about +30/-10 degrees walking
+ * and +47/-17 running, knee 5-15 degrees in stance and 60 (walk) / 95 (run) at mid swing, plantar flexion at toe-off,
+ * a slight forward lean. Phase 0 is the left heel strike; the right leg is half a cycle behind. Angles in degrees.
+ */
+const bump = (p, c, w) => { let d = p - c; d = Math.atan2(Math.sin(d), Math.cos(d)); return Math.exp(-(d * d) / (2 * w * w)); }; // a periodic bell
+const GAITS = {
+  walk: { lean: 3, hip: (p) => 10 + 22 * Math.cos(p + 0.63), knee: (p) => 5 + 14 * bump(p, 0.6, 0.45) + 52 * bump(p, 4.4, 0.75), ankle: (p) => -4 * bump(p, 0, 0.3) + 18 * bump(p, 3.4, 0.5), armGain: 0.9, armMax: 0.5, armBend: 0.25 },
+  run: { lean: 9, hip: (p) => 15 + 32 * Math.cos(p + 0.6), knee: (p) => 15 + 25 * bump(p, 0.8, 0.5) + 80 * bump(p, 4.2, 0.8), ankle: (p) => 25 * bump(p, 3.2, 0.5), armGain: 0.9, armMax: 0.6, armBend: 1.15 },
+};
+const X_AXIS = new Vector3(1, 0, 0);
+const rotX = (a) => new Quaternion().setFromAxisAngle(X_AXIS, a);
+function rebuildWorlds(tgtRig, tl, tw, order) {
+  for (const n of order) { const l = tl.get(n); const p = tgtRig.parent.get(n); const pw = p ? tw.get(p) : new Matrix4(); tw.set(n, pw.clone().multiply(new Matrix4().compose(l.t, l.q, l.s))); }
+}
+function applyGait(tgtRig, tl, tw, tgtRestW, order, names, g, phase) {
+  const T = (n) => tgtRig.byName.get(n);
+  // the torso's forward lean, measured pelvis → neck, is set to the gait's (the chibi run leans 23 degrees)
+  const pelvis = T("pelvis"), neck = T("neck_01");
+  if (pelvis && neck) {
+    const sp = posOf(tw.get(neck)).sub(posOf(tw.get(pelvis))); const lean = Math.atan2(sp.z, sp.y);
+    const d = lean - DEG * g.lean; const pw = rotX(-d).multiply(rotOf(tw.get(pelvis)));
+    const par = tgtRig.parent.get(pelvis); tl.get(pelvis).q = (par ? rotOf(tw.get(par)).invert() : new Quaternion()).multiply(pw).normalize();
+    rebuildWorlds(tgtRig, tl, tw, order);
+  }
+  for (let side = 0; side < 2; side++) {
+    const thigh = T(names.thigh[side]), calf = T(names.calf[side]), foot = T(names.foot[side]);
+    if (!thigh || !calf || !foot) continue;
+    const p = phase + (side === 1 ? Math.PI : 0);
+    const hip = DEG * g.hip(p), knee = DEG * g.knee(p), ankle = DEG * g.ankle(p);
+    // the rest leg hangs straight down and the rest foot lies flat: hip pitches the thigh forward, the knee folds the
+    // shank back, the ankle tips the (otherwise level) foot toes-down
+    const thighW = rotX(-hip).multiply(rotOf(tgtRestW.get(thigh)));
+    const relCalf = rotOf(tgtRestW.get(thigh)).invert().multiply(rotOf(tgtRestW.get(calf)));
+    const calfW = rotX(knee).multiply(thighW.clone().multiply(relCalf));
+    const footW = rotX(ankle).multiply(rotOf(tgtRestW.get(foot)));
+    const set = (bone, world) => { const par = tgtRig.parent.get(bone); const l = tl.get(bone); l.q = (par ? rotOf(tw.get(par)).invert() : new Quaternion()).multiply(world).normalize(); tw.set(bone, (par ? tw.get(par).clone() : new Matrix4()).multiply(new Matrix4().compose(l.t, l.q, l.s))); };
+    set(thigh, thighW); set(calf, calfW); set(foot, footW);
+  }
+  rebuildWorlds(tgtRig, tl, tw, order);
+}
+
 /** Bone names per rig for the arm override. */
 const ARMS = {
-  ue: { up: ["upperarm_l", "upperarm_r"], low: ["lowerarm_l", "lowerarm_r"], thigh: ["thigh_l", "thigh_r"], calf: ["calf_l", "calf_r"] },
-  q: { up: ["UpperArm_L", "UpperArm_R"], low: ["LowerArm_L", "LowerArm_R"], thigh: ["UpperLeg_L", "UpperLeg_R"], calf: ["LowerLeg_L", "LowerLeg_R"] },
+  ue: { up: ["upperarm_l", "upperarm_r"], low: ["lowerarm_l", "lowerarm_r"], thigh: ["thigh_l", "thigh_r"], calf: ["calf_l", "calf_r"], foot: ["foot_l", "foot_r"] },
+  q: { up: ["UpperArm_L", "UpperArm_R"], low: ["LowerArm_L", "LowerArm_R"], thigh: ["UpperLeg_L", "UpperLeg_R"], calf: ["LowerLeg_L", "LowerLeg_R"], foot: ["Foot_L", "Foot_R"] },
 };
 /**
  * Arms at the sides instead of the source's: the source figures (chibi KayKit, the old blocky avatar) carry their arms
@@ -184,7 +228,7 @@ const ARMS = {
  * little toward the body, and (for "swing") swings forward and back with the opposite leg; the elbow keeps a slight
  * bend that grows as the arm comes forward. Everything below the elbow keeps its rest pose.
  */
-function relaxArms(tgtRig, tl, tw, tgtRestW, order, names, mode, map, armsOut) {
+function relaxArms(tgtRig, tl, tw, tgtRestW, order, names, mode, map, armsOut, gait) {
   const T = (n) => tgtRig.byName.get(n);
   const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0), DOWN = new Vector3(0, -1, 0);
   for (let side = 0; side < 2; side++) {
@@ -197,13 +241,15 @@ function relaxArms(tgtRig, tl, tw, tgtRestW, order, names, mode, map, armsOut) {
     // the opposite leg's forward pitch drives the swing
     let swing = 0;
     // (a chibi stride pitches the thigh far further than a human arm swings, so the swing is a fraction of it, capped)
-    if (mode === "swing" && thigh && calf) { const d = posOf(tw.get(calf)).sub(posOf(tw.get(thigh))).normalize(); swing = Math.max(-0.45, Math.min(0.45, Math.atan2(d.z, -d.y) * 0.4)); }
+    // (with a generated gait the thigh swing is human already, so the arm follows it almost fully)
+    const gain = gait ? gait.armGain : 0.4, cap = gait ? gait.armMax : 0.45;
+    if (mode === "swing" && thigh && calf) { const d = posOf(tw.get(calf)).sub(posOf(tw.get(thigh))).normalize(); swing = Math.max(-cap, Math.min(cap, Math.atan2(d.z, -d.y) * gain)); }
     const restDir = posOf(tgtRestW.get(low)).sub(posOf(tgtRestW.get(up))).normalize();
     const hang = new Quaternion().setFromUnitVectors(restDir, DOWN).multiply(rotOf(tgtRestW.get(up)));
     const upWorld = new Quaternion().setFromAxisAngle(Z, -DEG * inwardDeg * sign).multiply(new Quaternion().setFromAxisAngle(X, -swing)).multiply(hang);
     const upParent = tgtRig.parent.get(up); const upLocal = (upParent ? rotOf(tw.get(upParent)).invert() : new Quaternion()).multiply(upWorld).normalize();
     tl.get(up).q = upLocal; tw.set(up, (upParent ? tw.get(upParent).clone() : new Matrix4()).multiply(new Matrix4().compose(tl.get(up).t, upLocal, tl.get(up).s)));
-    const bend = 0.2 + Math.max(0, swing) * 0.6;
+    const bend = (gait ? gait.armBend : 0.2) + Math.max(0, swing) * 0.6; // a runner carries the forearm up
     const relLow = rotOf(tgtRestW.get(up)).invert().multiply(rotOf(tgtRestW.get(low)));
     const lowWorld = new Quaternion().setFromAxisAngle(X, -bend).multiply(upWorld.clone().multiply(relLow));
     const lowLocal = rotOf(tw.get(up)).invert().multiply(lowWorld).normalize();
@@ -241,7 +287,7 @@ for (const src of spec.sources) {
     // an entry is a clip name, or {clip, ground, inPlace, hipsY}: hipsY pins the hips to that height (a chair's seat), no grounding
     const e = typeof entry === "string" ? { clip: entry } : entry; const inName = e.clip;
     const anim = anims.find((a) => a.getName() === inName); if (!anim) { console.warn(`  ${src.file}: no clip ${inName}`); continue; }
-    const clip = retargetClip(srcDoc, srcRig, anim, tgtRig, map, { inPlace: e.inPlace ?? src.inPlace !== false, ground: e.hipsY != null ? false : e.ground ?? src.ground !== false, hipsY: e.hipsY, arms: e.arms, armsOut: spec.armsOut });
+    const clip = retargetClip(srcDoc, srcRig, anim, tgtRig, map, { inPlace: e.inPlace ?? src.inPlace !== false, ground: e.hipsY != null ? false : e.ground ?? src.ground !== false, hipsY: e.hipsY, arms: e.arms, armsOut: spec.armsOut, gait: e.gait });
     writeClip(tgtDoc, outName, clip); console.log(`  ${outName} ← ${path.basename(src.file)}:${inName} (${clip.dur.toFixed(2)}s)`);
   }
 }

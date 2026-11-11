@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useHall, type AvatarConfig, DEFAULT_AVATAR, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, dragged } from "@/lib/hall/store";
 import { hallLayout, standPoint, boothSpace, X0, Z0, HALL_LENGTH, HALL_DEPTH, Z_FRONT, Z_BACK, Z_CROSS0, Z_CROSS1, ARCADE, PITCH, SLOT, AISLE_W, KIOSKS, type BoothSpace } from "@/lib/hall/layout";
-import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion } from "./models";
+import { AvatarRig, ModelBoundary, useModelUrl, wantedClip, ONESHOT, type Motion, WALK_FTPS, RUN_FTPS } from "./models";
 import { buildAvatar, buildAvatarClips, applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
 import { CROWD_COSTUMES, COSTUMES, isCostumeId } from "@/lib/hall/costumes";
 import { impostors, LOD_FAR_FT, LOD_NEAR_FT, type ImpostorSlot } from "./CrowdImpostors";
@@ -239,7 +239,7 @@ export function spawnPoint(): { x: number; z: number; h: number } {
 }
 
 /* ---------- the player: walk mode controls + third-person camera ---------- */
-const WALK = 9, RUN = 17;
+const WALK = WALK_FTPS, RUN = RUN_FTPS;
 export function Player() {
   const mode = useHall((s) => s.mode);
   const avatar = useHall((s) => s.avatar);
@@ -412,7 +412,7 @@ export function Player() {
       if (!blocked(nxp, pos.current.z)) pos.current.x = nxp;
       if (!blocked(pos.current.x, nzp)) pos.current.z = nzp;
       heading.current = Math.atan2(dx, dz);
-      motion.speed = run ? 2 : 1;
+      motion.speed = run ? 2 : 1; motion.ftps = run ? RUN : WALK;
       // on the touch joystick the view eases toward the heading; with keys and mouse the view is yours
       if (joy && !input.looking) { let diff = heading.current - yaw.current; diff = Math.atan2(Math.sin(diff), Math.cos(diff)); yaw.current += diff * Math.min(1, d * 1.5); }
     }
@@ -534,7 +534,7 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
       // stop to look at something now and then, then move on
       if (t < n.pauseUntil) motions[i].speed = 0;
       else if (t > n.nextPause) { n.pauseUntil = t + 2 + Math.random() * 5; n.nextPause = n.pauseUntil + 6 + Math.random() * 25; motions[i].speed = 0; }
-      else { motions[i].speed = n.speed > 7.5 ? 2 : 1; moving = true; }
+      else { motions[i].speed = n.speed > 7.5 ? 2 : 1; motions[i].ftps = n.speed; moving = true; }
       if (moving) {
         if (n.kind === "aisle") {
           const nz = n.z + n.vz * n.speed * d;
