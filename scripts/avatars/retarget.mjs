@@ -182,8 +182,8 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
  */
 const bump = (p, c, w) => { let d = p - c; d = Math.atan2(Math.sin(d), Math.cos(d)); return Math.exp(-(d * d) / (2 * w * w)); }; // a periodic bell
 const GAITS = {
-  walk: { lean: 3, hip: (p) => 10 + 22 * Math.cos(p + 0.63), knee: (p) => 5 + 14 * bump(p, 0.6, 0.45) + 52 * bump(p, 4.4, 0.75), ankle: (p) => -4 * bump(p, 0, 0.3) + 18 * bump(p, 3.4, 0.5), armGain: 0.9, armMax: 0.5, armBend: 0.25 },
-  run: { lean: 9, hip: (p) => 15 + 32 * Math.cos(p + 0.6), knee: (p) => 15 + 25 * bump(p, 0.8, 0.5) + 80 * bump(p, 4.2, 0.8), ankle: (p) => 25 * bump(p, 3.2, 0.5), armGain: 0.9, armMax: 0.6, armBend: 1.15 },
+  walk: { lean: 3, hip: (p) => 10 + 22 * Math.cos(p + 0.63), knee: (p) => 5 + 14 * bump(p, 0.6, 0.45) + 52 * bump(p, 4.4, 0.75), ankle: (p) => 10 * bump(p, 3.4, 0.5) - 6 * bump(p, 4.6, 0.7), armGain: 0.9, armMax: 0.5, armBend: 0.25 },
+  run: { lean: 9, hip: (p) => 15 + 32 * Math.cos(p + 0.6), knee: (p) => 15 + 25 * bump(p, 0.8, 0.5) + 80 * bump(p, 4.2, 0.8), ankle: (p) => 14 * bump(p, 3.2, 0.5) - 8 * bump(p, 4.6, 0.7), armGain: 0.9, armMax: 0.6, armBend: 1.15 },
 };
 const X_AXIS = new Vector3(1, 0, 0);
 const rotX = (a) => new Quaternion().setFromAxisAngle(X_AXIS, a);
@@ -210,7 +210,10 @@ function applyGait(tgtRig, tl, tw, tgtRestW, order, names, g, phase) {
     const thighW = rotX(-hip).multiply(rotOf(tgtRestW.get(thigh)));
     const relCalf = rotOf(tgtRestW.get(thigh)).invert().multiply(rotOf(tgtRestW.get(calf)));
     const calfW = rotX(knee).multiply(thighW.clone().multiply(relCalf));
-    const footW = rotX(ankle).multiply(rotOf(tgtRestW.get(foot)));
+    // the foot rides with the shin (about 90 degrees to it) and the ankle flexes on top: it rolls heel-to-toe through
+    // stance by itself, and in swing it hangs from the shin instead of staying level with the floor
+    const relFoot = rotOf(tgtRestW.get(calf)).invert().multiply(rotOf(tgtRestW.get(foot)));
+    const footW = rotX(ankle).multiply(calfW.clone().multiply(relFoot));
     const set = (bone, world) => { const par = tgtRig.parent.get(bone); const l = tl.get(bone); l.q = (par ? rotOf(tw.get(par)).invert() : new Quaternion()).multiply(world).normalize(); tw.set(bone, (par ? tw.get(par).clone() : new Matrix4()).multiply(new Matrix4().compose(l.t, l.q, l.s))); };
     set(thigh, thighW); set(calf, calfW); set(foot, footW);
   }
