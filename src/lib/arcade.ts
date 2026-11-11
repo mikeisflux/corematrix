@@ -20,7 +20,7 @@ export async function addCoins(userId: string, delta: number, reason: string, re
   await ensureMigrated();
   const [u] = await db
     .update(schema.users)
-    .set({ coins: sql`max(0, ${schema.users.coins} + ${delta})` })
+    .set({ coins: sql`greatest(0, ${schema.users.coins} + ${delta})` })
     .where(eq(schema.users.id, userId))
     .returning({ coins: schema.users.coins });
   await db.insert(schema.coinLedger).values({ id: newId(), userId, delta, reason, ref: ref ?? null, createdAt: now() });
@@ -50,7 +50,7 @@ export async function dailyCheckIn(userId: string): Promise<{ awarded: number; s
   const awarded = COIN_RULES.dailyVisit + Math.min(10, (streak - 1) * COIN_RULES.streakBonusPerDay);
   // only the request that still sees the old check-in time pays out: two tabs at once can't both collect
   const won = await db.update(schema.users).set({ lastDailyCoinsAt: now(), streak })
-    .where(and(eq(schema.users.id, userId), sql`${schema.users.lastDailyCoinsAt} IS ${u.lastDailyCoinsAt ?? null}`)).returning({ id: schema.users.id });
+    .where(and(eq(schema.users.id, userId), sql`${schema.users.lastDailyCoinsAt} IS NOT DISTINCT FROM ${u.lastDailyCoinsAt ?? null}`)).returning({ id: schema.users.id });
   if (!won.length) return { awarded: 0, streak: u.streak, coins: u.coins };
   const coins = await addCoins(userId, awarded, "daily", `streak:${streak}`);
   return { awarded, streak, coins };

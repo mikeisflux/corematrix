@@ -50,7 +50,7 @@ export async function revokeReferral(txId: string): Promise<boolean> {
   const [buyer] = await db.update(schema.users).set({ referralPaidAt: null, referralTxId: null }).where(eq(schema.users.referralTxId, txId)).returning();
   if (!buyer) return false;
   // referral credit can't have been cashed out, so taking back whatever is left of it is enough
-  const back = sql`max(0, ${schema.users.promoCents} - ${REFERRAL_CREDIT_CENTS})`;
+  const back = sql`greatest(0, ${schema.users.promoCents} - ${REFERRAL_CREDIT_CENTS})`;
   await db.update(schema.users).set({ promoCents: back }).where(eq(schema.users.id, buyer.id));
   if (buyer.referredBy) await db.update(schema.users).set({ promoCents: back }).where(eq(schema.users.id, buyer.referredBy));
   return true;

@@ -13,7 +13,7 @@ export async function bumpQuest(userId: string, quest: QuestId, by: number, max:
   await ensureMigrated();
   const [row] = await db.insert(schema.questDays)
     .values({ userId, day: dayKey(), quest, progress: Math.min(by, max), updatedAt: now() })
-    .onConflictDoUpdate({ target: [schema.questDays.userId, schema.questDays.day, schema.questDays.quest], set: { progress: sql`min(${max}, ${schema.questDays.progress} + ${by})`, updatedAt: now() } })
+    .onConflictDoUpdate({ target: [schema.questDays.userId, schema.questDays.day, schema.questDays.quest], set: { progress: sql`least(${max}, ${schema.questDays.progress} + ${by})`, updatedAt: now() } })
     .returning({ progress: schema.questDays.progress });
   return row?.progress ?? 0;
 }

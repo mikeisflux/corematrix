@@ -17,6 +17,7 @@ export const social = {
   bubbles: new Map<string, Bubble>(),
   reactions: new Map<string, { k: string; until: number }>(),
   pending: { e: null as { n: string; t: number } | null, r: null as { k: string; t: number } | null, dirty: false },
+  card: null as { id: string; name: string; uid?: string | null } | null, // the person whose card is open
   dm: { threads: [] as { with: string; name: string; last: DmMessage; unread: number }[], active: null as { id: string; name: string } | null, messages: [] as DmMessage[], unread: 0, me: "" },
   version: 0,
 };

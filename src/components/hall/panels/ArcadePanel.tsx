@@ -71,6 +71,10 @@ export function ArcadePanel() {
             </li>
           ))}
         </ul>
+        <div className="flex items-center justify-between rounded-xl border border-amber-300/30 bg-amber-300/5 p-3">
+          <div><div className="font-semibold">🎰 Lucky Longbox Slots</div><div className="text-xs text-slate-400">Bet 1 to 25 coins a spin. Three sevens pay 150× the bet; any pair gives the bet back.</div></div>
+          <a href="/app/arcade/slots" className="btn-ghost text-xs">Spin</a>
+        </div>
         {me ? (
           <>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">How coins work</div>

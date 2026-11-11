@@ -45,7 +45,11 @@ export async function POST(req: Request) {
         const acao = r.headers.get("access-control-allow-origin");
         steps.push({ name: "Public URL serves it", ok: r.ok, detail: r.ok ? `${r.status} from ${cfg.publicUrl}` : `${r.status}: is the bucket public (r2.dev) or the custom domain connected?` });
         steps.push({ name: "CORS for the hall's textures", ok: r.ok ? !!acao && (acao === "*" || acao === origin) : null, detail: acao ? `Access-Control-Allow-Origin: ${acao}` : `No Access-Control-Allow-Origin header. In R2 → bucket → Settings → CORS policy allow GET and HEAD from ${origin || "the site"}; without it the floor cannot use the images as 3D textures (the storefront still shows them).` });
-      } catch (e) { steps.push({ name: "Public URL serves it", ok: false, detail: (e as Error).message }); }
+      } catch (e) {
+        // "fetch failed" is Node for "no such host / no TLS": the r2.dev URL is not enabled yet, or the custom domain has no DNS
+        const why = (e as Error).message;
+        steps.push({ name: "Public URL serves it", ok: false, detail: `${cfg.publicUrl} did not answer (${why}). An r2.dev address only works once "Public Development URL" is enabled in R2 → bucket → Settings (copy the pub-….r2.dev address it shows); a custom domain only once it is added under "Custom Domains" there and shows Active.` });
+      }
     } else steps.push({ name: "Public URL", ok: null, detail: "None set: images will be streamed through the server at /api/f/… (works everywhere, costs server bandwidth). Set R2_PUBLIC_URL to serve them from Cloudflare directly." });
     await r2Delete(cfg, key); steps.push({ name: "Delete it", ok: true, detail: "cleaned up" });
     await audit(g.id, "storage.test", "setting", "R2", undefined, { ok: steps.every((s) => s.ok !== false) }, g.email);

@@ -23,13 +23,15 @@
    },
    "clothes": {
     "mesh": "Superhero_Female",
-    "offset": 0.07,
+    "offset": 0.1,
     "pants": 0.05,
     "shoes": 0.1,
-    "sleeve": 0.5,
+    "sleeve": 0.55,
     "collar": 0.02,
     "hem": 0.15,
-    "ankle": 0.12
+    "ankle": 0.12,
+    "smooth": 4,
+    "slack": 0.25
    }
   },
   {
@@ -98,7 +100,7 @@
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairLongFBX(Unity).usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroFemaleFullBody.usda",
    "node": "hair_curly",
    "textured": [
     "hair"
@@ -106,8 +108,10 @@
    "tint": [
     "hair"
    ],
-   "subsets": {
-    "*": "hair"
+   "meshes": {},
+   "hair": {
+    "mesh": "Superhero_Female",
+    "texture": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/textures/T_Hair2_D.png"
    }
   }
  ]

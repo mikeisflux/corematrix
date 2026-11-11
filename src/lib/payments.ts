@@ -167,7 +167,7 @@ export async function refundTx(txId: string, amountCents: number | undefined, re
   const claimed = await db.update(schema.transactions).set({ refundedCents: sql`${schema.transactions.refundedCents} + ${amt}` })
     .where(and(eq(schema.transactions.id, tx.id), eq(schema.transactions.refundedCents, tx.refundedCents), eq(schema.transactions.status, "paid"))).returning({ id: schema.transactions.id });
   if (!claimed.length) throw new Error("This transaction changed while you were refunding it. Reload and check before trying again.");
-  const unclaim = () => db.update(schema.transactions).set({ refundedCents: sql`max(0, ${schema.transactions.refundedCents} - ${amt})` }).where(eq(schema.transactions.id, tx.id));
+  const unclaim = () => db.update(schema.transactions).set({ refundedCents: sql`greatest(0, ${schema.transactions.refundedCents} - ${amt})` }).where(eq(schema.transactions.id, tx.id));
   let refundId = "";
   if (tx.provider === "divinitycoin" && tx.amountCents > 0) {
     // plan charges store "<period ref>|<payment intent>"; checkout payments store the intent (or a cs_ session id)

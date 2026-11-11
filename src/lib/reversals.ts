@@ -47,10 +47,10 @@ export async function reverseGrant(tx: Tx) {
       if (stillTheirs && booth!.tier !== "free") { const { dropPlan } = await import("@/lib/subscriptions"); await dropPlan(tx.boothId, "refunded"); done.push("plan ended"); }
       break;
     case "boost": case "banner": case "book":
-      if (booth) { await db.update(schema.booths).set({ valueCents: sql`max(0, ${schema.booths.valueCents} - ${tx.amountCents})`, updatedAt: t }).where(eq(schema.booths.id, tx.boothId)); done.push("value taken back"); }
+      if (booth) { await db.update(schema.booths).set({ valueCents: sql`greatest(0, ${schema.booths.valueCents} - ${tx.amountCents})`, updatedAt: t }).where(eq(schema.booths.id, tx.boothId)); done.push("value taken back"); }
       break;
     case "coins":
-      if (tx.buyerId && meta.coins) { await db.update(schema.users).set({ coins: sql`max(0, ${schema.users.coins} - ${meta.coins})` }).where(eq(schema.users.id, tx.buyerId)); done.push("coins taken back"); }
+      if (tx.buyerId && meta.coins) { await db.update(schema.users).set({ coins: sql`greatest(0, ${schema.users.coins} - ${meta.coins})` }).where(eq(schema.users.id, tx.buyerId)); done.push("coins taken back"); }
       break;
     case "billboard":
       await db.update(schema.billboards).set({ status: "ended" }).where(eq(schema.billboards.id, tx.id)); done.push("billboard taken down");

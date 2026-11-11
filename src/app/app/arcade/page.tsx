@@ -4,6 +4,7 @@ import { GAMES, leaderboard, COIN_RULES } from "@/lib/arcade";
 import { currentUser } from "@/lib/auth";
 import { formatMoney } from "@/lib/config";
 import { pageMeta } from "@/lib/seo";
+import { SLOT_BETS, SLOT_RTP, SLOT_SYMBOLS } from "@/lib/slots-table";
 
 export const metadata = pageMeta({
   title: "Arcade: Retro Browser Games at the Virtual Comic Con",
@@ -43,6 +44,13 @@ export default async function Arcade() {
             </div>
           );
         })}
+      </div>
+      <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-amber-300/30 bg-gradient-to-r from-[#1a1033] to-white/[0.03] p-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="flex items-baseline gap-2"><h2 className="text-xl font-bold">🎰 Lucky Longbox Slots</h2><span className="mono text-xs text-amber-300">bet {SLOT_BETS[0]} to {SLOT_BETS[SLOT_BETS.length - 1]} coins</span></div>
+          <p className="text-sm text-slate-400">The casino corner: three reels, your coins on the line. Three sevens pay {SLOT_SYMBOLS[0].triple} times the bet; any pair gives the bet back. Pays back about {Math.round(SLOT_RTP * 100)} coins per 100 over time, so play for fun.</p>
+        </div>
+        <Link href="/app/arcade/slots" className="btn-primary shrink-0">Spin</Link>
       </div>
       <div className="mt-8 rounded-2xl border border-white/10 p-4 text-sm text-slate-300">
         <b>Coin packs:</b> {COIN_RULES.packs.map((p) => `${p.coins} for ${formatMoney(p.priceCents)}`).join(" · ")}. Free coins: +{COIN_RULES.dailyVisit}/day, streak bonus, +{COIN_RULES.explore} per boolding explored, +{COIN_RULES.claim} per claim, +{COIN_RULES.referral} per referral.

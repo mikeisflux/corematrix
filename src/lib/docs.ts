@@ -6,6 +6,7 @@
  */
 import { BOOTH_SIZES, ZONES, TIERS, TAKEOVER_MULTIPLIER, SELLER_PREMIUM_SHARE, BOOK_PRICE_CENTS, PRODUCT_LIMIT, GALLERY_LIMIT, BILLBOARD_SLOTS, formatMoney } from "@/lib/config";
 import { QUESTS, BONUS_COINS, COIN_RULES, GAMES, SEASON_PRIZES } from "@/lib/rules";
+import { SLOT_BETS, SLOT_RTP, SLOT_SYMBOLS } from "@/lib/slots-table";
 import { ITEMS } from "@/lib/hall/items";
 
 export type Audience = "everyone" | "visitors" | "exhibitors" | "admins";
@@ -144,7 +145,7 @@ export const DOCS: DocSection[] = [
         "**Packs**: 100, 350 or 1000 coins for a couple of dollars in 🕹️ Arcade.",
       ] },
       { h: "Spending coins", bullets: [
-        "The arcade machines cost 1 to 3 coins a round; the Hall Flyover drone ride costs 5.",
+        "The arcade machines cost 1 to 3 coins a round; the Hall Flyover drone ride costs 5; the slot machine takes bets of 1 to 25 coins a spin (see Arcade).",
         "The 🛍️ Shop sells costumes and reaction packs for coins.",
         `**Convert coins into booth value** from the dashboard: ${COIN_RULES.convertRate} coins become $1 of value on your booth, which is what the rankings count. Coins never cash out.`,
       ] },
@@ -157,6 +158,12 @@ export const DOCS: DocSection[] = [
     blocks: [
       { h: "Machines", table: { head: ["Game", "Coins a round", "Prize"], rows: Object.values(GAMES).map((g) => [g.name, String(g.cost), `${g.prize} coins at ${g.prizeAt.toLocaleString()} points`]) } },
       { p: "Open 🕹️ Arcade on the rail or walk into the arcade in the middle of the hall and click a cabinet. Each game is a page of its own; your best scores and today's leaderboard are on it. Finishing a round, however it went, counts for the daily quest." },
+      { h: "Lucky Longbox Slots (the casino corner)", bullets: [
+        `A three-reel slot machine that bets your coins: open it from 🕹️ Arcade (Spin) or /app/arcade/slots, pick a bet of ${SLOT_BETS.join(", ")} coins and press Spin. The bet is taken when the reels start; a win is paid when they stop.`,
+        `**Pay table** (times your bet): ${SLOT_SYMBOLS.map((s) => `three ${s.name.toLowerCase()}s ${s.triple}×`).join(", ")}; two sevens 5×, two gems 3×, two heroes 2×, one seven or any other pair gives the bet back.`,
+        `The reels are drawn on the server, so the odds are exactly the pay table's: over many spins the machine pays back about ${Math.round(SLOT_RTP * 100)} coins per 100 bet and keeps the rest. Spins do not count for the daily arcade quest and never pay out as money; coins only ever buy things in the hall.`,
+        "The page shows today's ten biggest single wins and your own spins, total bet and total won.",
+      ] },
       { h: "Hall Flyover", p: "5 coins for a 60-second drone ride over every booth in the hall. Press the pad in the arcade or the button in the Arcade panel." },
       { h: "Theater", bullets: [
         "A film plays on the big screen in the arcade around the clock, the same moment for everyone. Walk up to hear it: tap the Now showing card (or click the screen) for sound; sound turns off when you leave the arcade.",
@@ -172,7 +179,7 @@ export const DOCS: DocSection[] = [
     slug: "avatar", title: "Your avatar, emotes and the shop", icon: "🧑‍🎤", audience: "everyone",
     summary: "Making your avatar, emotes and reactions, and the shop's costumes, reaction packs and booth giveaways.",
     blocks: [
-      { h: "Your avatar", p: "🧑‍🎤 on the rail: body type, skin tone, hair style (short, long, buzz, bun, curly or none) and colour, shirt and pants, and cosplay presets (original looks, no trademarked characters). The figures are realistic 3D people in a T-shirt, trousers and shoes, with real walk, run and sit animations; eyebrows take your hair colour. The look is saved on your device, and on your account when you are signed in, so it follows you. Your name and an optional job title (shown under the name) are set at the top of the panel and need an account. People far from you are drawn as simpler stand-ins to keep a crowded hall smooth; they turn into full figures as you get closer." },
+      { h: "Your avatar", p: "🧑‍🎤 on the rail: body type, skin tone, hair style (parted, long, buzz cut, buns, curly or none; each a different cut on both body types) and colour, shirt and pants, and cosplay presets (original looks, no trademarked characters). The figures are realistic 3D people in a T-shirt, trousers and shoes, with real walk, run and sit animations; eyebrows take your hair colour. The look is saved on your device, and on your account when you are signed in, so it follows you. Your name and an optional job title (shown under the name) are set at the top of the panel and need an account. People far from you are drawn as simpler stand-ins to keep a crowded hall smooth; they turn into full figures as you get closer." },
       { h: "Your own model (VRM)", p: "Signed in, the avatar panel also takes a .vrm file of your own (VRoid Studio, Blender's VRM add-on, UniVRM; VRM 0.x or 1.0; up to 15 MB). Tick that the model is yours or licensed to you, pick the file, and you walk the floor in it with the same walk, run, sit and emotes as everyone else; the model's name, author and licence from its metadata are shown. Your body, colours and costume stay as your look for the far crowd and for anyone whose device cannot load the model. Take it off again with one button. Admins can remove a model from an account, and a show can switch own models off." },
       { h: "Emotes and reactions", p: "🙌 Emotes: eight emotes everyone nearby sees (also keys 1 to 8 while walking), and reactions that pop over your head. Moving cancels an emote." },
       { h: "The shop", bullets: [
@@ -190,7 +197,8 @@ export const DOCS: DocSection[] = [
       { bullets: [
         "**The chat box** (bottom left, on a computer): the chat stays open while you walk, in a small see-through box with three tabs. **Hall** is one room for everyone on the floor. **Friends** is a room only your friends see: what you post there reaches everyone on your friends list, and you see what they post (sign in to use it). **Whisper** is private messages: pick a person at the top of the tab, or press 💬 next to anyone in People. Press **Enter** anywhere to start typing, Enter to send, **Esc** to go back to walking; your walk keys are off while you type. ▾ shrinks the box to one line (new lines show as a count on the tab), ⤢ opens the same chat as a big panel, and Settings → Chat box turns it off. Phones use the 💬 and 👥 rail buttons instead.",
         "**Hall chat** (💬): the same hall room as a full panel; messages also appear as bubbles over heads. Signed-in visitors post; only exhibitors may post links. Mention someone with @handle to notify them.",
-        "**People** (👥): everyone on the floor right now, with a Say hi (direct message) and a copy-my-spot link. Click a person's avatar on the floor to message them.",
+        "**People** (👥): everyone on the floor right now, with a Say hi (direct message) and a copy-my-spot link.",
+        "**A person's card**: click anyone's avatar on the floor (or their name in People) to see who they are: name and title, whether they are live or away and how far from you, what costume and hair they wear, and for accounts their handle, how long they have been a member, their friends count and streak, the booth they exhibit at (with an Open booth button) and their best arcade scores. The card's buttons: Message, Go to them, Add friend (or accept their request), Block and Report.",
         "**Direct messages** stay between the two of you and work for guests on the floor as well as accounts; an account keeps them across devices.",
         "**Friends**: press ➕ next to a person in People (or on their card on the floor) to send a request; they accept it in their People panel. Friends show a toast when they arrive on the floor and can be added to your team.",
         "**Blocking** (🚫 next to a person in People, or Block at the top of a message thread): their chat and speech bubbles disappear for you, they can no longer message you or send you friend requests, and voice never connects to them. They are not told. Unblock any time from the Blocked list in People. Blocking needs a free account.",

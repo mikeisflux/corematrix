@@ -73,8 +73,10 @@ def quat_from_mat(L):
         s = np.sqrt(1 + R[2, 2] - R[0, 0] - R[1, 1]) * 2; w = (R[1, 0] - R[0, 1]) / s; x = (R[0, 2] + R[2, 0]) / s; y = (R[1, 2] + R[2, 1]) / s; z = s / 4
     q = np.array([x, y, z, w]); return (q / np.linalg.norm(q)).tolist()
 
-def mesh_part(prim, names, X, scale, subsets_wanted):
-    """Returns {material: (positions, normals, joints, weights, indices)} for the wanted subsets of one USD mesh."""
+def mesh_part(prim, names, X, scale, subsets_wanted, rebind=None):
+    """Returns {material: (positions, normals, joints, weights, indices)} for the wanted subsets of one USD mesh.
+    rebind: per joint, the matrix taking this file's bind pose onto the body's (a hair file skinned in a slightly
+    different pose would otherwise sit where its own skeleton put it, not on this head)."""
     mesh = UsdGeom.Mesh(prim)
     pts = np.array(mesh.GetPointsAttr().Get(), dtype=np.float64)
     fvc = np.array(mesh.GetFaceVertexCountsAttr().Get()); fvi = np.array(mesh.GetFaceVertexIndicesAttr().Get())
@@ -105,6 +107,11 @@ def mesh_part(prim, names, X, scale, subsets_wanted):
     if idx4.shape[1] < 4:  # a piece bound to a single bone (hair, brows) still needs four slots
         pad = 4 - idx4.shape[1]; idx4 = np.pad(idx4, ((0, 0), (0, pad))); w4 = np.pad(w4, ((0, 0), (0, pad)))
     w4 = w4 / np.maximum(w4.sum(1, keepdims=True), 1e-9)
+    if rebind is not None:  # linear-blend the bind-pose correction into the points (and the corner normals, by their strongest joint)
+        P4 = np.c_[P, np.ones(len(P))]; Pr = np.zeros_like(P)
+        for k in range(4): Pr += w4[:, k:k + 1] * np.stack([(P4[i] @ rebind[j])[:3] for i, j in enumerate(idx4[:, k])])
+        P = Pr
+        if N is not None: Rc = np.stack([rebind[j][:3, :3] for j in idx4[fvi, 0]]); N = np.einsum("ij,ijk->ik", N, Rc)
     # faces → subsets
     face_mat = np.full(len(fvc), -1)
     offsets = np.r_[0, np.cumsum(fvc)[:-1]]
@@ -224,13 +231,8 @@ def clip_tris(attrs, tris, n, d, interp=None):
     attrs = [np.array(a) for a in attrs]
     return attrs, np.array(out, dtype=int).reshape(-1, 3)
 
-def clothe(prim, names, W, X, scale, opts):
-    """
-    Regular clothes grown from the body itself: a T-shirt, trousers and shoes as thin shells pushed out along the
-    body's smooth normals, so they are seamless and deform exactly with it (same skin weights). Each garment is the
-    body surface cut by planes (a collar below the neck, sleeves across the upper arms, a hem at the hips, an ankle
-    line), the triangles split on the planes so every edge is a clean line. Returns {material: arrays} like mesh_part.
-    """
+def skinned_body(prim, names, X, scale):
+    """A skinned mesh as world-space positions, smooth vertex normals, its 4 strongest bone slots per vertex and triangles."""
     mesh = UsdGeom.Mesh(prim)
     pts = np.array(mesh.GetPointsAttr().Get(), dtype=np.float64)
     fvc = np.array(mesh.GetFaceVertexCountsAttr().Get()); fvi = np.array(mesh.GetFaceVertexIndicesAttr().Get())
@@ -253,12 +255,55 @@ def clothe(prim, names, W, X, scale, opts):
     vn = np.zeros_like(P)
     for k in range(3): np.add.at(vn, tris[:, k], fn)
     vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-9)
+    return P, vn, idx4, w4, tris
+
+def hair_cap(prim, names, W, X, scale, opts):
+    """
+    A curly hairstyle grown from the scalp (the pack has no curly hair): the head's skin above a slanted hairline (high
+    on the forehead, down to the nape behind) pushed out along its normals in a thick, bumpy shell that tapers back to
+    the skin at the hairline. Spherical UVs let the pack's hair texture tile over it. Returns {"hair": arrays}.
+    """
+    P, vn, idx4, w4, tris = skinned_body(prim, names, X, scale)
+    pos = {n: W[i][3, :3] for i, n in enumerate(names)}
+    head = pos["Head"]; top = P[:, 1].max()
+    near = P[(P[:, 1] > head[1]) & (np.abs(P[:, 0]) < 0.6)]
+    zf, zb = near[:, 2].max(), near[:, 2].min()  # the face and the back of the skull
+    k = float(opts.get("slope", 0.75)); front = top - float(opts.get("forehead", 0.26))
+    # hairline plane: y >= front - k * (zf - z)  →  dot(p, (0, 1, k)) >= front - k * zf
+    planes = [(np.array([0.0, 1.0, -k]), front - k * zf), (np.array([0.0, 1.0, 0.0]), top - float(opts.get("depth", 0.72)))]
+    attrs, t = [P.copy(), vn.copy(), idx4.copy(), w4.copy()], tris.copy()
+    for n, d in planes: attrs, t = clip_tris(attrs, t, n, d, [True, True, False, False])
+    used = np.unique(t); remap = -np.ones(len(attrs[0]), dtype=int); remap[used] = np.arange(len(used))
+    Pn, Nn, Jn, Wn = (a[used] for a in attrs); tt = remap[t]
+    Nn = Nn / np.maximum(np.linalg.norm(Nn, axis=1, keepdims=True), 1e-9)
+    sd = np.min([Pn @ n - d for n, d in planes], axis=0)             # distance inside the hairline
+    taper = np.clip(sd / float(opts.get("fade", 0.3)), 0.12, 1.0)
+    f = float(opts.get("curl", 36.0)); amp = float(opts.get("bump", 0.14)); thick = float(opts.get("thick", 0.14))
+    bumps = 0.5 + 0.5 * np.sin(Pn[:, 0] * f) * np.sin(Pn[:, 1] * f * 1.13 + 1.7) * np.sin(Pn[:, 2] * f * 0.91 + 0.4)
+    grow = (thick + amp * bumps) * taper
+    Q = Pn + Nn * grow[:, None]
+    fn2 = np.cross(Q[tt[:, 1]] - Q[tt[:, 0]], Q[tt[:, 2]] - Q[tt[:, 0]]); N2 = np.zeros_like(Q)
+    for kk in range(3): np.add.at(N2, tt[:, kk], fn2)
+    N2 /= np.maximum(np.linalg.norm(N2, axis=1, keepdims=True), 1e-9)
+    c = np.array([0.0, head[1] + 0.3, (zf + zb) / 2]); d = Q - c; d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
+    uv = np.c_[np.arctan2(d[:, 0], d[:, 2]) / (2 * np.pi) * float(opts.get("tile", 6)), np.arccos(np.clip(d[:, 1], -1, 1)) / np.pi * float(opts.get("tile", 6)) * 0.5]
+    print(f"  hair cap: {len(Q)} vertices, {len(tt)} triangles")
+    return {"hair": (Q.astype(np.float32), N2.astype(np.float32), Jn.astype(np.uint16), Wn.astype(np.float32), tt.reshape(-1).astype(np.uint32), uv.astype(np.float32))}
+
+def clothe(prim, names, W, X, scale, opts):
+    """
+    Regular clothes grown from the body itself: a T-shirt, trousers and shoes as thin shells pushed out along the
+    body's smooth normals, so they are seamless and deform exactly with it (same skin weights). Each garment is the
+    body surface cut by planes (a collar below the neck, sleeves across the upper arms, a hem at the hips, an ankle
+    line), the triangles split on the planes so every edge is a clean line. Returns {material: arrays} like mesh_part.
+    """
+    P, vn, idx4, w4, tris = skinned_body(prim, names, X, scale)
     pos = {n: W[i][3, :3] for i, n in enumerate(names)}
     neck, pelvis, foot = pos["neck_01"], pos["pelvis"], pos["foot_l"]
     Y = np.array([0.0, 1.0, 0.0])
     sleeve = float(opts.get("sleeve", 0.5)); off = float(opts.get("offset", 0.065)); shoe_off = float(opts.get("shoes", 0.1))
     collar = neck[1] - float(opts.get("collar", 0.25)); hem = pelvis[1] - float(opts.get("hem", 0.15)); ankle = foot[1] + float(opts.get("ankle", 0.12))
-    def garment(planes, grow):
+    def garment(planes, grow, slack=0.0):
         attrs, t = [P.copy(), vn.copy(), idx4.copy(), w4.copy()], tris.copy()
         for n, d in planes: attrs, t = clip_tris(attrs, t, n, d, [True, True, False, False])
         if len(t) == 0: return None
@@ -282,8 +327,10 @@ def clothe(prim, names, W, X, scale, opts):
                 if boundary[i] or not nb[i]: continue
                 R[i] = Q[i] * 0.4 + np.mean(Q[list(nb[i])], axis=0) * 0.6
             Q = R
-        # smoothing pulls convex places (thighs, chest) inward: never let the cloth sink below the body surface
-        inward = np.minimum(0, np.einsum("ij,ij->i", Q - Pn, Nn)); Q = Q - Nn * inward[:, None]
+        # smoothing pulls convex places (thighs, chest) inward: never let the cloth sink below the body surface. A loose
+        # garment (slack > 0) may sink part of its offset, so muscle and ribs stop printing through while the shell still
+        # clears the skin by the rest of it
+        inward = np.minimum(0, np.einsum("ij,ij->i", Q - Pn, Nn) + grow * slack); Q = Q - Nn * inward[:, None]
         fn2 = np.cross(Q[tt[:, 1]] - Q[tt[:, 0]], Q[tt[:, 2]] - Q[tt[:, 0]]); N2 = np.zeros_like(Q)
         for k in range(3): np.add.at(N2, tt[:, k], fn2)
         N2 /= np.maximum(np.linalg.norm(N2, axis=1, keepdims=True), 1e-9)
@@ -295,7 +342,7 @@ def clothe(prim, names, W, X, scale, opts):
         a, b = pos["upperarm_" + side], pos["lowerarm_" + side]; axis = (b - a) / np.linalg.norm(b - a); cutp = a + axis * sleeve * np.linalg.norm(b - a)
         sleeves.append((-axis, -float(axis @ cutp)))
     out = {}
-    shirt = garment([(-Y, -collar), (Y, hem)] + sleeves, off)                 # below the collar, above the hem, inside the sleeve lines
+    shirt = garment([(-Y, -collar), (Y, hem)] + sleeves, off, float(opts.get("slack", 0.0)))  # below the collar, above the hem, inside the sleeve lines
     pants = garment([(-Y, -(pelvis[1] + 0.35)), (Y, ankle)], float(opts.get("pants", off * 0.75)))  # from under the shirt down to the ankle line, a little closer to the body than the shirt that hangs over it
     shoes = garment([(-Y, -(ankle + 0.06))], shoe_off)                        # from just under the trouser hem down
     for matname, g in (("shirt", shirt), ("pants", pants), ("shoes", shoes)):
@@ -324,13 +371,13 @@ def main(spec_path):
     global TURN
     a = np.radians(float(spec.get("turn", 0))); TURN = np.array([[np.cos(a), 0, -np.sin(a), 0], [0, 1, 0, 0], [np.sin(a), 0, np.cos(a), 0], [0, 0, 0, 1]])
     g = Glb(); nodes = []; meshes = []; materials = {}; images = []; textures = []; tex_index = {}; skin_joints = None
-    names = parents = W = locals_ = None
+    names = parents = W = locals_ = None; rebind = None
     for pi, part in enumerate(spec["parts"]):
         path = expand(part["file"], base)
         stage, skel, skelroot, mprims, xc = load(path)
         n2, p2, W2, L2, X = skeleton(skel, skelroot, xc, scale)
         if names is None:
-            names, parents, W, locals_ = n2, p2, W2, L2
+            names, parents, W, locals_ = n2, p2, W2, L2; rebind = None
             ibm = np.array([np.linalg.inv(w) for w in W], dtype=np.float32)  # row-convention inverse == column-major glTF layout
             for i, nm in enumerate(names):
                 L = locals_[i]; nodes.append({"name": nm, "translation": L[3, :3].tolist(), "rotation": quat_from_mat(L), "children": []})
@@ -341,16 +388,19 @@ def main(spec_path):
         else:
             if n2 != names: print(f"  warning: {os.path.basename(path)} has a different joint list"); 
             d = max(float(np.abs(a - b).max()) for a, b in zip(W, W2))
-            if d > 1e-3: print(f"  warning: {os.path.basename(path)} bind pose differs by {d:.4f}")
+            rebind = [np.linalg.inv(b) @ a for a, b in zip(W, W2)] if d > 1e-3 else None
+            if d > 1e-3: print(f"  note: {os.path.basename(path)} bind pose differs by {d:.4f}; its meshes are rebound onto the body's")
         prims = []
         textured = set(part.get("textured", []))  # output materials that take the mesh's own colour (and normal) map
         for mprim in mprims:
             # "subsets" applies to every mesh in the file; "meshes": {name: subsets} picks per mesh (others are skipped)
+            hair = part.get("hair") if part.get("hair", {}).get("mesh") == mprim.GetName() else None
             mspec = part["meshes"].get(mprim.GetName()) if "meshes" in part else part["subsets"]
-            if mspec is None: continue
+            if mspec is None and not hair: continue
             bound_name = UsdShade.MaterialBindingAPI(mprim).ComputeBoundMaterial()[0]; bound_name = bound_name.GetPrim().GetName() if bound_name else "material"
-            pieces = mesh_part(mprim, names, X, scale, mspec)
+            pieces = mesh_part(mprim, names, X, scale, mspec, rebind) if mspec else {}
             if "clothes" in part and mprim.GetName() == part["clothes"].get("mesh", mprim.GetName()): pieces.update(clothe(mprim, names, W, X, scale, part["clothes"]))
+            if hair: pieces.update(hair_cap(mprim, names, W, X, scale, hair))
             for matname, (P, N, J, Wt, I, T) in pieces.items():
                 if matname == "@": matname = bound_name  # named after the USD material (a modular outfit piece keeps its own)
                 if "@" in textured: textured.add(matname)
@@ -359,7 +409,7 @@ def main(spec_path):
                     materials[matname] = {"name": matname, "pbrMetallicRoughness": {"baseColorFactor": col + [1], "metallicFactor": 0, "roughnessFactor": ROUGH.get(matname, 0.75)}}
                     if matname == "hair": materials[matname]["doubleSided"] = True
                     if matname in textured:
-                        maps = bound_textures(mprim)
+                        maps = {"diffuse": expand(hair["texture"], base)} if hair and hair.get("texture") else bound_textures(mprim)
                         for kind, slot in (("diffuse", "baseColorTexture"), ("normal", "normalTexture")):
                             if kind not in maps: continue
                             if kind == "normal" and not part.get("normals", False): continue

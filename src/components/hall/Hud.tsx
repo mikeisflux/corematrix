@@ -57,6 +57,7 @@ const PANEL_LOADERS = {
   shop: () => import("./panels/ShopPanel").then((m) => m.ShopPanel),
   help: () => import("./panels/HelpPanel").then((m) => m.HelpPanel),
   tours: () => import("./panels/ToursPanel").then((m) => m.ToursPanel),
+  player: () => import("./panels/PlayerPanel").then((m) => m.PlayerPanel),
 };
 type PanelKey = keyof typeof PANEL_LOADERS;
 /**

@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useJson, api, useToast, PageHead, Input, ConfirmButton, DateTime, Badge } from "./shared";
 interface Known { key: string; label: string; group: string; hint?: string; secret?: boolean; readonly?: boolean; value: string; set: boolean; source: string }
 interface Resp { groups: { name: string; keys: Known[] }[]; custom: { key: string; value: string; updatedAt: number }[] }
+interface Check { ok: boolean; steps: Array<{ name: string; ok: boolean | null; detail: string }> }
+
 export default function Settings() {
   const data = useJson<Resp>("/api/admin/settings");
   const [group, setGroup] = useState<string>("Site");
@@ -10,7 +12,7 @@ export default function Settings() {
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [custom, setCustom] = useState({ key: "", value: "" });
   const [testing, setTesting] = useState<"" | "email" | "divinity" | "check">("");
-  const [check, setCheck] = useState<{ ok: boolean; steps: Array<{ name: string; ok: boolean | null; detail: string }> } | null>(null);
+  const [check, setCheck] = useState<(Check & { title: string }) | null>(null);
   const storage = useJson<{ art: { inDb: number; dbMB: number; onR2: number }; logos: { inDb: number; dbMB: number; onR2: number }; configured: boolean; enabled: boolean; publicUrl: string; bucket: string }>(group === "Storage" ? "/api/admin/settings/storage" : null);
   const [moving, setMoving] = useState<{ moved: number; remaining: number; errors: string[] } | null>(null);
   async function moveAll(action: "migrate" | "restore" = "migrate") {
@@ -46,14 +48,14 @@ export default function Settings() {
     <>
       {toast.node}
       <PageHead title="Settings" sub="Every API key and switch the site needs. Values are stored in the database and override .env; secrets are masked until you reveal them.">
-        <button className="admBtn admBtn--primary" disabled={testing !== ""} onClick={async () => { setTesting("check"); setCheck(null); try { setCheck(await api("/api/admin/settings/email-check", { method: "POST" })); } catch (e) { toast.err(e); } finally { setTesting(""); } }}>{testing === "check" ? "Checking…" : "Check email setup"}</button>
+        <button className="admBtn admBtn--primary" disabled={testing !== ""} onClick={async () => { setTesting("check"); setCheck(null); try { setCheck({ title: "Email setup", ...(await api<Check>("/api/admin/settings/email-check", { method: "POST" })) }); } catch (e) { toast.err(e); } finally { setTesting(""); } }}>{testing === "check" ? "Checking…" : "Check email setup"}</button>
         <button className="admBtn" disabled={testing !== ""} onClick={() => test("email")}>{testing === "email" ? "Sending…" : "Send test email"}</button>
         <button className="admBtn" disabled={testing !== ""} onClick={() => test("divinity")}>{testing === "divinity" ? "Checking…" : "Test DivinityCoin"}</button>
       </PageHead>
       {data.error && <div className="admNote admNote--err">{data.error}</div>}
       {check && (
         <div className={`admCard`} style={{ marginBottom: 16, borderColor: check.ok ? "var(--highlight)" : "var(--heat-6)" }}>
-          <div className="admCard__hd"><h2 className="admH2">Email setup {check.ok ? "✓ all good" : "✗ needs attention"}</h2><button className="admBtn admBtn--sm" onClick={() => setCheck(null)}>Close</button></div>
+          <div className="admCard__hd"><h2 className="admH2">{check.title} {check.ok ? "✓ all good" : "✗ needs attention"}</h2><button className="admBtn admBtn--sm" onClick={() => setCheck(null)}>Close</button></div>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {check.steps.map((s) => (
               <li key={s.name} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--rule)" }}>
@@ -72,7 +74,7 @@ export default function Settings() {
         <div className="admCard" style={{ marginBottom: 16 }}>
           <div className="admCard__hd"><h2 className="admH2">Uploaded images {storage.data.enabled && storage.data.configured ? <Badge kind="ok">R2 on</Badge> : storage.data.configured ? <Badge kind="dim">R2 configured, off</Badge> : <Badge kind="dim">in the database</Badge>}</h2>
             <div className="admRow">
-              <button className="admBtn" disabled={testing !== "" || !storage.data.configured} onClick={async () => { setTesting("check"); setCheck(null); try { setCheck(await api("/api/admin/settings/storage", { method: "POST", json: { action: "test" } })); } catch (e) { toast.err(e); } finally { setTesting(""); } }}>{testing === "check" ? "Testing…" : "Test R2"}</button>
+              <button className="admBtn" disabled={testing !== "" || !storage.data.configured} onClick={async () => { setTesting("check"); setCheck(null); try { setCheck({ title: "R2 storage", ...(await api<Check>("/api/admin/settings/storage", { method: "POST", json: { action: "test" } })) }); } catch (e) { toast.err(e); } finally { setTesting(""); } }}>{testing === "check" ? "Testing…" : "Test R2"}</button>
               <ConfirmButton className="admBtn admBtn--primary" disabled={!storage.data.enabled || !storage.data.configured || !!moving || storage.data.art.inDb + storage.data.logos.inDb === 0} message={`Move ${storage.data.art.inDb} art files and ${storage.data.logos.inDb} logos from the database to the bucket ${storage.data.bucket}? Visitors keep seeing everything; the database shrinks by about ${(storage.data.art.dbMB + storage.data.logos.dbMB).toFixed(0)} MB.`} onConfirm={() => moveAll("migrate")}>{moving ? `Moving… ${moving.moved} done` : "Move existing uploads to R2"}</ConfirmButton>
               {storage.data.art.onR2 + storage.data.logos.onR2 > 0 && <ConfirmButton className="admBtn admBtn--ghost" disabled={!storage.data.configured || !!moving} message={`Copy ${storage.data.art.onR2} art files and ${storage.data.logos.onR2} logos from R2 back into the database? Use this before closing the bucket.`} onConfirm={() => moveAll("restore")}>Move back into the database</ConfirmButton>}
             </div>

@@ -17,13 +17,19 @@ python3 -m venv .venv && .venv/bin/pip install usd-core numpy   # the USD reader
    luminance map, so the picker's skin tone multiplies onto the shading), `eye`, `brow`, five `hair_*` styles, and the
    clothes grown from the body itself (`clothes` in the spec): a `shirt`, `pants` and `shoes` cut from the body surface
    on clean planes (collar, sleeves, hem, ankle), smoothed, and pushed out along the normals, so they are seamless and
-   deform with the body. Y-up, feet, soles on y = 0, faces +z. The earlier stylised bodies ("Ultimate Animated
-   Character", 32-joint rig) still convert with the same script.
+   deform with the body. The pack has four hair cuts (parted, long, buzzed, buns); `hair_curly` is grown the same way
+   (`hair` in the spec): the scalp above a slanted hairline pushed out in a thick, bumpy shell with spherical UVs for
+   the pack's hair texture. A hair or brow file whose bind pose differs from the body's (the pack's do, by a few
+   centimetres) is rebound onto the body's joints, so every piece sits on this head. Y-up, feet, soles on y = 0, faces
+   +z. The earlier stylised bodies ("Ultimate Animated Character", 32-joint rig) still convert with the same script.
 2. **Clips** – `node retarget.mjs clips-a.json` / `clips-b.json` → `models-src/body-{a,b}.anim.glb`. Retargets
    walk/run/sit/cheer/bow/point from the KayKit Adventurers (any character file carries all 76 clips) and the
    project's own idle/wave/dance/clap/laugh/facepalm from `legacy-rig.glb` (the old procedural figure) onto the body's bones:
    world-space rotation deltas with limb-direction matching, eased elbows and knees, feet kept on the floor, the sit
-   clip's hips pinned at seat height.
+   clip's hips pinned at seat height. The chibi sources carry their arms wide, which reads wrong on a human body, so
+   the idle, walk and run clips take the `arms` option (`hang` / `swing`): the upper arm hangs straight from the
+   shoulder, swings a capped fraction of the opposite leg's pitch, the elbow keeps a slight bend, and the hand stays at
+   rest; the emotes keep the source arms, pulled in by the map's `inward` degrees.
 3. **Assembly** – `npm run dev`, then `node scripts/export-models.mjs` (`/dev/models` in the browser): lifts the costume
    parts, badge and lanyard off the procedural figure in `src/lib/hall/modelkit/avatar.ts`, refits them onto the new
    head, torso and hand (`modelkit/assemble.ts`), bakes the far-crowd `lod` mesh, and writes `public/models/avatar-*.glb`

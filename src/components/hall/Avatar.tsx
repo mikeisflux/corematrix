@@ -603,6 +603,12 @@ export function Others() {
 }
 
 /** Open a private chat with someone on the floor. */
+/** Opens a person's card (who they are, their booth, message / friend / block). */
+export function openPlayer(id: string, name: string, uid?: string | null) {
+  social.card = { id, name, uid };
+  bumpSocial();
+  useHall.getState().setPanel("player");
+}
 export function openDm(id: string, name: string) {
   social.dm.active = { id, name };
   social.dm.messages = [];
@@ -668,7 +674,7 @@ function Other({ id }: { id: string }) {
     if (clock.elapsedTime - nearT.current > 0.5) { nearT.current = clock.elapsedTime; const d = Math.hypot(camera.position.x - c.x, camera.position.z - c.z); g.visible = d < 260; const n = d < 80; if (n !== near) setNear(n); }
   });
   return (
-    <group ref={group} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); openDm(id, name); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
+    <group ref={group} onClick={(e) => { if (dragged(e)) return; e.stopPropagation(); openPlayer(id, name, live.players.get(id)?.uid); }} onPointerOver={() => { document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>
       <AvatarModel config={cfg} motion={motion} />
       <LiveMarker away={away} />
       <OverheadNotes id={id} />

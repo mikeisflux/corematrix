@@ -21,6 +21,7 @@ import { MeshoptDecoder } from "meshoptimizer";
 import { Vector3, Quaternion, Matrix4 } from "three";
 
 const FPS = 30;
+const DEG = Math.PI / 180;
 /** Source bone → target bone. dir: [sourceChild, targetChild] gives the limb direction to match. */
 const MAPS = {
   // KayKit "Adventurers" rig → Quaternius "Ultimate Animated Character" rig
@@ -38,21 +39,22 @@ const MAPS = {
   },
   // KayKit → the UE-style rig of Quaternius's "Universal Base Characters" (root/pelvis/spine_01…/upperarm_l/thigh_l…)
   kaykit_ue: {
-    root: "root", hipsSrc: "hips", hipsTgt: "pelvis",
+    root: "root", hipsSrc: "hips", hipsTgt: "pelvis", arms: "ue",
     bones: [
       { s: "hips", t: "pelvis" }, { s: "spine", t: "spine_01" }, { s: "chest", t: "spine_03" }, { s: "head", t: "Head" },
-      { s: "upperarm.l", t: "upperarm_l", dir: ["lowerarm.l", "lowerarm_l"], damp: 0.8 }, { s: "lowerarm.l", t: "lowerarm_l", dir: ["wrist.l", "hand_l"], damp: 0.45 }, { s: "hand.l", t: "hand_l", dir: ["handslot.l", "middle_01_l"], damp: 0.5 },
-      { s: "upperarm.r", t: "upperarm_r", dir: ["lowerarm.r", "lowerarm_r"], damp: 0.8 }, { s: "lowerarm.r", t: "lowerarm_r", dir: ["wrist.r", "hand_r"], damp: 0.45 }, { s: "hand.r", t: "hand_r", dir: ["handslot.r", "middle_01_r"], damp: 0.5 },
+      // inward: degrees the arm is pulled toward the body (the KayKit figures swing their arms wide of their chubby torsos)
+      { s: "upperarm.l", t: "upperarm_l", dir: ["lowerarm.l", "lowerarm_l"], damp: 0.7, inward: 14 }, { s: "lowerarm.l", t: "lowerarm_l", dir: ["wrist.l", "hand_l"], damp: 0.45 }, { s: "hand.l", t: "hand_l", dir: ["handslot.l", "middle_01_l"], damp: 0.5 },
+      { s: "upperarm.r", t: "upperarm_r", dir: ["lowerarm.r", "lowerarm_r"], damp: 0.7, inward: 14 }, { s: "lowerarm.r", t: "lowerarm_r", dir: ["wrist.r", "hand_r"], damp: 0.45 }, { s: "hand.r", t: "hand_r", dir: ["handslot.r", "middle_01_r"], damp: 0.5 },
       { s: "upperleg.l", t: "thigh_l", dir: ["lowerleg.l", "calf_l"] }, { s: "lowerleg.l", t: "calf_l", dir: ["foot.l", "foot_l"], damp: 0.7 }, { s: "foot.l", t: "foot_l", dir: ["toes.l", "ball_l"], damp: 0.7 },
       { s: "upperleg.r", t: "thigh_r", dir: ["lowerleg.r", "calf_r"] }, { s: "lowerleg.r", t: "calf_r", dir: ["foot.r", "foot_r"], damp: 0.7 }, { s: "foot.r", t: "foot_r", dir: ["toes.r", "ball_r"], damp: 0.7 },
     ],
   },
   legacy_ue: {
-    root: "root", hipsSrc: "hips", hipsTgt: "pelvis",
+    root: "root", hipsSrc: "hips", hipsTgt: "pelvis", arms: "ue",
     bones: [
       { s: "hips", t: "pelvis" }, { s: "torso", t: "spine_03" }, { s: "head", t: "Head" },
-      { s: "shoulder_l", t: "upperarm_r", dir: ["forearm_l", "lowerarm_r"] }, { s: "forearm_l", t: "lowerarm_r", dir: ["hand_l", "hand_r"] }, { s: "hand_l", t: "hand_r" },
-      { s: "shoulder_r", t: "upperarm_l", dir: ["forearm_r", "lowerarm_l"] }, { s: "forearm_r", t: "lowerarm_l", dir: ["hand_r", "hand_l"] }, { s: "hand_r", t: "hand_l" },
+      { s: "shoulder_l", t: "upperarm_r", dir: ["forearm_l", "lowerarm_r"], inward: 10 }, { s: "forearm_l", t: "lowerarm_r", dir: ["hand_l", "hand_r"] }, { s: "hand_l", t: "hand_r" },
+      { s: "shoulder_r", t: "upperarm_l", dir: ["forearm_r", "lowerarm_l"], inward: 10 }, { s: "forearm_r", t: "lowerarm_l", dir: ["hand_r", "hand_l"] }, { s: "hand_r", t: "hand_l" },
       { s: "thigh_l", t: "thigh_r", dir: ["shin_l", "calf_r"] }, { s: "shin_l", t: "calf_r", dir: ["shoe_l", "foot_r"] }, { s: "shoe_l", t: "foot_r" },
       { s: "thigh_r", t: "thigh_l", dir: ["shin_r", "calf_l"] }, { s: "shin_r", t: "calf_l", dir: ["shoe_r", "foot_l"] }, { s: "shoe_r", t: "foot_l" },
     ],
@@ -120,7 +122,10 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
       const dt = posOf(tgtRestW.get(T(b.dir[1]))).sub(posOf(tgtRestW.get(T(b.t)))).normalize();
       corr = new Quaternion().setFromUnitVectors(dt, ds);
     }
-    return { s: S(b.s), t: T(b.t), corr, damp: b.damp ?? 1, footOf: b.footOf ? T(b.footOf) : null, sRestInv: rotOf(srcRestW.get(S(b.s))).invert(), tRest: rotOf(tgtRestW.get(T(b.t))) };
+    // inward: a fixed turn about the body's front axis toward the torso (the side comes from the target bone's x at rest)
+    const side = posOf(tgtRestW.get(T(b.t))).x >= 0 ? 1 : -1;
+    const inward = b.inward ? new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), -DEG * b.inward * side) : null;
+    return { s: S(b.s), t: T(b.t), corr, damp: b.damp ?? 1, inward, footOf: b.footOf ? T(b.footOf) : null, sRestInv: rotOf(srcRestW.get(S(b.s))).invert(), tRest: rotOf(tgtRestW.get(T(b.t))) };
   });
   const byT = new Map(bones.map((b) => [b.t, b]));
   const rootT = T(map.root), rootS = S("root") ?? srcRig.nodes[0];
@@ -142,7 +147,8 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
         // Δsource (eased by damp, as a rotation relative to the parent's own delta so a bent elbow eases, not the whole arm) · correction · target rest
         let delta = rotOf(sw.get(b.s)).multiply(b.sRestInv);
         if (b.damp !== 1) { const sp = srcRig.parent.get(b.s); const pd = sp ? rotOf(sw.get(sp)).multiply(rotOf(srcRestW.get(sp)).invert()) : new Quaternion(); const rel = pd.clone().invert().multiply(delta); delta = pd.multiply(new Quaternion().slerp(rel, b.damp)); }
-        const world = delta.multiply(b.corr).multiply(b.tRest);
+        let world = delta.multiply(b.corr).multiply(b.tRest);
+        if (b.inward) world = b.inward.clone().multiply(world);
         q = rotOf(pw).invert().multiply(world).normalize();
         if (b.s === hipsS) { const d = local.get(hipsS).t.clone().sub(srcRig.rest.get(hipsS).t).multiplyScalar(ratio); if (opts.inPlace) { d.x = 0; d.z = 0; } pos.add(d); }
         if (b.footOf) { const legRestInv = tgtRestW.get(b.footOf).clone().invert(); const off = posOf(tgtRestW.get(n)).applyMatrix4(legRestInv); const wp = off.applyMatrix4(tw.get(b.footOf)); pos = wp.applyMatrix4(pw.clone().invert()); }
@@ -152,6 +158,7 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
       }
       tl.set(n, { t: pos, q, s: r.s }); tw.set(n, pw.clone().multiply(new Matrix4().compose(pos, q, r.s)));
     }
+    if (opts.arms && ARMS[map.arms ?? "ue"]) relaxArms(tgtRig, tl, tw, tgtRestW, order, ARMS[map.arms ?? "ue"], opts.arms, map);
     if (opts.ground !== false) {
       // keep the lowest foot on the floor: longer legs lift a foot higher for the same thigh swing than the source did
       const feet = tgtRig.nodes.filter((n) => /^(Foot_[LR](_end)?|foot_[lr]|ball_[lr])$/.test(n.getName()));
@@ -164,6 +171,44 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
     for (const n of order) if (byT.get(n) || n === rootT) { const l = tl.get(n); put(n, "q", l.q.toArray()); put(n, "t", l.t.toArray()); }
   }
   return { times, tracks, dur };
+}
+
+/** Bone names per rig for the arm override. */
+const ARMS = {
+  ue: { up: ["upperarm_l", "upperarm_r"], low: ["lowerarm_l", "lowerarm_r"], thigh: ["thigh_l", "thigh_r"], calf: ["calf_l", "calf_r"] },
+  q: { up: ["UpperArm_L", "UpperArm_R"], low: ["LowerArm_L", "LowerArm_R"], thigh: ["UpperLeg_L", "UpperLeg_R"], calf: ["LowerLeg_L", "LowerLeg_R"] },
+};
+/**
+ * Arms at the sides instead of the source's: the source figures (chibi KayKit, the old blocky avatar) carry their arms
+ * wide and bent, which reads wrong on a human body. The upper arm hangs straight down from the shoulder, pulled a
+ * little toward the body, and (for "swing") swings forward and back with the opposite leg; the elbow keeps a slight
+ * bend that grows as the arm comes forward. Everything below the elbow keeps its rest pose.
+ */
+function relaxArms(tgtRig, tl, tw, tgtRestW, order, names, mode, map) {
+  const T = (n) => tgtRig.byName.get(n);
+  const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0), DOWN = new Vector3(0, -1, 0);
+  for (let side = 0; side < 2; side++) {
+    const up = T(names.up[side]), low = T(names.low[side]), thigh = T(names.thigh[1 - side]), calf = T(names.calf[1 - side]);
+    if (!up || !low) continue;
+    const sign = posOf(tgtRestW.get(up)).x >= 0 ? 1 : -1;
+    const inwardDeg = 2; // a straight arm already hangs beside the thigh; the map's inward is for the source's own swing
+    // the opposite leg's forward pitch drives the swing
+    let swing = 0;
+    // (a chibi stride pitches the thigh far further than a human arm swings, so the swing is a fraction of it, capped)
+    if (mode === "swing" && thigh && calf) { const d = posOf(tw.get(calf)).sub(posOf(tw.get(thigh))).normalize(); swing = Math.max(-0.45, Math.min(0.45, Math.atan2(d.z, -d.y) * 0.4)); }
+    const restDir = posOf(tgtRestW.get(low)).sub(posOf(tgtRestW.get(up))).normalize();
+    const hang = new Quaternion().setFromUnitVectors(restDir, DOWN).multiply(rotOf(tgtRestW.get(up)));
+    const upWorld = new Quaternion().setFromAxisAngle(Z, -DEG * inwardDeg * sign).multiply(new Quaternion().setFromAxisAngle(X, -swing)).multiply(hang);
+    const upParent = tgtRig.parent.get(up); const upLocal = (upParent ? rotOf(tw.get(upParent)).invert() : new Quaternion()).multiply(upWorld).normalize();
+    tl.get(up).q = upLocal; tw.set(up, (upParent ? tw.get(upParent).clone() : new Matrix4()).multiply(new Matrix4().compose(tl.get(up).t, upLocal, tl.get(up).s)));
+    const bend = 0.2 + Math.max(0, swing) * 0.6;
+    const relLow = rotOf(tgtRestW.get(up)).invert().multiply(rotOf(tgtRestW.get(low)));
+    const lowWorld = new Quaternion().setFromAxisAngle(X, -bend).multiply(upWorld.clone().multiply(relLow));
+    const lowLocal = rotOf(tw.get(up)).invert().multiply(lowWorld).normalize();
+    tl.get(low).q = lowLocal; tw.set(low, tw.get(up).clone().multiply(new Matrix4().compose(tl.get(low).t, lowLocal, tl.get(low).s)));
+    // the hand and fingers: rest pose, worlds refreshed
+    for (const n of order) { const p = tgtRig.parent.get(n); if (!p) continue; let a = p, under = false; while (a) { if (a === low) { under = true; break; } a = tgtRig.parent.get(a); } if (under) { const r = tgtRig.rest.get(n); tl.get(n).q = r.q.clone(); tw.set(n, tw.get(p).clone().multiply(new Matrix4().compose(tl.get(n).t, r.q, r.s))); } }
+  }
 }
 
 function writeClip(doc, name, { times, tracks }) {
@@ -194,7 +239,7 @@ for (const src of spec.sources) {
     // an entry is a clip name, or {clip, ground, inPlace, hipsY}: hipsY pins the hips to that height (a chair's seat), no grounding
     const e = typeof entry === "string" ? { clip: entry } : entry; const inName = e.clip;
     const anim = anims.find((a) => a.getName() === inName); if (!anim) { console.warn(`  ${src.file}: no clip ${inName}`); continue; }
-    const clip = retargetClip(srcDoc, srcRig, anim, tgtRig, map, { inPlace: e.inPlace ?? src.inPlace !== false, ground: e.hipsY != null ? false : e.ground ?? src.ground !== false, hipsY: e.hipsY });
+    const clip = retargetClip(srcDoc, srcRig, anim, tgtRig, map, { inPlace: e.inPlace ?? src.inPlace !== false, ground: e.hipsY != null ? false : e.ground ?? src.ground !== false, hipsY: e.hipsY, arms: e.arms });
     writeClip(tgtDoc, outName, clip); console.log(`  ${outName} ← ${path.basename(src.file)}:${inName} (${clip.dur.toFixed(2)}s)`);
   }
 }

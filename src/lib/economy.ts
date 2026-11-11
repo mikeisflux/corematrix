@@ -782,7 +782,7 @@ async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string 
     const r = promoUsed === null ? [] : [1];
     if (promoUsed !== null) await db.update(schema.transactions).set({ meta: JSON.stringify({ ...(tx.meta ? JSON.parse(tx.meta) : {}), promoUsed }) }).where(eq(schema.transactions.id, tx.id));
     if (!r.length) {
-      if (codeTaken) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId!));
+      if (codeTaken) await db.update(schema.boothCodes).set({ uses: sql`greatest(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId!));
       return "The account credit this checkout used was spent elsewhere first.";
     }
   }
@@ -790,7 +790,7 @@ async function claimInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string 
 }
 /** Give back what claimInputs took, when applying fails at the last step. */
 export async function releaseInputs(tx: Tx, meta: { creditUsed?: number; codeId?: string; promoUsed?: number }) {
-  if (meta.codeId) await db.update(schema.boothCodes).set({ uses: sql`max(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId));
+  if (meta.codeId) await db.update(schema.boothCodes).set({ uses: sql`greatest(0, ${schema.boothCodes.uses} - 1)` }).where(eq(schema.boothCodes.id, meta.codeId));
   if (meta.creditUsed && tx.buyerId) {
     // put each part back where it came from: referral credit stays spend-only
     const stored = (await db.select({ meta: schema.transactions.meta }).from(schema.transactions).where(eq(schema.transactions.id, tx.id)).limit(1))[0]?.meta;
