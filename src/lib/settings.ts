@@ -31,7 +31,7 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "R2_ACCESS_KEY_ID", label: "R2 access key id", group: "Storage", hint: "R2 → Manage R2 API tokens → Create API token (Object Read & Write on this bucket) → Access Key ID" },
   { key: "R2_SECRET_ACCESS_KEY", label: "R2 secret access key", group: "Storage", secret: true, hint: "Shown once when the token is created" },
   { key: "R2_BUCKET", label: "Bucket name", group: "Storage", hint: "forevercomiccon-uploads" },
-  { key: "R2_PUBLIC_URL", label: "Public URL of the bucket", group: "Storage", hint: "https://pub-….r2.dev or a connected custom domain such as https://files.forevercomiccon.com. Optional: without it images stream through the server. Add a CORS rule on the bucket allowing GET and HEAD from the site, or the floor cannot use them as textures." },
+  { key: "R2_PUBLIC_URL", label: "Public URL of the bucket", group: "Storage", hint: "https://pub-….r2.dev or a custom domain connected to the bucket in Cloudflare. Optional: without it images stream through the server. Add a CORS rule on the bucket allowing GET and HEAD from the site, or the floor cannot use them as textures." },
   { key: "R2_ENABLED", label: "Store new uploads on R2", group: "Storage", hint: "true / false. Test the connection first (Storage tab button); then Move existing uploads." },
   { key: "R2_ENDPOINT", label: "S3 endpoint override (optional)", group: "Storage", hint: "Leave blank for R2. Another S3-compatible store: https://host (path-style, bucket in the path)." },
 

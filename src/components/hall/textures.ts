@@ -568,7 +568,7 @@ export function framedLogoTexture(url: string, color: string, aspect = 1): THREE
   g.fillStyle = color; g.fillRect(0, 0, W, H);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  const img = new Image();
+  const img = new Image(); img.crossOrigin = "anonymous"; // the file may redirect to the storage host: an unflagged image taints the canvas and WebGL refuses it
   img.onload = () => {
     const k = Math.min((W - 2 * m) / img.width, (H - 2 * m) / img.height);
     const w = img.width * k, h = img.height * k;
