@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       } catch (e) {
         // "fetch failed" is Node for "no such host / no TLS": the r2.dev URL is not enabled yet, or the custom domain has no DNS
         const why = (e as Error).message;
-        steps.push({ name: "Public URL serves it", ok: false, detail: `${cfg.publicUrl} did not answer (${why}). An r2.dev address only works once "Public Development URL" is enabled in R2 → bucket → Settings (copy the pub-….r2.dev address it shows); a custom domain only once it is added under "Custom Domains" there and shows Active.` });
+        steps.push({ name: "Public URL serves it", ok: false, detail: `${cfg.publicUrl} did not answer (${why}). An r2.dev address only works once "Public Development URL" is enabled in R2 → bucket → Settings (copy the pub-….r2.dev address it shows); a custom domain only once it is added under "Custom Domains" there and shows Active. Until it answers, images are streamed through the server instead, so nothing is missing on the floor.` });
       }
     } else steps.push({ name: "Public URL", ok: null, detail: "None set: images will be streamed through the server at /api/f/… (works everywhere, costs server bandwidth). Set R2_PUBLIC_URL to serve them from Cloudflare directly." });
     await r2Delete(cfg, key); steps.push({ name: "Delete it", ok: true, detail: "cleaned up" });

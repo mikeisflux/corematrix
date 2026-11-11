@@ -20,7 +20,27 @@ export const r2Complete = (c: R2Config) => !!(c.accountId && c.accessKeyId && c.
 /** Uploads go to R2 only when every credential is in and the switch is on. */
 export async function r2Ready(): Promise<R2Config | null> { const c = await r2Config(); return c.enabled && r2Complete(c) ? c : null; }
 /** Reads work whenever the credentials are in, switch or no switch: turning uploads off must never hide what is already on R2. */
-export async function r2Readable(): Promise<R2Config | null> { const c = await r2Config(); return r2Complete(c) ? c : null; }
+/**
+ * Whether the bucket's public host answers at all (any HTTP status below 500 counts; no DNS, no TLS or a Cloudflare
+ * error page does not). Checked at most every five minutes while it is up and every minute while it is down, so a
+ * public URL that is set before its domain is connected does not break every image: until it answers, images are
+ * streamed through the server as if no public URL were set, and switch to the direct link by themselves afterwards.
+ */
+const alive = { url: "", ok: false, at: 0 };
+export async function publicUrlAlive(url: string): Promise<boolean> {
+  const now = Date.now();
+  if (alive.url === url && now - alive.at < (alive.ok ? 300_000 : 60_000)) return alive.ok;
+  let ok = false;
+  try { const r = await fetch(`${url}/`, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(3000) }); ok = r.status < 500; } catch { ok = false; }
+  alive.url = url; alive.ok = ok; alive.at = now;
+  return ok;
+}
+/** The configuration to serve files with: complete keys, and the public URL only while its host answers. */
+export async function r2Readable(): Promise<R2Config | null> {
+  const c = await r2Config(); if (!r2Complete(c)) return null;
+  if (c.publicUrl && !(await publicUrlAlive(c.publicUrl))) return { ...c, publicUrl: "" };
+  return c;
+}
 
 const sha256 = (d: string | Uint8Array) => createHash("sha256").update(d).digest("hex");
 const hmac = (k: string | Buffer, d: string) => createHmac("sha256", k).update(d).digest();
