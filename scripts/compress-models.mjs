@@ -8,6 +8,29 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { weldPrimitive, simplifyPrimitive } from "@gltf-transform/functions";
+import { MeshoptSimplifier } from "meshoptimizer";
+
+/**
+ * The far-crowd stand-in baked into each avatar (the node "lod": the dressed body in its idle pose as one plain mesh)
+ * is drawn once per distant visitor, hundreds of times over, so it is cut down to a few thousand triangles here. The
+ * parts it is made of (skin, shirt, trousers, hair, shoes) share no vertices, so each keeps its own colour.
+ */
+async function simplifyLod(file, triangles = 3200) {
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS); const doc = await io.read(file);
+  const node = doc.getRoot().listNodes().find((n) => n.getName() === "lod"); const mesh = node?.getMesh(); if (!mesh) return null;
+  await MeshoptSimplifier.ready;
+  let before = 0, after = 0;
+  for (const prim of mesh.listPrimitives()) {
+    weldPrimitive(prim); const n = prim.getIndices().getCount() / 3; before += n;
+    if (n > triangles) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: triangles / n, error: 0.02 });
+    after += prim.getIndices().getCount() / 3;
+  }
+  await io.write(file, doc);
+  return { before, after };
+}
 
 const CLI = path.resolve("node_modules/.bin/gltf-transform");
 const FILES = ["avatar-a", "avatar-b", "robot"];
@@ -17,6 +40,8 @@ for (const name of FILES) {
   const src = path.resolve("public/models", `${name}.glb`);
   if (!fs.existsSync(src)) { console.log(`skip ${name}: not found`); continue; }
   const before = fs.statSync(src).size;
+  const lod = name.startsWith("avatar-") ? await simplifyLod(src) : null;
+  if (lod) console.log(`${name}: far-crowd stand-in ${lod.before} → ${lod.after} triangles`);
   let input = src;
   for (let i = 0; i < STEPS.length; i++) {
     const out = `${src}.step${i}.glb`; // the extension picks the format: anything else and the CLI writes text glTF

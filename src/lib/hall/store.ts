@@ -179,6 +179,11 @@ export interface AvatarConfig {
   costume?: CostumeId; // cosplay preset, see lib/hall/costumes.ts
   vrm?: string | null; // the account's own VRM model (/api/f/vrm/…), worn instead of the built-in figure; the rest stays as the fallback look
 }
+/** What each hair choice is on each body: the men's cuts on body a, the women's on body b (the stored value stays the same key). */
+export const HAIR_NAMES: Record<AvatarConfig["body"], Record<AvatarConfig["hair"], string>> = {
+  a: { short: "Short", long: "Fringe", buzz: "Cropped", bun: "Neat", curly: "Curly", bald: "Bald" },
+  b: { short: "Bob", long: "Long", buzz: "Side bob", bun: "Ponytail", curly: "Braid", bald: "Bald" },
+};
 export const DEFAULT_AVATAR: AvatarConfig = { body: "a", skin: "#ffdfc4", hair: "short", hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume: "none" };
 export const SKIN_TONES = ["#ffdfc4", "#f1c27d", "#e0ac69", "#c68642", "#a16e4b", "#8d5524", "#5c3a21", "#3b2314"];
 export const HAIR_COLORS = ["#0b0b0b", "#2b1b12", "#5a3a1a", "#8b5a2b", "#b5651d", "#d8a657", "#f2e394", "#a0a0a0", "#ffffff", "#e63946", "#3a86ff", "#8338ec", "#06d6a0", "#ff6bd6"];

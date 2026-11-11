@@ -10,7 +10,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRMUtils, type VRM } from "@pixiv/three-vrm";
-import { useModel, useModelUrl, useFigureAnimation, type Motion } from "./models";
+import { useModel, useModelUrl, useFigureAnimation, CLIP_PACE, type Motion } from "./models";
 import { humanoidClips } from "@/lib/hall/vrm-clips";
 import type { AvatarConfig } from "@/lib/hall/store";
 
@@ -46,11 +46,14 @@ export function VrmRig({ url, config, motion, fallback }: { url: string; config:
 function VrmFigure({ vrm, config, motion }: { vrm: VRM; config: AvatarConfig; motion: Motion }) {
   const base = useModel(useModelUrl(`avatar-${config.body}`)!); // the hall's clips come from the built-in figure
   const mixer = useMemo(() => new THREE.AnimationMixer(vrm.scene), [vrm]);
-  const actions = useMemo(() => {
+  const { actions, pace } = useMemo(() => {
     const { clips, hipsHeight } = humanoidClips(base.scene, base.animations);
     const hips = vrm.humanoid.getNormalizedBoneNode("hips");
     const hipsRest = hips ? hips.position.clone() : new THREE.Vector3();
     const scale = hips ? (hipsRest.y / hipsHeight) : 0; // our feet of hip travel → this model's metres
+    // the same cycles on longer or shorter legs cover more or less ground
+    const stride = hips ? (hipsRest.y * FT_PER_M) / hipsHeight : 1; const own = CLIP_PACE[config.body];
+    const pace = { stroll: own.stroll * stride, walk: own.walk * stride, run: own.run * stride };
     const out: Record<string, THREE.AnimationAction> = {};
     for (const clip of clips) {
       const tracks: THREE.KeyframeTrack[] = [];
@@ -62,9 +65,9 @@ function VrmFigure({ vrm, config, motion }: { vrm: VRM; config: AvatarConfig; mo
       }
       out[clip.name] = mixer.clipAction(new THREE.AnimationClip(clip.name, clip.duration, tracks));
     }
-    return out;
-  }, [vrm, base, mixer]);
+    return { actions: out, pace };
+  }, [vrm, base, mixer, config.body]);
   const ref = useRef<THREE.Object3D>(null);
-  useFigureAnimation(mixer, actions, motion, ref, (dt, camera) => { vrm.lookAt && (vrm.lookAt.target = camera); vrm.update(dt); });
+  useFigureAnimation(mixer, actions, motion, ref, pace, (dt, camera) => { vrm.lookAt && (vrm.lookAt.target = camera); vrm.update(dt); });
   return <primitive ref={ref} object={vrm.scene} />;
 }

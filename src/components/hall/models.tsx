@@ -96,7 +96,7 @@ export interface Motion { speed: number; ftps?: number; emote?: { name: string; 
 
 /** The rigged GLB avatar with idle/walk/run crossfades and recoloring by material name. */
 export const ONESHOT = new Set(["wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"]);
-const LOCOMOTION = ["idle", "walk", "run"];
+const LOCOMOTION = ["idle", "stroll", "walk", "run"];
 /** idle/walk/run from speed, or the emote while it lasts (moving cancels it). Shared by the GLB rig and the primitive fallback. */
 export function wantedClip(motion: Motion, actions: Record<string, THREE.AnimationAction | undefined>, st: { at: number; until: number; name: string }): string {
   if (motion.sit && actions.sit) { st.until = 0; return "sit"; }
@@ -108,17 +108,22 @@ export function wantedClip(motion: Motion, actions: Record<string, THREE.Animati
   return motion.speed >= 2 ? "run" : motion.speed >= 1 ? "walk" : "idle";
 }
 /**
- * Drives a figure's mixer from its motion state. The three locomotion clips run all the time with weights from the
+ * Drives a figure's mixer from its motion state. The locomotion clips run all the time with weights from the
  * eased speed (a blend tree), so a figure easing from a stroll into a run passes through a real mix of the two cycles
  * instead of a hard crossfade; the sit pose or an emote plays over them and scales them down while it lasts. Hidden
  * or distant figures cost nothing; far ones step at half rate. `extra` runs after each mixer step (a VRM's physics).
  */
-/** How fast the walk and run cycles cover ground as authored (feet per second): a walk step of ~2 ft at 1.9 steps/s, a run of ~3.4 ft at 2.5. */
-export const WALK_CLIP_FTPS = 3.75, RUN_CLIP_FTPS = 8.5;
+/**
+ * How fast each body's stroll, walk and run cycles cover ground as captured (feet per second): a real easy stroll,
+ * a brisk walk and a jog, the shorter body's steps a little shorter. scripts/avatars/retarget.mjs prints these when
+ * it writes the clips.
+ */
+export interface ClipPace { stroll: number; walk: number; run: number }
+export const CLIP_PACE: Record<"a" | "b", ClipPace> = { a: { stroll: 3.91, walk: 6.0, run: 11.98 }, b: { stroll: 3.49, walk: 5.34, run: 10.68 } };
 /** How fast people move on the floor (feet per second): a brisk walk and a run. */
 export const WALK_FTPS = 6, RUN_FTPS = 13;
 
-export function useFigureAnimation(mixer: THREE.AnimationMixer, actions: Record<string, THREE.AnimationAction | undefined>, motion: Motion, ref: React.RefObject<THREE.Object3D | null>, extra?: (dt: number, camera: THREE.Camera) => void) {
+export function useFigureAnimation(mixer: THREE.AnimationMixer, actions: Record<string, THREE.AnimationAction | undefined>, motion: Motion, ref: React.RefObject<THREE.Object3D | null>, pace: ClipPace, extra?: (dt: number, camera: THREE.Camera) => void) {
   const overlay = useRef<THREE.AnimationAction | null>(null); // the sit pose or an emote, played over the locomotion blend
   const blend = useRef(0); // eased speed, 0 idle → 1 walk → 2 run
   const frame = useRef(0);
@@ -149,12 +154,23 @@ export function useFigureAnimation(mixer: THREE.AnimationMixer, actions: Record<
     blend.current += (target - blend.current) * Math.min(1, step * 7);
     const b = blend.current, k = 1 - (overlay.current ? overlay.current.getEffectiveWeight() : 0);
     actions.idle?.setEffectiveWeight(Math.max(0, 1 - b) * k);
-    actions.walk?.setEffectiveWeight((b <= 1 ? b : Math.max(0, 2 - b)) * k);
     actions.run?.setEffectiveWeight(Math.max(0, b - 1) * k);
     // the clips cover ground at their own natural pace; played at the figure's real speed the feet stop sliding
     const ftps = motion.ftps ?? (b <= 1 ? b * WALK_FTPS : WALK_FTPS + (b - 1) * (RUN_FTPS - WALK_FTPS));
-    if (actions.walk) actions.walk.timeScale = Math.min(2.2, Math.max(0.5, ftps / WALK_CLIP_FTPS));
-    if (actions.run) actions.run.timeScale = Math.min(2, Math.max(0.6, ftps / RUN_CLIP_FTPS));
+    const walking = (b <= 1 ? b : Math.max(0, 2 - b)) * k;
+    const stroll = actions.stroll, walk = actions.walk;
+    if (stroll && walk) {
+      // Walking is a mix of two captured gaits by how fast the figure goes: an easy stroll (short, slow steps) and a
+      // brisk walk. Both are played at the same stride period, the one at which the mixed stride covers the ground
+      // the figure does, so the two stay in step with each other and with the floor.
+      const mix = Math.min(1, Math.max(0, (ftps - pace.stroll) / (pace.walk - pace.stroll)));
+      const ds = stroll.getClip().duration, dw = walk.getClip().duration;
+      const stride = (1 - mix) * pace.stroll * ds + mix * pace.walk * dw; // feet per stride of the mix
+      const period = Math.min(ds / 0.55, Math.max(dw / 1.8, stride / Math.max(0.1, ftps)));
+      stroll.setEffectiveWeight(walking * (1 - mix)); walk.setEffectiveWeight(walking * mix);
+      stroll.timeScale = ds / period; walk.timeScale = dw / period;
+    } else if (walk) { walk.setEffectiveWeight(walking); walk.timeScale = Math.min(2.2, Math.max(0.5, ftps / pace.walk)); }
+    if (actions.run) actions.run.timeScale = Math.min(2, Math.max(0.6, ftps / pace.run));
     mixer.update(step);
     extra?.(step, camera);
   });
@@ -179,6 +195,6 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
   const ref = useRef<THREE.Object3D>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
   const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
-  useFigureAnimation(mixer, actions, motion, ref);
+  useFigureAnimation(mixer, actions, motion, ref, CLIP_PACE[config.body]);
   return <primitive ref={ref} object={obj} />;
 }

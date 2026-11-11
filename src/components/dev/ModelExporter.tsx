@@ -67,7 +67,7 @@ export function ModelExporter() {
         <div style={{ position: "absolute", left: 12, top: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
           {(["a", "b"] as const).map((b) => <button key={b} onClick={() => setBody(b)} style={{ fontWeight: body === b ? 700 : 400 }}>body {b}</button>)}
           {["short", "long", "buzz", "bun", "curly", "bald"].map((h) => <button key={h} onClick={() => setHair(h)} style={{ fontWeight: hair === h ? 700 : 400 }}>{h}</button>)}
-          {["idle", "walk", "run"].map((c) => <button key={c} onClick={() => setClip(c)} style={{ fontWeight: clip === c ? 700 : 400 }}>{c}</button>)}
+          {["idle", "walk", "run", "sit", "wave", "dance", "cheer", "clap", "bow", "point", "laugh", "facepalm"].map((c) => <button key={c} onClick={() => setClip(c)} style={{ fontWeight: clip === c ? 700 : 400 }}>{c}</button>)}
           <span style={{ opacity: 0.5 }}>|</span>
           {COSTUME_IDS.map((c) => <button key={c} onClick={() => setCostume(c)} style={{ fontWeight: costume === c ? 700 : 400 }}>{c}</button>)}
         </div>

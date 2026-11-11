@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { api, useHall, SKIN_TONES, HAIR_COLORS, OUTFIT_COLORS, type AvatarConfig } from "@/lib/hall/store";
+import { api, useHall, SKIN_TONES, HAIR_COLORS, HAIR_NAMES, OUTFIT_COLORS, type AvatarConfig } from "@/lib/hall/store";
 import { AvatarModel } from "../Avatar";
 import { PanelHeader } from "./common";
 import { COSTUMES, COSTUME_IDS, PREMIUM_COSTUMES, STAFF_COSTUMES } from "@/lib/hall/costumes";
@@ -95,7 +95,7 @@ export function AvatarPanel() {
         <div><label className="label">Skin tone</label><Swatches list={SKIN_TONES} value={avatar.skin} onPick={(skin) => setAvatar({ skin })} /></div>
         <div>
           <label className="label">Hair</label>
-          <div className="grid grid-cols-6 gap-1">{HAIR.map((h) => <button key={h} onClick={() => setAvatar({ hair: h })} className={`rounded-lg px-1 py-1.5 text-[11px] capitalize ${avatar.hair === h ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"}`}>{h}</button>)}</div>
+          <div className="grid grid-cols-6 gap-1">{HAIR.map((h) => <button key={h} onClick={() => setAvatar({ hair: h })} className={`rounded-lg px-1 py-1.5 text-[11px] ${avatar.hair === h ? "bg-amber-300 text-slate-950 font-semibold" : "bg-white/5"}`}>{HAIR_NAMES[avatar.body][h]}</button>)}</div>
         </div>
         <div><label className="label">Hair color</label><Swatches list={HAIR_COLORS} value={avatar.hairColor} onPick={(hairColor) => setAvatar({ hairColor })} /></div>
         <div><label className="label">Shirt</label><Swatches list={OUTFIT_COLORS} value={avatar.shirt} onPick={(shirt) => setAvatar({ shirt })} /></div>

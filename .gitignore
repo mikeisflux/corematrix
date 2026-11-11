@@ -60,3 +60,4 @@ data/
 
 # local Redis snapshot (a redis-server started from the repo directory writes it here)
 dump.rdb
+__pycache__/

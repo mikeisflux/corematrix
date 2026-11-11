@@ -1,7 +1,7 @@
 "use client";
 /** The card for one person on the floor: who they are, what they wear, their booth and arcade bests, and what you can do with them. */
 import { useEffect, useState } from "react";
-import { api, useHall } from "@/lib/hall/store";
+import { api, useHall, HAIR_NAMES } from "@/lib/hall/store";
 import { live } from "@/lib/hall/live";
 import { social, useSocial } from "@/lib/hall/social";
 import { COSTUMES } from "@/lib/hall/costumes";
@@ -11,7 +11,6 @@ import { ReportDialog, toggleBlock } from "./Safety";
 
 interface Profile { id: string; name: string; handle: string | null; title: string | null; since: number; streak: number; booths: Array<{ id: number; name: string; hall: string; category: string }>; bests: Array<{ game: string; best: number }>; friends: number }
 interface Friends { friends: Array<{ id: string }>; incoming: Array<{ id: string; requestId: string }>; outgoing: Array<{ id: string }> }
-const HAIR: Record<string, string> = { short: "parted", long: "long", buzz: "buzz cut", bun: "buns", curly: "curly", bald: "no hair" };
 
 export function PlayerPanel() {
   const card = social.card;
@@ -58,7 +57,7 @@ export function PlayerPanel() {
         </div>
         {profile?.handle && <div className="text-xs text-slate-400">@{profile.handle}</div>}
         <div className="grid grid-cols-2 gap-1.5 text-xs">
-          {a && <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[10px] uppercase tracking-wider text-slate-500">Wearing</div>{costume ? <div>{costume}</div> : <div>Own clothes</div>}<div className="text-slate-400">{a.vrm ? "Their own 3D model" : `${HAIR[a.hair] ?? a.hair} hair`}</div></div>}
+          {a && <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[10px] uppercase tracking-wider text-slate-500">Wearing</div>{costume ? <div>{costume}</div> : <div>Own clothes</div>}<div className="text-slate-400">{a.vrm ? "Their own 3D model" : a.hair === "bald" ? "No hair" : `${HAIR_NAMES[a.body]?.[a.hair] ?? a.hair} hair`}</div></div>}
           {profile && <div className="rounded-xl bg-white/[0.04] p-2"><div className="text-[10px] uppercase tracking-wider text-slate-500">Member</div><div>since {new Date(profile.since).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</div><div className="text-slate-400">{profile.friends} friend{profile.friends === 1 ? "" : "s"}{profile.streak > 1 ? ` · ${profile.streak}-day streak` : ""}</div></div>}
         </div>
         {profile && profile.booths.length > 0 && (

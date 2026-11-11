@@ -493,8 +493,9 @@ export function Crowd({ count = 110, cap = count }: { count?: number; cap?: numb
       const kind: Npc["kind"] = roll < 0.18 ? "plaza" : roll < 0.32 ? "cross" : "aisle";
       const corridor = unique[Math.floor(r() * unique.length)];
       const costumeOdds = kind === "plaza" ? 0.5 : kind === "cross" ? 0.3 : Math.abs(corridor) < 130 ? 0.3 : 0.15;
-      const config: AvatarConfig = { ...DEFAULT_AVATAR, body: r() < 0.5 ? "a" : "b", skin: SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], hair: (["short", "long", "buzz", "bun", "curly", "bald"] as const)[Math.floor(r() * 6)], hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], costume: r() < costumeOdds ? CROWD_COSTUMES[Math.floor(r() * CROWD_COSTUMES.length)] : "none" };
-      const speed = 3.5 + r() * 5;
+      const body: AvatarConfig["body"] = r() < 0.5 ? "a" : "b", skin = SKIN_TONES[Math.floor(r() * SKIN_TONES.length)], cut = (["short", "long", "buzz", "bun", "curly", "bald"] as const)[Math.floor(r() * 6)];
+      const config: AvatarConfig = { ...DEFAULT_AVATAR, body, skin, hair: body === "b" && cut === "bald" ? "long" : cut, hairColor: HAIR_COLORS[Math.floor(r() * 9)], shirt: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], pants: OUTFIT_COLORS[Math.floor(r() * OUTFIT_COLORS.length)], costume: r() < costumeOdds ? CROWD_COSTUMES[Math.floor(r() * CROWD_COSTUMES.length)] : "none" };
+      const speed = 3.1 + r() * 3.4; // feet per second: from an easy stroll to a brisk walk (nobody jogs through a show floor)
       const base = { config, speed, pauseUntil: 0, nextPause: 4 + r() * 20, heading: 0 };
       if (kind === "plaza") { const [x, z] = plazaPoint(r); const [tx, tz] = plazaPoint(r); return { ...base, kind, x, z, tx, tz, vx: 0, vz: 0 }; }
       if (kind === "cross") { const dir = r() < 0.5 ? 1 : -1; return { ...base, kind, x: X0 + 20 + r() * (HALL_LENGTH - 40), z: CROSS_Z0 + r() * (CROSS_Z1 - CROSS_Z0), vx: dir, vz: 0, tx: 0, tz: 0 }; }
@@ -626,7 +627,7 @@ function OverheadNotes({ id }: { id: string }) {
   useEffect(() => { if (!liveB && !liveR) return; const t = setTimeout(() => tick((n) => n + 1), Math.max(50, Math.min(liveB ? liveB.until - now : Infinity, liveR ? liveR.until - now : Infinity) + 20)); return () => clearTimeout(t); }, [liveB, liveR, now]);
   if (!liveB && !liveR) return null;
   return (
-    <Html position={[0, 9.4, 0]} center zIndexRange={[45, 0]} style={{ pointerEvents: "none" }}>
+    <Html position={[0, 8.8, 0]} center zIndexRange={[45, 0]} style={{ pointerEvents: "none" }}>
       <div className="flex flex-col items-center gap-1">
         {liveR && <div className="text-3xl drop-shadow" style={{ animation: "fcc-float 3s ease-out forwards" }}>{liveR.k}</div>}
         {liveB && <div className="max-w-[220px] rounded-2xl border border-white/15 bg-white px-3 py-1.5 text-center text-[12px] font-medium text-slate-900 shadow-lg">{liveB.text}</div>}
@@ -640,8 +641,8 @@ const MARKER_GEO = new THREE.ConeGeometry(0.55, 1.1, 3);
 const AWAY_MAT = new THREE.MeshBasicMaterial({ color: "#64748b" });
 function LiveMarker({ away }: { away?: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => { const m = ref.current; if (!m) return; m.position.y = 8.9 + (away ? 0 : Math.sin(clock.elapsedTime * 2.4) * 0.25); m.rotation.y = away ? 0 : clock.elapsedTime * 1.6; });
-  return <mesh ref={ref} geometry={MARKER_GEO} material={away ? AWAY_MAT : MARKER_MAT} rotation={[Math.PI, 0, 0]} position={[0, 8.9, 0]} />;
+  useFrame(({ clock }) => { const m = ref.current; if (!m) return; m.position.y = 8.3 + (away ? 0 : Math.sin(clock.elapsedTime * 2.4) * 0.25); m.rotation.y = away ? 0 : clock.elapsedTime * 1.6; });
+  return <mesh ref={ref} geometry={MARKER_GEO} material={away ? AWAY_MAT : MARKER_MAT} rotation={[Math.PI, 0, 0]} position={[0, 8.3, 0]} />;
 }
 function Other({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null);
@@ -679,7 +680,7 @@ function Other({ id }: { id: string }) {
       <LiveMarker away={away} />
       <OverheadNotes id={id} />
       {near && (
-        <Html position={[0, 7.6, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
+        <Html position={[0, 7.0, 0]} center zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
           <div className="flex items-center gap-1.5 rounded-full border border-emerald-300/30 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-white whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_6px_#5ee6c3]" /><span className="flex flex-col leading-tight"><span>{name}</span>{title && <span className="text-[9px] font-normal text-slate-300">{title}</span>}</span><span className={`text-[9px] font-bold uppercase tracking-wider ${away ? "text-slate-400" : "text-emerald-300"}`}>{away ? "away" : "live"}</span>{speaking && <span className="text-[12px]" title="talking" data-speaking>🔊</span>}</div>
         </Html>
       )}

@@ -103,15 +103,18 @@ The 3D props and avatars are real `.glb` files in `public/models/`, listed in `m
 The scene loads whatever the manifest lists and falls back to built-in primitives for anything
 missing, so you can swap models one at a time.
 
-- `npm run models` regenerates the procedural set (avatars with idle/walk/run clips, tables,
-  chair, banner stand, arcade cabinet, truss light) from `src/lib/hall/modelkit/` through the
-  dev page `/dev/models` (dev server must be running). Open that page to preview and download them.
+- `npm run models` regenerates the set (the two avatars, tables, chair, banner stand, arcade cabinet,
+  truss light) through the dev page `/dev/models` (dev server must be running). Open that page to preview
+  and download them. The props are built from `src/lib/hall/modelkit/`; the avatars are assembled from the
+  realistic bodies in `models-src/` (MakeHuman assets with motion-capture clips, see
+  `scripts/avatars/README.md`) plus the costume parts.
 - To replace one with your own model (Blender, an AI text-to-3D tool like Meshy or Tripo, a
-  CC0 pack from Kenney or Quaternius), export a `.glb` with the same **node names** (avatars:
-  `hips`, `torso`, `head`, `shoulder_l/r`, `forearm_l/r`, `thigh_l/r`, `shin_l/r`, `hair_*`) and
+  CC0 pack from Kenney or Quaternius), export a `.glb` with the same **node names** (avatars: the joints,
+  `hair_*` and `cos_*` nodes listed at the end of `scripts/avatars/README.md`) and
   **material names** (`skin`, `hair`, `shirt`, `pants`, `cloth`, `banner`, `screen`…), drop it in
   `public/models/`, and add it to `manifest.json`. Recoloring and animation pick it up by name.
-- Avatars need three looping clips named `idle`, `walk` and `run`.
+- Avatars need three looping clips named `idle`, `walk` and `run`; `stroll` (mixed with the walk at low speeds),
+  `sit` and the eight emotes play when present.
 - After regenerating or replacing `avatar-a`, `avatar-b` or `robot`, run `npm run models:compress`: it resamples the
   animation, quantizes the vertices and applies meshopt compression (about 2.5× smaller on disk). The hall's loader
   carries the decoder. The props stay uncompressed; see `scripts/compress-models.mjs` for why.

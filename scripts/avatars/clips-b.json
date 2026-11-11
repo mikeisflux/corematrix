@@ -3,43 +3,191 @@
  "out": "../../models-src/body-b.anim.glb",
  "sources": [
   {
-   "file": "${KAYKIT_ADVENTURERS}/addons/kaykit_character_pack_adventures/Characters/gltf/Rogue.glb",
-   "map": "kaykit_ue",
+   "file": "${CMU_MOCAP}/137/137_28.bvh",
+   "map": "cmu_mh",
    "clips": {
-    "walk": {
-     "clip": "Walking_A",
-     "arms": "swing",
-     "gait": "walk"
-    },
-    "run": {
-     "clip": "Running_A",
-     "arms": "swing",
-     "gait": "run"
-    },
-    "sit": {
-     "clip": "Sit_Chair_Idle",
-     "hipsY": 1.6
-    },
-    "cheer": "Cheer",
-    "bow": "PickUp",
-    "point": "1H_Ranged_Aiming"
+    "idle": {
+     "from": 29.2,
+     "to": 30.95,
+     "loop": "sway",
+     "calibrate": 30.0,
+     "neutral": true
+    }
    }
   },
   {
-   "file": "legacy-rig.glb",
-   "map": "legacy_ue",
+   "file": "${CMU_MOCAP}/016/16_21.bvh",
+   "map": "cmu_mh",
    "clips": {
-    "idle": {
-     "clip": "idle",
-     "arms": "hang"
-    },
-    "wave": "wave",
-    "dance": "dance",
-    "clap": "clap",
-    "laugh": "laugh",
-    "facepalm": "facepalm"
+    "walk": {
+     "from": 0.283,
+     "to": 1.267,
+     "loop": true,
+     "travel": "trend"
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/016/16_15.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "stroll": {
+     "from": 1.1,
+     "to": 2.233,
+     "loop": true,
+     "travel": "trend"
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/035/35_22.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "run": {
+     "from": 0.383,
+     "to": 1.117,
+     "loop": true,
+     "travel": "trend"
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/143/143_25.bvh",
+   "map": "cmu_mh",
+   "rate": 60,
+   "clips": {
+    "wave": {
+     "from": 0.8,
+     "to": 4.0,
+     "upper": true,
+     "intro": 0.3,
+     "outro": 0.6,
+     "calibrate": 0.3,
+     "fingers": {
+      "l": "open"
+     }
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/080/80_43.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "clap": {
+     "from": 0.7,
+     "to": 5.2,
+     "upper": true,
+     "intro": 0.3,
+     "outro": 0.6,
+     "calibrate": 0.2,
+     "fingers": {
+      "l": "open",
+      "r": "open"
+     }
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/014/14_17.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "cheer": {
+     "from": 0.45,
+     "to": 1.9,
+     "intro": 0.35,
+     "outro": 0.6
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/080/80_45.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "facepalm": {
+     "from": 0.8,
+     "to": 3.4,
+     "upper": true,
+     "intro": 0.3,
+     "outro": 0.7,
+     "calibrate": 0.2,
+     "fingers": {
+      "r": "open"
+     }
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/080/80_14.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "point": {
+     "from": 9.3,
+     "to": 11.6,
+     "upper": true,
+     "intro": 0.4,
+     "outro": 0.6,
+     "calibrate": 0.2,
+     "fingers": {
+      "r": "point"
+     }
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/079/79_70.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "laugh": {
+     "from": 0.5,
+     "to": 3.9,
+     "intro": 0.3,
+     "outro": 0.6,
+     "calibrate": 0.2
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/113/113_02.bvh",
+   "map": "cmu_mh",
+   "clips": {
+    "bow": {
+     "from": 0.2,
+     "to": 4.2,
+     "intro": 0.3,
+     "outro": 0.5,
+     "calibrate": 0.1
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/141/141_12.bvh",
+   "map": "cmu_mh",
+   "rate": 60,
+   "clips": {
+    "dance": {
+     "from": 2.0,
+     "to": 7.6,
+     "intro": 0.35,
+     "outro": 0.5
+    }
+   }
+  },
+  {
+   "file": "${CMU_MOCAP}/075/75_17.bvh",
+   "map": "cmu_mh",
+   "rate": 60,
+   "clips": {
+    "sit": {
+     "from": 2.5,
+     "to": 4.0,
+     "loop": "sway",
+     "travel": "zero",
+     "hipsY": 1.83,
+     "handsOn": "thighs",
+     "knees": 0.38
+    }
    }
   }
  ],
- "armsOut": 10
+ "armsOut": 0
 }

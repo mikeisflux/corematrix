@@ -1,154 +1,45 @@
 {
  "out": "../../models-src/body-a.glb",
- "scale": 3.2808,
- "turn": 180,
- "parts": [
+ "height": 6.0,
+ "targets": [
+  [
+   "macrodetails/caucasian-male-young",
+   1.0
+  ]
+ ],
+ "skin": "skins/young_caucasian_male/young_lightskinned_male_diffuse.png",
+ "eyes": {
+  "proxy": "eyes/low-poly/low-poly",
+  "texture": "eyes/materials/brownlight_eye.png"
+ },
+ "brows": "eyebrows/eyebrow001/eyebrow001",
+ "lashes": "eyelashes/eyelashes01/eyelashes01",
+ "colors": {
+  "skin": "#ffdfc4",
+  "hair": "#2b1b12",
+  "shirt": "#e63946",
+  "pants": "#1f2a44"
+ },
+ "clothes": [
   {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
-   "node": "body",
-   "textured": [
-    "skin",
-    "eye"
-   ],
-   "tint": [
-    "skin"
-   ],
-   "meshes": {
-    "Sphere_005_Retopology_004": {
-     "*": {
-      "bands": [
-       [
-        0.33,
-        null
-       ],
-       [
-        null,
-        "skin"
-       ]
-      ]
-     }
-    },
-    "Face": {
-     "*": "eye"
-    },
-    "Face_001": {
-     "*": "eye"
-    }
-   },
-   "clothes": {
-    "mesh": "Sphere_005_Retopology_004",
-    "offset": 0.13,
-    "pants": 0.05,
-    "shoes": 0.05,
-    "sleeve": 0.55,
-    "collar": 0.32,
-    "hem": -0.02,
-    "ankle": 0.03,
-    "smooth": 8,
-    "slack": 0.6,
-    "shoeSlack": 2.5,
-    "shoeSmooth": 20
-   }
+   "proxy": "clothes/male_casualsuit06/male_casualsuit06",
+   "split": [
+    "shirt",
+    "pants"
+   ]
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_EyebrowsRegularFBX(Unity).usda",
-   "node": "brows",
-   "textured": [
-    "brow"
-   ],
-   "tint": [
-    "brow"
-   ],
-   "subsets": {
-    "*": "brow"
-   }
-  },
-  {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairSimplePartedFBX(Unity).usda",
-   "node": "hair_short",
-   "textured": [
-    "hair"
-   ],
-   "tint": [
-    "hair"
-   ],
-   "subsets": {
-    "*": "hair"
-   }
-  },
-  {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairBuzzedFBX(Unity).usda",
-   "node": "hair_buzz",
-   "textured": [
-    "hair"
-   ],
-   "tint": [
-    "hair"
-   ],
-   "subsets": {
-    "*": "hair"
-   }
-  },
-  {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
-   "node": "hair_long",
-   "textured": [
-    "hair"
-   ],
-   "tint": [
-    "hair"
-   ],
-   "meshes": {},
-   "hair": {
-    "mesh": "Sphere_005_Retopology_004",
-    "texture": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/textures/T_Hair2_D.png",
-    "thick": 0.1,
-    "bump": 0.035,
-    "curl": 26,
-    "depth": 0.9,
-    "forehead": 0.2,
-    "fade": 0.25
-   }
-  },
-  {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
-   "node": "hair_bun",
-   "textured": [
-    "hair"
-   ],
-   "tint": [
-    "hair"
-   ],
-   "meshes": {},
-   "hair": {
-    "mesh": "Sphere_005_Retopology_004",
-    "texture": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/textures/T_Hair2_D.png",
-    "thick": 0.055,
-    "bump": 0.0,
-    "depth": 0.8,
-    "forehead": 0.26,
-    "fade": 0.2,
-    "knot": {
-     "r": 0.2,
-     "back": 0.1,
-     "up": 0.04
-    }
-   }
-  },
-  {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
-   "node": "hair_curly",
-   "textured": [
-    "hair"
-   ],
-   "tint": [
-    "hair"
-   ],
-   "meshes": {},
-   "hair": {
-    "mesh": "Sphere_005_Retopology_004",
-    "texture": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/textures/T_Hair2_D.png"
-   }
+   "proxy": "clothes/shoes05/shoes05",
+   "material": "shoes",
+   "textureSize": 512
   }
- ]
+ ],
+ "hair": {
+  "hair_short": "hair/short02/short02",
+  "hair_long": "hair/short03/short03",
+  "hair_buzz": "hair/short04/short04",
+  "hair_bun": "hair/short01/short01",
+  "hair_curly": "hair/afro01/afro01"
+ },
+ "skinLevel": 0.76
 }

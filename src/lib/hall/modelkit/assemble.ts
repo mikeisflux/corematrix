@@ -2,9 +2,9 @@
 /**
  * Assembles the hall's avatar GLBs (npm run models, via /dev/models) from two sources:
  *
- *  - the skinned, animated body in models-src/body-{a,b}.anim.glb: a Quaternius "Ultimate Animated Character" (CC0)
- *    converted by scripts/avatars/usd-to-glb.py, with five hair styles from the same pack and the clips retargeted by
- *    scripts/avatars/retarget.mjs (KayKit Adventurers walk/run/idle/sit/cheer/bow/point, the project's own emotes);
+ *  - the skinned, animated body in models-src/body-{a,b}.anim.glb: a MakeHuman adult (CC0) with fitted clothes, shoes
+ *    and five hair styles, built by scripts/avatars/mh-to-glb.py, carrying motion-capture clips (CMU Graphics Lab
+ *    database) retargeted by scripts/avatars/retarget.mjs;
  *  - the costume parts, badge and lanyard of the procedural figure in ./avatar.ts (node names cos_*, badge, lanyard_m),
  *    which are lifted off that figure and refit onto the new bones: head parts scaled to the new head, chest parts to
  *    the new torso, carried props into the hand. The runtime (applyAvatarLook) keeps toggling them by name.
@@ -59,39 +59,45 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   const scene = gltf.scene as THREE.Group; scene.name = `avatar-${body}`;
   scene.updateMatrixWorld(true);
   const bone = (n: string) => { const b = scene.getObjectByName(n); if (!b) throw new Error(`assemble: no bone ${n}`); return b; };
-  // the two rigs this runs on: the stylised Quaternius one and the UE-style one of the Universal Base Characters
-  const ue = !!scene.getObjectByName("spine_03");
-  const head = bone("Head"), torso = bone(ue ? "spine_03" : "Torso"), fist = bone(ue ? "hand_l" : "Fist_L"); // the +x hand, where the procedural figure's "hand_r" was
-  const armX = new THREE.Vector3().setFromMatrixPosition(bone(ue ? "upperarm_l" : "UpperArm_L").matrixWorld).x; // the sleeves start here
+  // MakeHuman's game rig (Unreal-style joint names)
+  const head = bone("Head"), torso = bone("spine_03"), fist = bone("hand_l"); // the +x hand, where the procedural figure's "hand_r" was
+  const armX = new THREE.Vector3().setFromMatrixPosition(bone("upperarm_l").matrixWorld).x; // the sleeves start here
   const old = buildAvatar(body);
   old.updateMatrixWorld(true);
 
-  // head parts: the procedural head sphere → the new head. Two fits: coverings (cowl, helmet, hood, hat, antenna) get a
-  // sphere that encloses the boxy head, so its corners never poke through; face pieces (mask, shades, earpiece) a tight
-  // one. Both keep the old eye line on the new eyes and the old crown on the new crown, so hats sit and masks line up.
+  // head parts: the procedural head sphere → the new head. The old head is a ball with its eyes a third of the way up
+  // from its middle; a real head has them at mid-height. So each part's vertices are moved one by one: heights above
+  // the old eye line are scaled so the old crown lands on the new crown, heights below it so the old chin lands on
+  // the new jaw, and the eye line stays on the eyes (a mask covers them, a visor slot and a cowl's lenses sit over
+  // them). Sideways and in depth there are two fits: coverings (cowl, helmet, hood, hat, antenna) get a shell a fifth
+  // outside the skin, so nothing pokes through; face pieces (mask, shades, earpiece) sit just off the face.
   const headPos = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld);
-  // the head's skin: above the neck and no wider than a head, so the shoulders (which reach the chin line on the
-  // realistic body in its T-pose) stay out of the measurement
-  const neckY = new THREE.Vector3().setFromMatrixPosition(bone(ue ? "neck_01" : "Neck").matrixWorld).y;
-  const hb = measure(scene, "skin", (v) => v.y > (ue ? neckY + 0.12 : headPos.y - 0.25) && Math.abs(v.x) < (ue ? 0.6 : 1.3));
+  // the head's skin: above the neck and no wider than a head, so the shoulders and hands stay out of the measurement
+  const neckY = new THREE.Vector3().setFromMatrixPosition(bone("neck_01").matrixWorld).y;
+  const hb = measure(scene, "skin", (v) => v.y > neckY + 0.12 && Math.abs(v.x) < 0.6);
   const hc = hb.getCenter(new THREE.Vector3()), hr = hb.getSize(new THREE.Vector3()).multiplyScalar(0.5);
-  const eyeY = measure(scene, "eye", () => true).getCenter(new THREE.Vector3()).y;
-  const OLD_EYE = OLD_HEAD_C.y + 0.1, OLD_TOP = OLD_HEAD_C.y + OLD_HEAD_R.y;
+  const eyes = measure(scene, "eye", () => true); const eyeY = eyes.getCenter(new THREE.Vector3()).y;
+  const OLD_EYE = OLD_HEAD_C.y + 0.28, OLD_TOP = OLD_HEAD_C.y + OLD_HEAD_R.y, OLD_BOTTOM = OLD_HEAD_C.y - OLD_HEAD_R.y;
+  const up = (hb.max.y + 0.02 - eyeY) / (OLD_TOP - OLD_EYE), down = (eyeY - hb.min.y) / (OLD_EYE - OLD_BOTTOM);
   const headHold = holder(head, "head_parts");
-  const headFit = (name: string, padX: number, padZ: number) => {
-    const fit = new THREE.Group(); fit.name = name;
-    const sy = (hb.max.y + 0.02 - eyeY) / (OLD_TOP - OLD_EYE);
-    fit.scale.set((hr.x + padX) / OLD_HEAD_R.x, sy, (hr.z + padZ) / OLD_HEAD_R.z);
-    fit.position.set(hc.x - headPos.x, eyeY - sy * (OLD_EYE - OLD_HEAD_C.y) - headPos.y, hc.z - headPos.z); // old head centre lands here
-    const shift = new THREE.Group(); shift.position.copy(OLD_HEAD_C).negate();
-    headHold.add(fit); fit.add(shift); return shift;
+  const refit = (part: THREE.Mesh, sx: number, sz: number, cz: number, lift = 0) => {
+    part.updateMatrix(); const g = part.geometry.clone(); const pos = g.attributes.position as THREE.BufferAttribute; const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(part.matrix); // in the old head's own space
+      pos.setXYZ(i, hc.x + v.x * sx - headPos.x, eyeY + lift + (v.y - OLD_EYE) * (v.y >= OLD_EYE ? up : down) - headPos.y, cz + v.z * sz - headPos.z);
+    }
+    g.computeVertexNormals(); part.geometry = g; part.position.set(0, 0, 0); part.quaternion.identity(); part.scale.set(1, 1, 1); headHold.add(part);
   };
-  // pads in proportion to the head: a covering sits a fifth outside the skin, a face piece just off it
-  const cover = headFit("head_cover", hr.x * 0.22, hr.z * 0.25), face = headFit("head_face", hr.x * 0.05, hr.z * 0.07);
+  // a covering: a fifth outside the skin all round. A face piece: its front (the old face, 0.66 out) a finger off the eyes
+  const cover = { sx: (hr.x * 1.22) / OLD_HEAD_R.x, sz: (hr.z * 1.25) / OLD_HEAD_R.z, cz: hc.z };
+  const faceZ = hc.z - hr.z * 0.15; // the middle of the skull, behind the box centre (which the nose pulls forward)
+  const face = { sx: (hr.x * 1.05) / OLD_HEAD_R.x, sz: (eyes.max.z + 0.035 - faceZ) / 0.66, cz: faceZ };
   const oldHead = old.getObjectByName("head")!;
   for (const c of [...oldHead.children]) {
     if (!(c as THREE.Mesh).isMesh || !c.name.startsWith("cos_")) continue;
-    (["cos_mask", "cos_shades", "cos_earpiece"].includes(c.name) ? face : cover).add(c);
+    const f = ["cos_mask", "cos_shades", "cos_earpiece"].includes(c.name) ? face : cover;
+    // a hat's brim sat just over the old head's eyes; on a real head it belongs at the hairline, halfway up to the crown
+    refit(c as THREE.Mesh, f.sx, f.sz, f.cz, c.name === "cos_hat" ? (hb.max.y - eyeY) * 0.45 : 0);
   }
 
   // chest parts: the procedural torso (its own shirt mesh, torso_m) → the new shirt's core (sleeves left out)
@@ -108,8 +114,19 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   torsoHold.add(torsoFit); torsoFit.add(torsoShift);
   lift(oldTorso, torsoShift);
 
-  // carried props: built for a hand hanging down (-y along the arm); the new arm rests along +x
-  const handHold = holder(fist, "hand_parts", new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
+  // carried props: built for a hand hanging down (-y along the arm, palm toward the body at -x). The holder turns that
+  // frame onto the hand as it rests on this rig, whichever way its arm is modelled: -y along the fingers, -x out of the
+  // palm. The grip sits in the palm, a little down the hand from the wrist joint.
+  const at = (n: string) => { const b = scene.getObjectByName(n); return b ? new THREE.Vector3().setFromMatrixPosition(b.matrixWorld) : null; };
+  const wrist = at("hand_l")!, knuckle = at("middle_01_l"), index = at("index_01_l"), pinky = at("pinky_01_l");
+  let grip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2); // an arm resting along +x, palm down
+  if (knuckle && index && pinky) {
+    const d = knuckle.clone().sub(wrist).normalize(); const palm = pinky.clone().sub(index).cross(d).normalize(); // out of the palm of the +x hand
+    const y = d.clone().negate(), x = palm.clone().negate().addScaledVector(y, palm.dot(y)).normalize(); // -(palm), squared up to the fingers
+    grip = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
+  }
+  const handHold = holder(fist, "hand_parts", grip);
+  if (knuckle) handHold.position.copy(fist.worldToLocal(wrist.clone().lerp(knuckle, 0.75)));
   lift(old.getObjectByName("hand_r")!, handHold);
 
   scene.add(bakeLod(scene, gltf.animations));
