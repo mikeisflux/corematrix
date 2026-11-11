@@ -73,7 +73,7 @@ def quat_from_mat(L):
         s = np.sqrt(1 + R[2, 2] - R[0, 0] - R[1, 1]) * 2; w = (R[1, 0] - R[0, 1]) / s; x = (R[0, 2] + R[2, 0]) / s; y = (R[1, 2] + R[2, 1]) / s; z = s / 4
     q = np.array([x, y, z, w]); return (q / np.linalg.norm(q)).tolist()
 
-def mesh_part(prim, names, X, scale, subsets_wanted, rebind=None):
+def mesh_part(prim, names, X, scale, subsets_wanted, rebind=None, W=None, slim=None):
     """Returns {material: (positions, normals, joints, weights, indices)} for the wanted subsets of one USD mesh.
     rebind: per joint, the matrix taking this file's bind pose onto the body's (a hair file skinned in a slightly
     different pose would otherwise sit where its own skeleton put it, not on this head)."""
@@ -85,6 +85,7 @@ def mesh_part(prim, names, X, scale, subsets_wanted, rebind=None):
     M = (mat_np(gbt) if gbt is not None else np.eye(4)) @ X
     P = np.c_[pts, np.ones(len(pts))] @ M
     P = P[:, :3] * scale
+    if slim and W is not None: P = slim_points(P, names, W, slim)
     R = M[:3, :3]
     nrm = mesh.GetNormalsAttr().Get()
     if nrm is not None and mesh.GetNormalsInterpolation() == "faceVarying":
@@ -203,11 +204,12 @@ def image_bytes(path, max_size, kind, tint=False):
     if im.mode == "RGBA" or kind == "normal": im.save(buf, format="PNG", optimize=True); return buf.getvalue(), "image/png"
     im.convert("RGB").save(buf, format="JPEG", quality=86); return buf.getvalue(), "image/jpeg"
 
-def clip_tris(attrs, tris, n, d, interp=None):
-    """Keeps the part of a triangle mesh on the side of the plane dot(p, n) >= d, splitting the triangles it cuts so the
-    edge is a clean straight line. attrs: list of per-vertex arrays (positions first); shared cut edges stay welded.
-    interp: per attribute, whether a cut vertex blends it (positions, normals) or takes the nearer end's (bone slots)."""
-    P = attrs[0]; sd = P @ n - d; out = []; cache = {}
+def clip_tris(attrs, tris, n, d, interp=None, sd=None):
+    """Keeps the part of a triangle mesh on the side of the plane dot(p, n) >= d (or, with sd, where that per-vertex
+    signed distance is >= 0), splitting the triangles it cuts so the edge is a clean line. attrs: list of per-vertex
+    arrays (positions first); shared cut edges stay welded. interp: per attribute, whether a cut vertex blends it
+    (positions, normals) or takes the nearer end's (bone slots)."""
+    P = attrs[0]; sd = (P @ n - d) if sd is None else np.asarray(sd, dtype=np.float64); out = []; cache = {}
     interp = interp or [True] * len(attrs)
     attrs = [list(a) for a in attrs]
     def cut(i, j):
@@ -231,7 +233,20 @@ def clip_tris(attrs, tris, n, d, interp=None):
     attrs = [np.array(a) for a in attrs]
     return attrs, np.array(out, dtype=int).reshape(-1, 3)
 
-def skinned_body(prim, names, X, scale):
+def slim_points(P, names, W, slim):
+    """Narrows the hips, thighs and calves toward the body's centre line: x and z scaled by `slim` from the hip crest
+    to the ankles, blending back to 1 over the lower ribs and over the foot, so the bust and the feet keep their size."""
+    if not slim or float(slim) >= 1: return P
+    pos = {n: W[i][3, :3] for i, n in enumerate(names)}
+    hip, chest, ankle = pos["pelvis"][1] + 0.3, pos["spine_03"][1], pos["foot_l"][1] + 0.1
+    y = P[:, 1]
+    w = np.where(y > hip, np.clip((chest - y) / max(1e-6, chest - hip), 0, 1), np.clip((y - (ankle - 0.3)) / 0.3, 0, 1))
+    f = 1 - (1 - float(slim)) * w
+    Q = P.copy(); cz = pos["pelvis"][2]
+    Q[:, 0] = P[:, 0] * f; Q[:, 2] = cz + (P[:, 2] - cz) * f
+    return Q
+
+def skinned_body(prim, names, X, scale, W=None, slim=None):
     """A skinned mesh as world-space positions, smooth vertex normals, its 4 strongest bone slots per vertex and triangles."""
     mesh = UsdGeom.Mesh(prim)
     pts = np.array(mesh.GetPointsAttr().Get(), dtype=np.float64)
@@ -239,6 +254,7 @@ def skinned_body(prim, names, X, scale):
     binding = UsdSkel.BindingAPI(prim)
     gbt = binding.GetGeomBindTransformAttr().Get(); M = (mat_np(gbt) if gbt is not None else np.eye(4)) @ X
     P = (np.c_[pts, np.ones(len(pts))] @ M)[:, :3] * scale
+    if slim and W is not None: P = slim_points(P, names, W, slim)
     ji = binding.GetJointIndicesPrimvar(); jw = binding.GetJointWeightsPrimvar(); es = ji.GetElementSize()
     idx = np.array(ji.Get()).reshape(-1, es); wts = np.array(jw.Get(), dtype=np.float64).reshape(-1, es)
     bound = binding.GetJointsAttr().Get()
@@ -297,15 +313,18 @@ def clothe(prim, names, W, X, scale, opts):
     body surface cut by planes (a collar below the neck, sleeves across the upper arms, a hem at the hips, an ankle
     line), the triangles split on the planes so every edge is a clean line. Returns {material: arrays} like mesh_part.
     """
-    P, vn, idx4, w4, tris = skinned_body(prim, names, X, scale)
+    P, vn, idx4, w4, tris = skinned_body(prim, names, X, scale, W, opts.get("slim"))
     pos = {n: W[i][3, :3] for i, n in enumerate(names)}
     neck, pelvis, foot = pos["neck_01"], pos["pelvis"], pos["foot_l"]
     Y = np.array([0.0, 1.0, 0.0])
     sleeve = float(opts.get("sleeve", 0.5)); off = float(opts.get("offset", 0.065)); shoe_off = float(opts.get("shoes", 0.1))
-    collar = neck[1] - float(opts.get("collar", 0.25)); hem = pelvis[1] - float(opts.get("hem", 0.15)); ankle = foot[1] + float(opts.get("ankle", 0.12))
-    def garment(planes, grow, slack=0.0):
+    collar = neck[1] + 0.1; hem = pelvis[1] - float(opts.get("hem", 0.15)); ankle = foot[1] + float(opts.get("ankle", 0.12))
+    def garment(planes, grow, slack=0.0, smooth=None, collar_r=None):
         attrs, t = [P.copy(), vn.copy(), idx4.copy(), w4.copy()], tris.copy()
         for n, d in planes: attrs, t = clip_tris(attrs, t, n, d, [True, True, False, False])
+        if collar_r:  # crew neck: drop what lies inside a cylinder round the neck above the collarbone line
+            Pc = attrs[0]; radial = np.hypot(Pc[:, 0] - neck[0], Pc[:, 2] - neck[2]) - collar_r
+            attrs, t = clip_tris(attrs, t, None, None, [True, True, False, False], sd=np.maximum(radial, (neck[1] - 0.45) - Pc[:, 1]))
         if len(t) == 0: return None
         used = np.unique(t); remap = -np.ones(len(attrs[0]), dtype=int); remap[used] = np.arange(len(used))
         Pn, Nn, Jn, Wn = (a[used] for a in attrs)
@@ -321,7 +340,7 @@ def clothe(prim, names, W, X, scale, opts):
         for (i, j), cnt in edge_count.items():
             if cnt == 1: boundary[i] = boundary[j] = True
         Q = Pn.copy()
-        for _ in range(int(opts.get("smooth", 3))):
+        for _ in range(int(opts.get("smooth", 3)) if smooth is None else int(smooth)):
             R = Q.copy()
             for i in range(len(Q)):
                 if boundary[i] or not nb[i]: continue
@@ -342,9 +361,54 @@ def clothe(prim, names, W, X, scale, opts):
         a, b = pos["upperarm_" + side], pos["lowerarm_" + side]; axis = (b - a) / np.linalg.norm(b - a); cutp = a + axis * sleeve * np.linalg.norm(b - a)
         sleeves.append((-axis, -float(axis @ cutp)))
     out = {}
-    shirt = garment([(-Y, -collar), (Y, hem)] + sleeves, off, float(opts.get("slack", 0.0)))  # below the collar, above the hem, inside the sleeve lines
+    shirt = garment([(-Y, -collar), (Y, hem)] + sleeves, off, float(opts.get("slack", 0.0)), None, float(opts.get("collar", 0.3)))  # above the hem, inside the sleeve lines, round the neck
     pants = garment([(-Y, -(pelvis[1] + 0.35)), (Y, ankle)], float(opts.get("pants", off * 0.75)))  # from under the shirt down to the ankle line, a little closer to the body than the shirt that hangs over it
-    shoes = garment([(-Y, -(ankle + 0.06))], shoe_off)                        # from just under the trouser hem down
+    # shoes: a shell over the foot keeps every toe (each is its own tube, so no smoothing bridges them), so the shoe is
+    # a built last instead: rounded cross-sections along the foot, as wide and as high as the foot plus the offset,
+    # closed at the heel and tapered at the toe, skinned to the foot and ball bones. The foot's skin is hidden inside.
+    def shoe(side):
+        sx = 1 if side == "l" else -1
+        F = P[(P[:, 1] < ankle + 0.1) & (np.sign(P[:, 0]) == sx) & (np.abs(P[:, 0]) > 0.03)]
+        if len(F) < 10: return None
+        top = ankle + 0.14; fb, bb = names.index("foot_" + side), names.index("ball_" + side); ball_z = pos["ball_" + side][2]
+        n_sec, n_ring, e = 18, 16, 2.6
+        zs = np.linspace(F[:, 2].min() - shoe_off * 0.7, F[:, 2].max() + shoe_off * 1.3, n_sec)
+        V, J, Wt = [], [], []
+        for i, z in enumerate(zs):
+            win = F[np.abs(F[:, 2] - z) < 0.09]
+            if len(win) < 4: win = F[np.argsort(np.abs(F[:, 2] - z))[:24]]
+            cx = (win[:, 0].min() + win[:, 0].max()) / 2
+            w = win[:, 0].max() - win[:, 0].min() + 2 * shoe_off
+            h = min(top, win[:, 1].max() + shoe_off * 0.7)
+            t = i / (n_sec - 1)
+            if t < 0.15: r = np.sqrt(max(0.0, 1 - ((0.15 - t) / 0.15) ** 2)); w *= 0.35 + 0.65 * r            # the heel: a vertical rounded back
+            elif t > 0.62: r = np.sqrt(max(0.0, 1 - ((t - 0.62) / 0.38) ** 2)); w *= 0.3 + 0.7 * r; h = 0.03 + (h - 0.03) * (0.15 + 0.85 * r)  # the toe box slopes down and in
+            wb = float(np.clip((z - (ball_z - 0.06)) / 0.12, 0, 1))
+            for k in range(n_ring):
+                a = 2 * np.pi * k / n_ring; c, sn = np.cos(a), np.sin(a)
+                x = cx + (w / 2) * np.sign(c) * abs(c) ** (2 / e); y = (h / 2) + (h / 2) * np.sign(sn) * abs(sn) ** (2 / e)
+                V.append((x, max(0.0, y), z)); J.append((fb, bb, 0, 0)); Wt.append((1 - wb, wb, 0, 0))
+        heel = len(V); V.append(((V[0][0] + V[n_ring // 2][0]) / 2, (V[n_ring // 4][1] + V[3 * n_ring // 4][1]) / 2, zs[0] - 0.015)); J.append((fb, bb, 0, 0)); Wt.append((1, 0, 0, 0))
+        base = (n_sec - 1) * n_ring
+        toe = len(V); V.append(((V[base][0] + V[base + n_ring // 2][0]) / 2, (V[base + n_ring // 4][1] + V[base + 3 * n_ring // 4][1]) / 2, zs[-1] + 0.015)); J.append((fb, bb, 0, 0)); Wt.append((0, 1, 0, 0))
+        T = []
+        for i in range(n_sec - 1):
+            for k in range(n_ring):
+                a, b = i * n_ring + k, i * n_ring + (k + 1) % n_ring; c, d = a + n_ring, b + n_ring
+                T.append((a, c, b)); T.append((b, c, d))
+        for k in range(n_ring): T.append((heel, k, (k + 1) % n_ring)); T.append((toe, base + (k + 1) % n_ring, base + k))
+        V = np.array(V); T = np.array(T)
+        fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]]); N = np.zeros_like(V)
+        for kk in range(3): np.add.at(N, T[:, kk], fn)
+        if np.einsum("ij,ij->i", N, V - V.mean(0)).sum() < 0: T = T[:, ::-1]; N = -N  # wound inside out: flip
+        N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9)
+        return (V.astype(np.float32), N.astype(np.float32), np.array(J, np.uint16), np.array(Wt, np.float32), T.reshape(-1).astype(np.uint32), np.zeros((len(V), 2), np.float32))
+    parts = [g for g in (shoe("l"), shoe("r")) if g is not None]
+    shoes = None
+    if parts:
+        off_i = 0; Ps, Ns, Js, Ws, Is, Ts = [], [], [], [], [], []
+        for g in parts: Ps.append(g[0]); Ns.append(g[1]); Js.append(g[2]); Ws.append(g[3]); Is.append(g[4] + off_i); Ts.append(g[5]); off_i += len(g[0])
+        shoes = (np.concatenate(Ps), np.concatenate(Ns), np.concatenate(Js), np.concatenate(Ws), np.concatenate(Is), np.concatenate(Ts))
     for matname, g in (("shirt", shirt), ("pants", pants), ("shoes", shoes)):
         if g is None: continue
         out[matname] = g; print(f"  clothes/{matname}: {len(g[0])} vertices, {len(g[4])//3} triangles")
@@ -398,7 +462,7 @@ def main(spec_path):
             mspec = part["meshes"].get(mprim.GetName()) if "meshes" in part else part["subsets"]
             if mspec is None and not hair: continue
             bound_name = UsdShade.MaterialBindingAPI(mprim).ComputeBoundMaterial()[0]; bound_name = bound_name.GetPrim().GetName() if bound_name else "material"
-            pieces = mesh_part(mprim, names, X, scale, mspec, rebind) if mspec else {}
+            pieces = mesh_part(mprim, names, X, scale, mspec, rebind, W, part.get("clothes", {}).get("slim") if mprim.GetName() == part.get("clothes", {}).get("mesh") else None) if mspec else {}
             if "clothes" in part and mprim.GetName() == part["clothes"].get("mesh", mprim.GetName()): pieces.update(clothe(mprim, names, W, X, scale, part["clothes"]))
             if hair: pieces.update(hair_cap(mprim, names, W, X, scale, hair))
             for matname, (P, N, J, Wt, I, T) in pieces.items():

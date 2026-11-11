@@ -17,7 +17,11 @@ python3 -m venv .venv && .venv/bin/pip install usd-core numpy   # the USD reader
    luminance map, so the picker's skin tone multiplies onto the shading), `eye`, `brow`, five `hair_*` styles, and the
    clothes grown from the body itself (`clothes` in the spec): a `shirt`, `pants` and `shoes` cut from the body surface
    on clean planes (collar, sleeves, hem, ankle), smoothed, and pushed out along the normals, so they are seamless and
-   deform with the body. The pack has four hair cuts (parted, long, buzzed, buns); `hair_curly` is grown the same way
+   deform with the body. The neckline is a ring round the neck (a crew neck), the hem stops at the hip bone, a loose
+   shirt may sink part of its offset (`slack`) so muscle does not print through, and the female body is narrowed
+   from the hip crest to the ankles (`slim`). The shoes are not shells (a shell keeps every toe): each is a built last,
+   rounded cross-sections as wide and as high as the foot, skinned to the foot and ball bones, with the foot's own
+   skin dropped inside it. The pack has four hair cuts (parted, long, buzzed, buns); `hair_curly` is grown the same way
    (`hair` in the spec): the scalp above a slanted hairline pushed out in a thick, bumpy shell with spherical UVs for
    the pack's hair texture. A hair or brow file whose bind pose differs from the body's (the pack's do, by a few
    centimetres) is rebound onto the body's joints, so every piece sits on this head. Y-up, feet, soles on y = 0, faces

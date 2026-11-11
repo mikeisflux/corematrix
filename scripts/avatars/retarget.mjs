@@ -158,7 +158,7 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
       }
       tl.set(n, { t: pos, q, s: r.s }); tw.set(n, pw.clone().multiply(new Matrix4().compose(pos, q, r.s)));
     }
-    if (opts.arms && ARMS[map.arms ?? "ue"]) relaxArms(tgtRig, tl, tw, tgtRestW, order, ARMS[map.arms ?? "ue"], opts.arms, map);
+    if (opts.arms && ARMS[map.arms ?? "ue"]) relaxArms(tgtRig, tl, tw, tgtRestW, order, ARMS[map.arms ?? "ue"], opts.arms, map, opts.armsOut);
     if (opts.ground !== false) {
       // keep the lowest foot on the floor: longer legs lift a foot higher for the same thigh swing than the source did
       const feet = tgtRig.nodes.filter((n) => /^(Foot_[LR](_end)?|foot_[lr]|ball_[lr])$/.test(n.getName()));
@@ -184,14 +184,16 @@ const ARMS = {
  * little toward the body, and (for "swing") swings forward and back with the opposite leg; the elbow keeps a slight
  * bend that grows as the arm comes forward. Everything below the elbow keeps its rest pose.
  */
-function relaxArms(tgtRig, tl, tw, tgtRestW, order, names, mode, map) {
+function relaxArms(tgtRig, tl, tw, tgtRestW, order, names, mode, map, armsOut) {
   const T = (n) => tgtRig.byName.get(n);
   const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0), DOWN = new Vector3(0, -1, 0);
   for (let side = 0; side < 2; side++) {
     const up = T(names.up[side]), low = T(names.low[side]), thigh = T(names.thigh[1 - side]), calf = T(names.calf[1 - side]);
     if (!up || !low) continue;
     const sign = posOf(tgtRestW.get(up)).x >= 0 ? 1 : -1;
-    const inwardDeg = 2; // a straight arm already hangs beside the thigh; the map's inward is for the source's own swing
+    // a straight arm hangs beside the thigh on the male body; the female body's shoulders are narrower than her hips, so
+    // her arms are angled out (spec "armsOut", degrees) to clear them. The map's inward is for the source's own swing.
+    const inwardDeg = 2 - (armsOut ?? 0);
     // the opposite leg's forward pitch drives the swing
     let swing = 0;
     // (a chibi stride pitches the thigh far further than a human arm swings, so the swing is a fraction of it, capped)
@@ -239,7 +241,7 @@ for (const src of spec.sources) {
     // an entry is a clip name, or {clip, ground, inPlace, hipsY}: hipsY pins the hips to that height (a chair's seat), no grounding
     const e = typeof entry === "string" ? { clip: entry } : entry; const inName = e.clip;
     const anim = anims.find((a) => a.getName() === inName); if (!anim) { console.warn(`  ${src.file}: no clip ${inName}`); continue; }
-    const clip = retargetClip(srcDoc, srcRig, anim, tgtRig, map, { inPlace: e.inPlace ?? src.inPlace !== false, ground: e.hipsY != null ? false : e.ground ?? src.ground !== false, hipsY: e.hipsY, arms: e.arms });
+    const clip = retargetClip(srcDoc, srcRig, anim, tgtRig, map, { inPlace: e.inPlace ?? src.inPlace !== false, ground: e.hipsY != null ? false : e.ground ?? src.ground !== false, hipsY: e.hipsY, arms: e.arms, armsOut: spec.armsOut });
     writeClip(tgtDoc, outName, clip); console.log(`  ${outName} ← ${path.basename(src.file)}:${inName} (${clip.dur.toFixed(2)}s)`);
   }
 }

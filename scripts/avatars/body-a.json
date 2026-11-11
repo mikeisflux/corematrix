@@ -15,7 +15,18 @@
    ],
    "meshes": {
     "Sphere_005_Retopology_004": {
-     "*": "skin"
+     "*": {
+      "bands": [
+       [
+        0.42,
+        null
+       ],
+       [
+        null,
+        "skin"
+       ]
+      ]
+     }
     },
     "Face": {
      "*": "eye"
@@ -28,13 +39,15 @@
     "mesh": "Sphere_005_Retopology_004",
     "offset": 0.13,
     "pants": 0.05,
-    "shoes": 0.1,
+    "shoes": 0.11,
     "sleeve": 0.55,
-    "collar": 0.02,
-    "hem": 0.12,
+    "collar": 0.32,
+    "hem": -0.02,
     "ankle": 0.12,
     "smooth": 8,
-    "slack": 0.6
+    "slack": 0.6,
+    "shoeSlack": 2.5,
+    "shoeSmooth": 20
    }
   },
   {
