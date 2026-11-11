@@ -55,8 +55,12 @@ export function ChatDock() {
   const counts = { hall: hall.length, friends: friends.length, whisper: 0 };
   useEffect(() => { if (!min) seen.current[tab] = counts[tab]; tick((n) => n + 1); }, [tab, min, counts.hall, counts.friends]); // eslint-disable-line react-hooks/exhaustive-deps
   const unread = (t: Tab) => (t === "whisper" ? soc.dm.unread : Math.max(0, counts[t] - seen.current[t]));
-  // stick to the bottom unless the reader scrolled up
-  useEffect(() => { const el = log.current; if (!el) return; if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight; }, [lines.length, soc.dm.messages.length, tab, min]);
+  // stick to the bottom (the newest line) unless the reader scrolled up; a tab change or (re)opening re-sticks, so the
+  // box opens on the latest messages rather than the oldest
+  const stuck = useRef(true);
+  useEffect(() => { stuck.current = true; }, [tab, min]);
+  useEffect(() => { const el = log.current; if (!el) return; if (stuck.current) el.scrollTop = el.scrollHeight; }, [lines.length, soc.dm.messages.length, tab, min]);
+  const onLogScroll = () => { const el = log.current; if (el) stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; };
   // Enter from the floor focuses the box (and opens it); Esc inside it goes back to walking
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -115,7 +119,7 @@ export function ChatDock() {
               </select>
             </div>
           )}
-          <div ref={log} className="h-[8.5rem] space-y-0.5 overflow-y-auto scroll px-2 py-1.5 leading-snug">
+          <div ref={log} onScroll={onLogScroll} className="h-[8.5rem] space-y-0.5 overflow-y-auto scroll px-2 py-1.5 leading-snug">
             {tab !== "whisper" && lines.length === 0 && <p className="text-slate-500">{tab === "hall" ? "Quiet right now. Say hi." : me ? "Only your friends see this room. Nothing here yet." : "Sign in to chat with your friends."}</p>}
             {tab !== "whisper" && lines.map((m) => (
               <div key={m.id} className="break-words">
