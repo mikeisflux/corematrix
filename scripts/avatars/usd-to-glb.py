@@ -18,7 +18,7 @@ import numpy as np
 from pxr import Usd, UsdSkel, UsdGeom, UsdShade, Gf
 
 # default colours; the hall recolours skin/hair/shirt/pants at runtime by material name
-COLORS = {"skin": "#f1c27d", "hair": "#2b1b12", "brow": "#2b1b12", "shirt": "#e63946", "pants": "#1f2a44", "belt": "#2a1d14", "face": "#ffffff", "shoes": "#1b1b1f", "costume": "#b91c1c", "costume2": "#facc15", "prop": "#4b5563", "eye": "#15110f"}
+COLORS = {"skin": "#ffdfc4", "hair": "#2b1b12", "brow": "#2b1b12", "shirt": "#e63946", "pants": "#1f2a44", "belt": "#2a1d14", "face": "#ffffff", "shoes": "#1b1b1f", "costume": "#b91c1c", "costume2": "#facc15", "prop": "#4b5563", "eye": "#15110f"}
 ROUGH = {"hair": 0.55, "brow": 0.55, "shoes": 0.5, "face": 0.6, "eye": 0.35, "costume": 0.45}
 
 def hex2rgb(h): return [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]

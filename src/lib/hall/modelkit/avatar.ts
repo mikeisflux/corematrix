@@ -80,7 +80,7 @@ function badgeTexture(): THREE.CanvasTexture {
   g.fillStyle = "#f8fafc"; g.fillRect(0, 0, 96, 128);
   g.fillStyle = "#e63946"; g.fillRect(0, 0, 96, 24);
   g.fillStyle = "#ffd166"; g.font = "bold 14px sans-serif"; g.textAlign = "center"; g.fillText("ATTENDEE", 48, 18);
-  g.fillStyle = "#f1c27d"; g.fillRect(10, 36, 30, 36);
+  g.fillStyle = "#ffdfc4"; g.fillRect(10, 36, 30, 36);
   g.fillStyle = "#2b1b12"; g.beginPath(); g.arc(25, 48, 9, 0, Math.PI * 2); g.fill();
   g.fillStyle = "#1f2a44"; g.fillRect(48, 40, 40, 6); g.fillStyle = "#94a3b8"; g.fillRect(48, 52, 32, 5); g.fillRect(48, 62, 36, 5);
   g.fillStyle = "#111827";
@@ -130,7 +130,7 @@ export function buildAvatar(body: BodyType): THREE.Group {
   // body a: broad shoulders, straight hips. body b: narrower shoulders, fuller hips, slimmer limbs.
   const shoulderF = wide ? 1.12 : 0.9, hipF = wide ? 0.96 : 1.06, waistF = wide ? 1 : 0.92, limbF = wide ? 1 : 0.92;
 
-  const skin = mat("skin", "#f1c27d"), hair = mat("hair", "#2b1b12", { roughness: 0.55, side: THREE.DoubleSide });
+  const skin = mat("skin", "#ffdfc4"), hair = mat("hair", "#2b1b12", { roughness: 0.55, side: THREE.DoubleSide });
   const shirt = mat("shirt", "#e63946", { roughness: 0.85 }), pants = mat("pants", "#1f2a44", { roughness: 0.9 });
   const shoes = mat("shoes", "#1b1b1f", { roughness: 0.5 }), badge = mat("badge", "#ffffff", { roughness: 0.35, map: badgeTexture() });
   const lanyard = mat("lanyard", "#111827", { roughness: 0.8 }), sole = mat("sole", "#e5e7eb", { roughness: 0.6 });

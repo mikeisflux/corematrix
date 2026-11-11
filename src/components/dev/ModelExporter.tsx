@@ -32,7 +32,7 @@ function Preview({ body, hair, clip, costume }: { body: "a" | "b"; hair: string;
   useEffect(() => { let live = true; setModel(null); assembleAvatar(body, bodyUrl(body)).then((m) => { if (live) setModel(m); }, (e) => console.error("assemble failed", e)); return () => { live = false; }; }, [body]);
   useEffect(() => {
     if (!model) return;
-    const colors = applyAvatarLook(model.scene, { body, skin: "#f1c27d", hair, hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume });
+    const colors = applyAvatarLook(model.scene, { body, skin: "#ffdfc4", hair, hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume });
     model.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { if (m.name === "lod") m.visible = false; const mat = m.material as THREE.MeshStandardMaterial; if ((RECOLOR_MATERIALS as readonly string[]).includes(mat.name)) mat.color.set(colors[mat.name]); } });
   }, [model, body, hair, costume]);
   const mixer = useMemo(() => (model ? new THREE.AnimationMixer(model.scene) : null), [model]);
