@@ -182,7 +182,7 @@ function retargetClip(srcDoc, srcRig, anim, tgtRig, map, opts) {
  */
 const bump = (p, c, w) => { let d = p - c; d = Math.atan2(Math.sin(d), Math.cos(d)); return Math.exp(-(d * d) / (2 * w * w)); }; // a periodic bell
 const GAITS = {
-  walk: { lean: 3, hip: (p) => 8 + 17 * Math.cos(p + 0.63), knee: (p) => 5 + 12 * bump(p, 0.6, 0.45) + 42 * bump(p, 4.4, 0.75), ankle: (p) => 10 * bump(p, 3.4, 0.5) - 6 * bump(p, 4.6, 0.7), armGain: 0.9, armMax: 0.5, armBend: 0.25 },
+  walk: { lean: 3, hip: (p) => 9 + 19.5 * Math.cos(p + 0.63), knee: (p) => 5 + 13 * bump(p, 0.6, 0.45) + 47 * bump(p, 4.4, 0.75), ankle: (p) => 10 * bump(p, 3.4, 0.5) - 6 * bump(p, 4.6, 0.7), armGain: 0.9, armMax: 0.5, armBend: 0.25 },
   run: { lean: 9, hip: (p) => 15 + 32 * Math.cos(p + 0.6), knee: (p) => 15 + 25 * bump(p, 0.8, 0.5) + 80 * bump(p, 4.2, 0.8), ankle: (p) => 14 * bump(p, 3.2, 0.5) - 8 * bump(p, 4.6, 0.7), armGain: 0.9, armMax: 0.6, armBend: 1.15 },
 };
 const X_AXIS = new Vector3(1, 0, 0);

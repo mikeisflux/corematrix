@@ -113,10 +113,10 @@ export function wantedClip(motion: Motion, actions: Record<string, THREE.Animati
  * instead of a hard crossfade; the sit pose or an emote plays over them and scales them down while it lasts. Hidden
  * or distant figures cost nothing; far ones step at half rate. `extra` runs after each mixer step (a VRM's physics).
  */
-/** How fast the walk and run cycles cover ground as authored (feet per second): a walk step of ~1.8 ft at 1.9 steps/s, a run of ~3.4 ft at 2.5. */
-export const WALK_CLIP_FTPS = 3.4, RUN_CLIP_FTPS = 8.5;
+/** How fast the walk and run cycles cover ground as authored (feet per second): a walk step of ~2 ft at 1.9 steps/s, a run of ~3.4 ft at 2.5. */
+export const WALK_CLIP_FTPS = 3.75, RUN_CLIP_FTPS = 8.5;
 /** How fast people move on the floor (feet per second): a brisk walk and a run. */
-export const WALK_FTPS = 5.5, RUN_FTPS = 13;
+export const WALK_FTPS = 6, RUN_FTPS = 13;
 
 export function useFigureAnimation(mixer: THREE.AnimationMixer, actions: Record<string, THREE.AnimationAction | undefined>, motion: Motion, ref: React.RefObject<THREE.Object3D | null>, extra?: (dt: number, camera: THREE.Camera) => void) {
   const overlay = useRef<THREE.AnimationAction | null>(null); // the sit pose or an emote, played over the locomotion blend
