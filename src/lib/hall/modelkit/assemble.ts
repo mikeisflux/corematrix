@@ -20,6 +20,15 @@ import { buildAvatar, type BodyType } from "./avatar";
 // the procedural head (avatar.ts): a sphere of these radii centred HC above the head node
 const OLD_HEAD_C = new THREE.Vector3(0, 0.62, 0), OLD_HEAD_R = new THREE.Vector3(0.7, 0.7 * 1.08, 0.7 * 0.96);
 
+/**
+ * Head-worn parts: the height on the old head (above its centre) that lands on this head's eye line. The old figure
+ * wore its mask, visor and cowl band above its low-set eyes; here they go across the eyes. What sat on the old eyes
+ * (a cowl's lenses, shades, the earpiece beside them) and the hood's rim keep their place relative to the eyes.
+ */
+const EYE_REF: Record<string, number> = { cos_mask: 0.27, cos_cowl: 0.27, cos_helmet: 0.27, cos_helmet_visor: 0.27, cos_cowl_eyes: 0.12, cos_shades: 0.12, cos_earpiece: 0.12, cos_hood: 0.13 };
+/** Head-worn parts raised from the eye line toward the crown by this share of that distance: a brim or a band sits at the hairline. */
+const HEAD_LIFT: Record<string, number> = { cos_hat: 0.45, cos_antenna: 0.45 };
+
 /** Ids written into the LOD mesh's _part attribute (stored as id / 8 so quantization keeps them exact). */
 export const LOD_PARTS = { skin: 0, shirt: 1, pants: 2, hair: 3, shoes: 4, dark: 5 } as const;
 const LOD_PART_OF: Record<string, number> = { skin: 0, shirt: 1, pants: 2, hair: 3, brow: 3, shoes: 4, belt: 5, eye: 5 };
@@ -126,8 +135,12 @@ const DRAPED: Record<string, { lift: number; depth?: boolean; below?: number }> 
   cos_shirtfront: { lift: 0.012 }, cos_tie: { lift: 0.026 },
   cos_scarf: { lift: 0.02, depth: true, below: 1.42 }, cos_pack: { lift: 0.012, depth: true },
 };
-/** Costume parts that go round the torso, refitted to this body's outline at every height; `below`: as above. */
-const WRAPPED: Record<string, { below?: number }> = { cos_belt: {}, cos_robe: {}, cos_chest: { below: 1.47 } };
+/**
+ * Costume parts that go round the torso, refitted to this body's outline at every height; `below`: as above; `flare`:
+ * how much of its stand-off from the old torso the part keeps (the robe follows the legs now, so it need not be a bell);
+ * `clear`: how far off the body it sits (ft).
+ */
+const WRAPPED: Record<string, { below?: number; flare?: number; clear?: number }> = { cos_belt: {}, cos_robe: { flare: 0.5, clear: 0.05 }, cos_chest: { below: 1.47 } };
 /** The badge: about two business cards (3.4 x 4.3 in), hanging from a lanyard a hand's length below the collar. Feet. */
 const BADGE = { w: 0.28, h: 0.36, t: 0.012, drop: 0.8, cord: 0.014 };
 
@@ -181,11 +194,12 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   const old = buildAvatar(body);
   old.updateMatrixWorld(true);
 
-  // head parts: the procedural head sphere → the new head. The old head is a ball with its eyes a third of the way up
-  // from its middle; a real head has them at mid-height. So each part's vertices are moved one by one: heights above
-  // the old eye line are scaled so the old crown lands on the new crown, heights below it so the old chin lands on
-  // the new jaw, and the eye line stays on the eyes (a mask covers them, a visor slot and a cowl's lenses sit over
-  // them). Sideways and in depth there are two fits: coverings (cowl, helmet, hood, hat, antenna) get a shell a fifth
+  // head parts: the procedural head sphere → the new head. The old head is a ball with its eyes a fifth of the way up
+  // from its middle and its bands (mask, visor, cowl) drawn above them; a real head has its eyes at mid-height and
+  // wears those across the eyes. So each part's vertices are moved one by one: the height named for the part in
+  // EYE_REF lands on the eye line, heights above it are scaled so the old crown lands on the new crown, heights below
+  // it so the old chin lands on the new chin, and what hangs below the chin (a hood's mantle) keeps the body's scale.
+  // Sideways and in depth there are two fits: coverings (cowl, helmet, hood, hat, antenna) get a shell a fifth
   // outside the skin, so nothing pokes through; face pieces (mask, shades, earpiece) sit just off the face.
   const headPos = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld);
   // the head's skin: above the neck and no wider than a head, so the shoulders and hands stay out of the measurement
@@ -193,14 +207,18 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   const hb = measure(scene, "skin", (v) => v.y > neckY + 0.12 && Math.abs(v.x) < 0.6);
   const hc = hb.getCenter(new THREE.Vector3()), hr = hb.getSize(new THREE.Vector3()).multiplyScalar(0.5);
   const eyes = measure(scene, "eye", () => true); const eyeY = eyes.getCenter(new THREE.Vector3()).y;
-  const OLD_EYE = OLD_HEAD_C.y + 0.28, OLD_TOP = OLD_HEAD_C.y + OLD_HEAD_R.y, OLD_BOTTOM = OLD_HEAD_C.y - OLD_HEAD_R.y;
-  const up = (hb.max.y + 0.02 - eyeY) / (OLD_TOP - OLD_EYE), down = (eyeY - hb.min.y) / (OLD_EYE - OLD_BOTTOM);
+  const chinY = measure(scene, "skin", (v) => v.y > neckY && Math.abs(v.x) < 0.12 && v.z > hc.z + hr.z * 0.5).min.y; // the front of the face reaches down to the chin
+  const tall = scene.getObjectByName("Head_end")!.getWorldPosition(new THREE.Vector3()).y / 6; // against a 6 ft figure
+  const OLD_TOP = OLD_HEAD_C.y + OLD_HEAD_R.y, OLD_BOTTOM = OLD_HEAD_C.y - OLD_HEAD_R.y;
   const headHold = holder(head, "head_parts");
-  const refit = (part: THREE.Mesh, sx: number, sz: number, cz: number, lift = 0) => {
+  const refit = (part: THREE.Mesh, sx: number, sz: number, cz: number) => {
+    const ref = OLD_HEAD_C.y + (EYE_REF[part.name] ?? 0.28), raise = HEAD_LIFT[part.name] ? (hb.max.y - eyeY) * HEAD_LIFT[part.name] : 0;
+    const up = (hb.max.y + 0.02 - eyeY) / (OLD_TOP - ref), down = (eyeY - chinY) / (ref - OLD_BOTTOM);
     part.updateMatrix(); const g = part.geometry.clone(); const pos = g.attributes.position as THREE.BufferAttribute; const v = new THREE.Vector3();
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i).applyMatrix4(part.matrix); // in the old head's own space
-      pos.setXYZ(i, hc.x + v.x * sx - headPos.x, eyeY + lift + (v.y - OLD_EYE) * (v.y >= OLD_EYE ? up : down) - headPos.y, cz + v.z * sz - headPos.z);
+      const y = v.y >= ref ? eyeY + (v.y - ref) * up : v.y >= OLD_BOTTOM ? eyeY + (v.y - ref) * down : chinY - (OLD_BOTTOM - v.y) * 0.9 * tall;
+      pos.setXYZ(i, hc.x + v.x * sx - headPos.x, y + raise - headPos.y, cz + v.z * sz - headPos.z);
     }
     g.computeVertexNormals(); part.geometry = g; part.position.set(0, 0, 0); part.quaternion.identity(); part.scale.set(1, 1, 1); headHold.add(part);
   };
@@ -211,9 +229,19 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
   const oldHead = old.getObjectByName("head")!;
   for (const c of [...oldHead.children]) {
     if (!(c as THREE.Mesh).isMesh || !c.name.startsWith("cos_")) continue;
-    const f = ["cos_mask", "cos_shades", "cos_earpiece"].includes(c.name) ? face : cover;
-    // a hat's brim sat just over the old head's eyes; on a real head it belongs at the hairline, halfway up to the crown
-    refit(c as THREE.Mesh, f.sx, f.sz, f.cz, c.name === "cos_hat" ? (hb.max.y - eyeY) * 0.45 : 0);
+    const f = ["cos_mask", "cos_shades", "cos_earpiece"].includes(c.name) ? face : cover; refit(c as THREE.Mesh, f.sx, f.sz, f.cz);
+  }
+  // the mask gets openings for the eyes: cut fine, what lies inside an oval round each eye is taken out and the
+  // vertices left inside it are drawn out to its edge, so each opening is a clean almond
+  const mask = headHold.getObjectByName("cos_mask") as THREE.Mesh | undefined;
+  if (mask) {
+    const g = refined(mask.geometry, 0.022); const pos = g.attributes.position as THREE.BufferAttribute, idx = g.index!;
+    const holes = [1, -1].map((side) => { const b = measure(scene, "lash", (v) => v.x * side > 0); const c = b.getCenter(new THREE.Vector3()), r = b.getSize(new THREE.Vector3()).multiplyScalar(0.5); return { x: c.x - headPos.x, y: c.y - headPos.y, rx: r.x * 1.1, ry: Math.max(0.03, r.y * 1.5) }; });
+    const reach = (i: number, h: (typeof holes)[number]) => Math.hypot((pos.getX(i) - h.x) / h.rx, (pos.getY(i) - h.y) / h.ry); // under 1: inside that opening
+    const inside = (i: number) => holes.some((h) => reach(i, h) < 1);
+    const kept: number[] = []; for (let i = 0; i < idx.count; i += 3) { const t = [idx.getX(i), idx.getX(i + 1), idx.getX(i + 2)]; if (!t.every(inside)) kept.push(...t); }
+    for (let i = 0; i < pos.count; i++) for (const h of holes) { const d = reach(i, h); if (d < 1 && d > 1e-6) pos.setXY(i, h.x + (pos.getX(i) - h.x) / d, h.y + (pos.getY(i) - h.y) / d); }
+    g.setIndex(kept); g.computeVertexNormals(); mask.geometry = g;
   }
 
   // chest parts: the procedural torso (its own shirt mesh, torso_m) → the new shirt's core (sleeves left out)
@@ -265,11 +293,40 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
         const angle = Math.atan2(x, z); const from = oldAround(angle, oldAt.y + y); // the old torso's reach that way (its lowest row for what hangs below it)
         p.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); const to = bodyAround(angle, Math.max(p.y, hipY - 0.15)); // below the hips a robe falls from them
         if (from == null || to == null) continue;
-        const r = to + 0.012 + (Math.hypot(x, z) - from) * spread;
+        const r = to + (wrapped.clear ?? 0.012) + (Math.hypot(x, z) - from) * spread * (wrapped.flare ?? 1);
         p.set(tc.x + r * Math.sin(angle), p.y, tc.z + r * Math.cos(angle)); m.worldToLocal(p); pos.setXYZ(i, p.x, p.y, p.z);
       }
     }
     m.geometry.computeVertexNormals();
+  }
+
+  /** Hands a part to a holder (a world-aligned group on a bone) with its geometry given in world space, as it sits at rest. */
+  const place = (m: THREE.Mesh, g: THREE.BufferGeometry, hold: THREE.Object3D = torsoHold) => { hold.updateWorldMatrix(true, false); hold.add(m); m.position.set(0, 0, 0); m.quaternion.identity(); m.scale.set(1, 1, 1); m.updateMatrixWorld(true); m.geometry = g.applyMatrix4(m.matrixWorld.clone().invert()); };
+  // the belt rides the hips, not the chest (a bow or a seat bends the body between the two)
+  const belt = scene.getObjectByName("cos_belt") as THREE.Mesh | undefined;
+  if (belt) place(belt, belt.geometry.clone().applyMatrix4(belt.matrixWorld), holder(bone("pelvis"), "hip_parts"));
+  // The robe is cloth, not armour: it is skinned to the hips and the legs, each side to its own leg and the middle
+  // shared, so it swings with a stride and folds over the lap of a seated figure instead of the legs walking through it.
+  const robe = scene.getObjectByName("cos_robe") as THREE.Mesh | undefined; let rigged: THREE.SkinnedMesh | undefined;
+  scene.traverse((o) => { if (!rigged && (o as THREE.SkinnedMesh).isSkinnedMesh) rigged = o as THREE.SkinnedMesh; });
+  if (robe && rigged) {
+    const g = robe.geometry.clone().applyMatrix4(robe.matrixWorld); g.computeVertexNormals(); const pos = g.attributes.position; const sk = rigged.skeleton;
+    const joint = (n: string) => { const i = sk.bones.findIndex((b) => b.name === n); if (i < 0) throw new Error(`assemble: no joint ${n}`); return i; };
+    const joints = ["pelvis", "thigh_l", "calf_l", "thigh_r", "calf_r"].map(joint);
+    const hip = new THREE.Vector3().setFromMatrixPosition(bone("thigh_l").matrixWorld).y, knee = new THREE.Vector3().setFromMatrixPosition(bone("calf_l").matrixWorld).y;
+    const index = new Uint16Array(pos.count * 4), weight = new Float32Array(pos.count * 4);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i);
+      const leg = 1 - THREE.MathUtils.smoothstep(y, hip - 0.25, hip + 0.05); // none above the hip joint, all of it a hand below (the trousers under it turn with the thigh from the joint down)
+      const shin = 0.85 * (1 - THREE.MathUtils.smoothstep(y, knee - 0.4, knee + 0.1)); // below the knee the cloth goes with the shin, mostly
+      const left = THREE.MathUtils.smoothstep(x, -0.1, 0.1); // +x is the figure's left; only the strip between the legs is shared
+      const w = [1 - leg, leg * left * (1 - shin), leg * left * shin, leg * (1 - left) * (1 - shin), leg * (1 - left) * shin];
+      const top = [0, 1, 2, 3, 4].sort((u, v) => w[v] - w[u]).slice(0, 4); const sum = top.reduce((t, k) => t + w[k], 0);
+      top.forEach((k, n) => { index[i * 4 + n] = joints[k]; weight[i * 4 + n] = w[k] / sum; });
+    }
+    g.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(index, 4)); g.setAttribute("skinWeight", new THREE.Float32BufferAttribute(weight, 4));
+    const cloth = new THREE.SkinnedMesh(g, robe.material); cloth.name = robe.name; cloth.castShadow = robe.castShadow;
+    robe.removeFromParent(); scene.add(cloth); cloth.bind(sk, rigged.bindMatrix.clone());
   }
 
   // The badge and its lanyard are made for this body, not refitted: the cord lies on the shirt's collar round the back
@@ -286,7 +343,6 @@ export async function assembleAvatar(body: BodyType, url: string): Promise<Assem
     // the plane the badge hangs in: just clear of the chest anywhere behind it or above it up to the collar
     let plane = -Infinity; for (let y = bottom; y <= front.y - 0.1; y += 0.02) for (let x = c.x - BADGE.w / 2; x <= c.x + BADGE.w / 2 + 1e-6; x += 0.02) { const f = bodyFront(x, y); if (f != null && f > plane) plane = f; }
     plane += 0.02;
-    const place = (m: THREE.Mesh, g: THREE.BufferGeometry) => { torsoHold.add(m); m.position.set(0, 0, 0); m.quaternion.identity(); m.scale.set(1, 1, 1); m.updateMatrixWorld(true); m.geometry = g.applyMatrix4(m.matrixWorld.clone().invert()); };
     place(badge, new THREE.BoxGeometry(BADGE.w, BADGE.h, BADGE.t).translate(c.x, top - BADGE.h / 2, plane + BADGE.t / 2));
     // the cord: the collar's back from one side of the neck to the other, then down each side of the chest to the clip
     const angle = (q: THREE.Vector3) => Math.atan2(q.x - c.x, q.z - c.z); // 0 at the front, ±π at the back

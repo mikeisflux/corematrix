@@ -54,9 +54,11 @@ files works (`vidya-hub/makehuman-core` is one).
    Clips from a glTF library also work (`ual_mh` maps Quaternius's Universal Animation Library); none is used now.
 3. **Assembly** – `npm run dev`, then `node scripts/export-models.mjs` (`/dev/models` in the browser): lifts the costume
    parts off the procedural figure in `src/lib/hall/modelkit/avatar.ts` and refits them onto this body
-   (`modelkit/assemble.ts`): head pieces vertex by vertex (eye line on the eyes, crown on the crown); what lies on the
-   chest (emblems, tie, shirt front, scarf ends, pack straps) laid on the body's front; what goes round the torso
-   (belt, robe, chest plate) fitted to the body's outline at each height; carried props into the hand. The badge and
+   (`modelkit/assemble.ts`): head pieces vertex by vertex (masks, visors and cowls across the eyes, the crown on the
+   crown, eye openings cut in the mask); what lies on the chest (emblems, tie, shirt front, scarf ends, pack straps)
+   laid on the body's front; what goes round the torso (belt, robe, chest plate) fitted to the body's outline at each
+   height; the belt handed to the hips; the robe skinned to the hips and legs so it swings with a stride and folds
+   over a seated lap; carried props into the hand. The badge and
    lanyard are made for the body: a cord on the shirt's collar round the back of the neck, taut down the chest to a
    badge of about two business cards. It then bakes the far-crowd `lod` mesh and writes `public/models/avatar-*.glb`
    with the manifest.
