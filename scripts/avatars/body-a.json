@@ -18,7 +18,7 @@
      "*": {
       "bands": [
        [
-        0.42,
+        0.33,
         null
        ],
        [
@@ -39,11 +39,11 @@
     "mesh": "Sphere_005_Retopology_004",
     "offset": 0.13,
     "pants": 0.05,
-    "shoes": 0.11,
+    "shoes": 0.05,
     "sleeve": 0.55,
     "collar": 0.32,
     "hem": -0.02,
-    "ankle": 0.12,
+    "ankle": 0.03,
     "smooth": 8,
     "slack": 0.6,
     "shoeSlack": 2.5,
@@ -77,19 +77,6 @@
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairLongFBX(Unity).usda",
-   "node": "hair_long",
-   "textured": [
-    "hair"
-   ],
-   "tint": [
-    "hair"
-   ],
-   "subsets": {
-    "*": "hair"
-   }
-  },
-  {
    "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairBuzzedFBX(Unity).usda",
    "node": "hair_buzz",
    "textured": [
@@ -103,7 +90,28 @@
    }
   },
   {
-   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_HairBunsFBX(Unity).usda",
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
+   "node": "hair_long",
+   "textured": [
+    "hair"
+   ],
+   "tint": [
+    "hair"
+   ],
+   "meshes": {},
+   "hair": {
+    "mesh": "Sphere_005_Retopology_004",
+    "texture": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/textures/T_Hair2_D.png",
+    "thick": 0.1,
+    "bump": 0.035,
+    "curl": 26,
+    "depth": 0.9,
+    "forehead": 0.2,
+    "fade": 0.25
+   }
+  },
+  {
+   "file": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/SK_SuperheroMaleFullBody.usda",
    "node": "hair_bun",
    "textured": [
     "hair"
@@ -111,8 +119,20 @@
    "tint": [
     "hair"
    ],
-   "subsets": {
-    "*": "hair"
+   "meshes": {},
+   "hair": {
+    "mesh": "Sphere_005_Retopology_004",
+    "texture": "${QUATERNIUS_STAGE}/UniversalBaseCharacters/textures/T_Hair2_D.png",
+    "thick": 0.055,
+    "bump": 0.0,
+    "depth": 0.8,
+    "forehead": 0.26,
+    "fade": 0.2,
+    "knot": {
+     "r": 0.2,
+     "back": 0.1,
+     "up": 0.04
+    }
    }
   },
   {

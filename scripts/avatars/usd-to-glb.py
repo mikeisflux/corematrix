@@ -18,7 +18,7 @@ import numpy as np
 from pxr import Usd, UsdSkel, UsdGeom, UsdShade, Gf
 
 # default colours; the hall recolours skin/hair/shirt/pants at runtime by material name
-COLORS = {"skin": "#c68642", "hair": "#2b1b12", "brow": "#2b1b12", "shirt": "#e63946", "pants": "#1f2a44", "belt": "#2a1d14", "face": "#ffffff", "shoes": "#1b1b1f", "costume": "#b91c1c", "costume2": "#facc15", "prop": "#4b5563", "eye": "#15110f"}
+COLORS = {"skin": "#f1c27d", "hair": "#2b1b12", "brow": "#2b1b12", "shirt": "#e63946", "pants": "#1f2a44", "belt": "#2a1d14", "face": "#ffffff", "shoes": "#1b1b1f", "costume": "#b91c1c", "costume2": "#facc15", "prop": "#4b5563", "eye": "#15110f"}
 ROUGH = {"hair": 0.55, "brow": 0.55, "shoes": 0.5, "face": 0.6, "eye": 0.35, "costume": 0.45}
 
 def hex2rgb(h): return [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
@@ -204,7 +204,7 @@ def image_bytes(path, max_size, kind, tint=False):
     if im.mode == "RGBA" or kind == "normal": im.save(buf, format="PNG", optimize=True); return buf.getvalue(), "image/png"
     im.convert("RGB").save(buf, format="JPEG", quality=86); return buf.getvalue(), "image/jpeg"
 
-def clip_tris(attrs, tris, n, d, interp=None, sd=None):
+def clip_tris(attrs, tris, n, d, interp=None, sd=None, skin=(2, 3)):
     """Keeps the part of a triangle mesh on the side of the plane dot(p, n) >= d (or, with sd, where that per-vertex
     signed distance is >= 0), splitting the triangles it cuts so the edge is a clean line. attrs: list of per-vertex
     arrays (positions first); shared cut edges stay welded. interp: per attribute, whether a cut vertex blends it
@@ -216,7 +216,20 @@ def clip_tris(attrs, tris, n, d, interp=None, sd=None):
         key = (min(i, j), max(i, j))
         if key in cache: return cache[key]
         t = sd[i] / (sd[i] - sd[j])
-        for a, blend in zip(attrs, interp): a.append(a[i] + (a[j] - a[i]) * t if blend else (a[i] if t < 0.5 else a[j]))
+        for k, (a, blend) in enumerate(zip(attrs, interp)):
+            if skin and k == skin[0]:
+                # bone slots: merge the two ends' (joint, weight) sets by t, keep the four strongest, so the cut edge
+                # moves smoothly with the body instead of tearing where the two ends follow different bones
+                ji, wi, jj, wj = attrs[skin[0]][i], attrs[skin[1]][i], attrs[skin[0]][j], attrs[skin[1]][j]
+                acc = {}
+                for jn, wn in zip(ji, wi): acc[int(jn)] = acc.get(int(jn), 0.0) + float(wn) * (1 - t)
+                for jn, wn in zip(jj, wj): acc[int(jn)] = acc.get(int(jn), 0.0) + float(wn) * t
+                top = sorted(acc.items(), key=lambda kv: -kv[1])[:4]
+                while len(top) < 4: top.append((0, 0.0))
+                tot = sum(w for _, w in top) or 1.0
+                a.append(np.array([jn for jn, _ in top], dtype=a[i].dtype)); attrs[skin[1]].append(np.array([w / tot for _, w in top], dtype=attrs[skin[1]][i].dtype))
+            elif skin and k == skin[1]: continue
+            else: a.append(a[i] + (a[j] - a[i]) * t if blend else (a[i] if t < 0.5 else a[j]))
         cache[key] = len(attrs[0]) - 1; return cache[key]
     for tri in tris:
         inside = [v for v in tri if sd[v] >= 0]
@@ -303,8 +316,25 @@ def hair_cap(prim, names, W, X, scale, opts):
     N2 /= np.maximum(np.linalg.norm(N2, axis=1, keepdims=True), 1e-9)
     c = np.array([0.0, head[1] + 0.3, (zf + zb) / 2]); d = Q - c; d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
     uv = np.c_[np.arctan2(d[:, 0], d[:, 2]) / (2 * np.pi) * float(opts.get("tile", 6)), np.arccos(np.clip(d[:, 1], -1, 1)) / np.pi * float(opts.get("tile", 6)) * 0.5]
-    print(f"  hair cap: {len(Q)} vertices, {len(tt)} triangles")
-    return {"hair": (Q.astype(np.float32), N2.astype(np.float32), Jn.astype(np.uint16), Wn.astype(np.float32), tt.reshape(-1).astype(np.uint32), uv.astype(np.float32))}
+    Q = Q.astype(np.float32); N2 = N2.astype(np.float32); Jn = Jn.astype(np.uint16); Wn = Wn.astype(np.float32); I = tt.reshape(-1).astype(np.uint32); uv = uv.astype(np.float32)
+    if opts.get("knot"):  # a top knot: a sphere of hair on the crown, a little back, bound to the head
+        kr = float(opts["knot"].get("r", 0.2)); kc = np.array([0.0, top + float(opts["knot"].get("up", 0.05)), (zf + zb) / 2 - float(opts["knot"].get("back", 0.12))])
+        hj = names.index("Head"); sv, sn, suv, si = [], [], [], []; rings, segs = 10, 14
+        for a_i in range(rings + 1):
+            ph = np.pi * a_i / rings
+            for b_i in range(segs):
+                th = 2 * np.pi * b_i / segs; nrm = np.array([np.sin(ph) * np.cos(th), np.cos(ph), np.sin(ph) * np.sin(th)])
+                sv.append(kc + nrm * kr); sn.append(nrm); suv.append((b_i / segs * 2, a_i / rings))
+        for a_i in range(rings):
+            for b_i in range(segs):
+                p0 = a_i * segs + b_i; p1 = a_i * segs + (b_i + 1) % segs; p2 = p0 + segs; p3 = p1 + segs
+                si += [p0, p2, p1, p1, p2, p3]
+        off_v = len(Q)
+        Q = np.concatenate([Q, np.array(sv, np.float32)]); N2 = np.concatenate([N2, np.array(sn, np.float32)]); uv = np.concatenate([uv, np.array(suv, np.float32)])
+        Jn = np.concatenate([Jn, np.full((len(sv), 4), 0, np.uint16)]); Jn[off_v:, 0] = hj; Wn = np.concatenate([Wn, np.tile(np.array([1, 0, 0, 0], np.float32), (len(sv), 1))])
+        I = np.concatenate([I, (np.array(si, np.uint32) + off_v)])
+    print(f"  hair cap: {len(Q)} vertices, {len(I)//3} triangles")
+    return {"hair": (Q, N2, Jn, Wn, I, uv)}
 
 def clothe(prim, names, W, X, scale, opts):
     """
@@ -323,7 +353,8 @@ def clothe(prim, names, W, X, scale, opts):
         attrs, t = [P.copy(), vn.copy(), idx4.copy(), w4.copy()], tris.copy()
         for n, d in planes: attrs, t = clip_tris(attrs, t, n, d, [True, True, False, False])
         if collar_r:  # crew neck: drop what lies inside a cylinder round the neck above the collarbone line
-            Pc = attrs[0]; radial = np.hypot(Pc[:, 0] - neck[0], Pc[:, 2] - neck[2]) - collar_r
+            # the chest slopes away in front, so a plain cylinder would scoop into a V there: the front radius is shorter
+            Pc = attrs[0]; dz = Pc[:, 2] - (neck[2] + 0.06); radial = np.hypot(Pc[:, 0] - neck[0], np.where(dz > 0, dz * 2.4, dz)) - collar_r
             attrs, t = clip_tris(attrs, t, None, None, [True, True, False, False], sd=np.maximum(radial, (neck[1] - 0.45) - Pc[:, 1]))
         if len(t) == 0: return None
         used = np.unique(t); remap = -np.ones(len(attrs[0]), dtype=int); remap[used] = np.arange(len(used))
@@ -367,30 +398,35 @@ def clothe(prim, names, W, X, scale, opts):
     # a built last instead: rounded cross-sections along the foot, as wide and as high as the foot plus the offset,
     # closed at the heel and tapered at the toe, skinned to the foot and ball bones. The foot's skin is hidden inside.
     def shoe(side):
+        # a low shoe: as long as the foot plus a thin toe cap and heel, as wide as the foot plus the offset, the collar at
+        # the ankle bone (just above the trouser hem), the instep following the foot's own height and the toe box
+        # rounding off low and wide like a sneaker
         sx = 1 if side == "l" else -1
-        F = P[(P[:, 1] < ankle + 0.1) & (np.sign(P[:, 0]) == sx) & (np.abs(P[:, 0]) > 0.03)]
+        F = P[(P[:, 1] < ankle + 0.08) & (np.sign(P[:, 0]) == sx) & (np.abs(P[:, 0]) > 0.03)]
         if len(F) < 10: return None
-        top = ankle + 0.14; fb, bb = names.index("foot_" + side), names.index("ball_" + side); ball_z = pos["ball_" + side][2]
-        n_sec, n_ring, e = 18, 16, 2.6
-        zs = np.linspace(F[:, 2].min() - shoe_off * 0.7, F[:, 2].max() + shoe_off * 1.3, n_sec)
+        sole = 0.045; top = ankle + 0.04; fb, bb = names.index("foot_" + side), names.index("ball_" + side); ball_z = pos["ball_" + side][2]
+        n_sec, n_ring, e = 20, 16, 2.4
+        z0, z1 = F[:, 2].min() - 0.03, F[:, 2].max() + 0.05
+        zs = np.linspace(z0, z1, n_sec)
         V, J, Wt = [], [], []
         for i, z in enumerate(zs):
-            win = F[np.abs(F[:, 2] - z) < 0.09]
+            win = F[np.abs(F[:, 2] - z) < 0.07]
             if len(win) < 4: win = F[np.argsort(np.abs(F[:, 2] - z))[:24]]
             cx = (win[:, 0].min() + win[:, 0].max()) / 2
             w = win[:, 0].max() - win[:, 0].min() + 2 * shoe_off
-            h = min(top, win[:, 1].max() + shoe_off * 0.7)
+            h = min(top, win[:, 1].max() + shoe_off * 0.8)
             t = i / (n_sec - 1)
-            if t < 0.15: r = np.sqrt(max(0.0, 1 - ((0.15 - t) / 0.15) ** 2)); w *= 0.35 + 0.65 * r            # the heel: a vertical rounded back
-            elif t > 0.62: r = np.sqrt(max(0.0, 1 - ((t - 0.62) / 0.38) ** 2)); w *= 0.3 + 0.7 * r; h = 0.03 + (h - 0.03) * (0.15 + 0.85 * r)  # the toe box slopes down and in
-            wb = float(np.clip((z - (ball_z - 0.06)) / 0.12, 0, 1))
+            if t < 0.12: r = np.sqrt(max(0.0, 1 - ((0.12 - t) / 0.12) ** 2)); w *= 0.45 + 0.55 * r                 # heel: rounded back, full height
+            elif t > 0.8: r = np.sqrt(max(0.0, 1 - ((t - 0.8) / 0.2) ** 2)); w *= 0.35 + 0.65 * r; h = sole + (h - sole) * (0.45 + 0.55 * r)  # toe box: rounds off, stays low
+            wb = float(np.clip((z - (ball_z - 0.05)) / 0.1, 0, 1))
             for k in range(n_ring):
                 a = 2 * np.pi * k / n_ring; c, sn = np.cos(a), np.sin(a)
-                x = cx + (w / 2) * np.sign(c) * abs(c) ** (2 / e); y = (h / 2) + (h / 2) * np.sign(sn) * abs(sn) ** (2 / e)
+                x = cx + (w / 2) * np.sign(c) * abs(c) ** (2 / e)
+                y = (h / 2) + (h / 2) * np.sign(sn) * abs(sn) ** (2 / e)
                 V.append((x, max(0.0, y), z)); J.append((fb, bb, 0, 0)); Wt.append((1 - wb, wb, 0, 0))
-        heel = len(V); V.append(((V[0][0] + V[n_ring // 2][0]) / 2, (V[n_ring // 4][1] + V[3 * n_ring // 4][1]) / 2, zs[0] - 0.015)); J.append((fb, bb, 0, 0)); Wt.append((1, 0, 0, 0))
+        heel = len(V); V.append(((V[0][0] + V[n_ring // 2][0]) / 2, (V[n_ring // 4][1] + V[3 * n_ring // 4][1]) / 2, z0 - 0.01)); J.append((fb, bb, 0, 0)); Wt.append((1, 0, 0, 0))
         base = (n_sec - 1) * n_ring
-        toe = len(V); V.append(((V[base][0] + V[base + n_ring // 2][0]) / 2, (V[base + n_ring // 4][1] + V[base + 3 * n_ring // 4][1]) / 2, zs[-1] + 0.015)); J.append((fb, bb, 0, 0)); Wt.append((0, 1, 0, 0))
+        toe = len(V); V.append(((V[base][0] + V[base + n_ring // 2][0]) / 2, (V[base + n_ring // 4][1] + V[base + 3 * n_ring // 4][1]) / 2, z1 + 0.01)); J.append((fb, bb, 0, 0)); Wt.append((0, 1, 0, 0))
         T = []
         for i in range(n_sec - 1):
             for k in range(n_ring):
@@ -402,6 +438,7 @@ def clothe(prim, names, W, X, scale, opts):
         for kk in range(3): np.add.at(N, T[:, kk], fn)
         if np.einsum("ij,ij->i", N, V - V.mean(0)).sum() < 0: T = T[:, ::-1]; N = -N  # wound inside out: flip
         N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9)
+        print(f"  shoe {side}: {z1 - z0:.2f} long, {top:.2f} high at the collar")
         return (V.astype(np.float32), N.astype(np.float32), np.array(J, np.uint16), np.array(Wt, np.float32), T.reshape(-1).astype(np.uint32), np.zeros((len(V), 2), np.float32))
     parts = [g for g in (shoe("l"), shoe("r")) if g is not None]
     shoes = None

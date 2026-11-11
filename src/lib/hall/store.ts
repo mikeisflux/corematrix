@@ -179,7 +179,7 @@ export interface AvatarConfig {
   costume?: CostumeId; // cosplay preset, see lib/hall/costumes.ts
   vrm?: string | null; // the account's own VRM model (/api/f/vrm/…), worn instead of the built-in figure; the rest stays as the fallback look
 }
-export const DEFAULT_AVATAR: AvatarConfig = { body: "a", skin: "#c68642", hair: "short", hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume: "none" };
+export const DEFAULT_AVATAR: AvatarConfig = { body: "a", skin: "#f1c27d", hair: "short", hairColor: "#2b1b12", shirt: "#e63946", pants: "#1f2a44", costume: "none" };
 export const SKIN_TONES = ["#ffdbb4", "#f1c27d", "#e0ac69", "#c68642", "#a16e4b", "#8d5524", "#5c3a21", "#3b2314"];
 export const HAIR_COLORS = ["#0b0b0b", "#2b1b12", "#5a3a1a", "#8b5a2b", "#b5651d", "#d8a657", "#f2e394", "#a0a0a0", "#ffffff", "#e63946", "#3a86ff", "#8338ec", "#06d6a0", "#ff6bd6"];
 export const OUTFIT_COLORS = ["#e63946", "#f4a261", "#2a9d8f", "#3a86ff", "#8338ec", "#ff006e", "#ffd166", "#111827", "#f8f9fa", "#1f2a44", "#5c4b51", "#06d6a0"];

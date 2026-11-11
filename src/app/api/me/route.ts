@@ -66,7 +66,7 @@ export async function PATCH(req: Request) {
     const wearable = !needs || (await ownedItemsCached(u.id)).has(needs);
     // the account's own model (and its metadata) is set only through /api/me/vrm: it rides along untouched here
     let kept: Record<string, unknown> = {}; try { const cur = JSON.parse(u.avatar ?? "null") ?? {}; if (typeof cur.vrm === "string") kept = { vrm: cur.vrm, vrmMeta: cur.vrmMeta }; } catch {}
-    set.avatar = JSON.stringify({ ...kept, body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#c68642"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });
+    set.avatar = JSON.stringify({ ...kept, body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#f1c27d"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });
   }
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;
