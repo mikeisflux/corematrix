@@ -13,6 +13,7 @@ import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { MeshoptDecoder } from "@/lib/hall/meshopt-decoder";
 import type { AvatarConfig } from "@/lib/hall/store";
 import { applyAvatarLook, RECOLOR_MATERIALS } from "@/lib/hall/modelkit/avatar";
+import { applyHold, holdFor } from "@/lib/hall/modelkit/grip";
 
 import manifest from "../../../public/models/manifest.json";
 
@@ -195,6 +196,9 @@ export function AvatarRig({ config, motion, url }: { config: AvatarConfig; motio
   const ref = useRef<THREE.Object3D>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(obj), [obj]);
   const actions = useMemo(() => Object.fromEntries(animations.map((c) => [c.name, mixer.clipAction(c)])) as Record<string, THREE.AnimationAction>, [animations, mixer]);
-  useFigureAnimation(mixer, actions, motion, ref, CLIP_PACE[config.body]);
+  // a costume with something in its hand: the fingers are closed round it after every mixer step
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hold = useMemo(() => holdFor(scene, obj, config.costume), [scene, obj]);
+  useFigureAnimation(mixer, actions, motion, ref, CLIP_PACE[config.body], hold ? (dt) => applyHold(hold, !!motion.sit, dt) : undefined);
   return <primitive ref={ref} object={obj} />;
 }

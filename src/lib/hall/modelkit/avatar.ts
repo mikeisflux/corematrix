@@ -124,6 +124,14 @@ function bar(a: [number, number, number], b: [number, number, number], w: number
 
 const HEAD_R = 0.7;
 const HEAD_SCALE: [number, number, number] = [1, 1.08, 0.96];
+/** Where the costume parts drawn round the eyes have them: this far either side of the middle, this far above the head's centre. */
+export const OLD_EYE = { x: 0.26, y: 0.12 };
+/** The pointed hat: its band's height above the head's centre and its radius there. */
+export const AVATAR_HAT = { y: 0.36, r: 0.74 };
+/** The dark glasses: the front's depth, and each arm's side offset, height above the eyes and length back to the ear. */
+export const AVATAR_SHADES = { z: (HEAD_R + 0.02) * 0.96 + 0.05, x: 0.47, y: 0.08, len: 0.6 };
+/** The earpiece's bud, in the head's space (the ear on the +x side). */
+export const AVATAR_EARBUD: [number, number, number] = [0.74, 0.62 - 0.02, -0.02];
 
 export function buildAvatar(body: BodyType): THREE.Group {
   const wide = body === "a";
@@ -243,62 +251,116 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const capePts = [new THREE.Vector2(0.95 * shoulderF, 1.5), new THREE.Vector2(1.0 * shoulderF, 0.6), new THREE.Vector2(1.08, -0.4), new THREE.Vector2(1.18, -1.4), new THREE.Vector2(1.28, -2.3)];
   const capeGeo = new THREE.LatheGeometry(capePts, 14, Math.PI * 0.62, Math.PI * 0.76).scale(1, 1, 0.74).translate(0, 0, -0.12);
   torso.add(mesh("cos_cape", capeGeo, cape));
-  // domino mask: a band round the eyes
-  head.add(mesh("cos_mask", new THREE.SphereGeometry(HEAD_R + 0.025, 16, 6, Math.PI / 2 - 1.15, 2.3, 1.0, 0.36).scale(...HEAD_SCALE), costume2, 0, hc, 0));
-  // cowl: crown, sides and back of the head, a band across the eyes, two ears; the nose, mouth and chin stay open,
-  // and white lenses sit over the eyes (the sphere's front is phi = π/2)
-  const cowlCrown = new THREE.SphereGeometry(HEAD_R + 0.03, 20, 8, 0, Math.PI * 2, 0, 0.98).scale(...HEAD_SCALE).translate(0, hc, 0);
-  const cowlBack = new THREE.SphereGeometry(HEAD_R + 0.03, 20, 12, Math.PI / 2 + 1.0, Math.PI * 2 - 2.0, 0.9, 1.25).scale(...HEAD_SCALE).translate(0, hc, 0);
-  const cowlBand = new THREE.SphereGeometry(HEAD_R + 0.03, 16, 6, Math.PI / 2 - 1.1, 2.2, 0.9, 0.5).scale(...HEAD_SCALE).translate(0, hc, 0);
-  const ears2 = [-1, 1].map((s) => new THREE.ConeGeometry(0.16, 0.42, 6).translate(s * 0.4, hc + 0.78, -0.1));
+  // domino mask: an opening for each eye, ringed out to a pointed outline, the two halves meeting over the nose. It
+  // is drawn round the eyes (OLD_EYE) so the fit can lay each opening on a real eye. Outline: the right half in eye
+  // spacings, anticlockwise from the lower end of the bridge.
+  const onHead = (x: number, y: number, r: number) => r * HEAD_SCALE[2] * Math.sqrt(Math.max(0.05, 1 - (x / (r * HEAD_SCALE[0])) ** 2 - ((y - hc) / (r * HEAD_SCALE[1])) ** 2)); // the front of a ball of radius r round the head, at (x, y)
+  const maskHalf: [number, number][] = [[0, -0.32], [0.3, -0.46], [0.7, -0.68], [1.15, -0.72], [1.48, -0.55], [1.7, -0.2], [1.84, 0.3], [1.52, 0.6], [1.1, 0.72], [0.5, 0.68], [0, 0.54]];
+  const maskRim: [number, number][] = []; // the outline with no step longer than a third of an eye spacing
+  maskHalf.forEach(([x, y], i) => { const [nx, ny] = maskHalf[(i + 1) % maskHalf.length]; const n = Math.ceil(Math.hypot(nx - x, ny - y) / 0.34); for (let k = 0; k < n; k++) maskRim.push([x + ((nx - x) * k) / n, y + ((ny - y) * k) / n]); });
+  const maskPos: number[] = [], maskIdx: number[] = [];
+  for (const side of [1, -1]) {
+    const base = maskPos.length / 3;
+    for (const [x, y] of maskRim) {
+      const a = Math.atan2(y, x - 1), hole: [number, number] = [1 + 0.54 * Math.cos(a), 0.34 * Math.sin(a)]; // the eye opening's edge on the way to this point
+      for (const t of [0, 0.5, 1]) { const px = side * OLD_EYE.x * (hole[0] + (x - hole[0]) * t), py = hc + OLD_EYE.y + OLD_EYE.x * (hole[1] + (y - hole[1]) * t); maskPos.push(px, py, onHead(px, py, HEAD_R + 0.03)); }
+    }
+    for (let i = 0; i < maskRim.length; i++) for (const r of [0, 1]) {
+      const a = base + i * 3 + r, b = a + 1, c = base + ((i + 1) % maskRim.length) * 3 + r + 1, d = c - 1;
+      if (side > 0) maskIdx.push(a, b, c, a, c, d); else maskIdx.push(a, c, b, a, d, c);
+    }
+  }
+  const maskGeo = new THREE.BufferGeometry(); maskGeo.setAttribute("position", new THREE.Float32BufferAttribute(maskPos, 3)); maskGeo.setIndex(maskIdx); maskGeo.computeVertexNormals();
+  head.add(mesh("cos_mask", maskGeo, costume2));
+  // cowl: crown, sides and back of the head and a band from the forehead to the middle of the nose, two ears on top;
+  // the mouth, chin and jaw stay open, and white lenses sit over the eyes (the sphere's front is phi = π/2). The
+  // pieces share their edge vertices (24 steps round, the face a third of the way), so the fit can weld them.
+  const cowlR = HEAD_R + 0.03, third = Math.PI / 3;
+  const cowlCrown = new THREE.SphereGeometry(cowlR, 24, 6, 0, Math.PI * 2, 0, 0.9).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const cowlBack = new THREE.SphereGeometry(cowlR, 16, 8, Math.PI / 2 + third, Math.PI * 2 - 2 * third, 0.9, 1.25).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const cowlBand = new THREE.SphereGeometry(cowlR, 8, 4, Math.PI / 2 - third, 2 * third, 0.9, 0.72).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const ears2 = [-1, 1].map((s) => new THREE.ConeGeometry(0.15, 0.46, 6).rotateZ(-s * 0.12).translate(s * 0.42, hc + 0.8, -0.08));
   head.add(mesh("cos_cowl", merge(cowlCrown, cowlBack, cowlBand, ...ears2), costume));
-  const lensGeo = [-1, 1].map((s) => sphere(0.1, 10, 6).scale(1.5, 0.85, 0.45).translate(s * 0.26, hc + 0.12, (HEAD_R + 0.03) * HEAD_SCALE[2] * 0.94));
-  head.add(mesh("cos_cowl_eyes", merge(...lensGeo), lens));
-  // full helmet with a visor slot at eye height
-  const shell = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 14, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0, Math.PI).scale(...HEAD_SCALE).translate(0, hc, 0);
-  const crown = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 10, 0, Math.PI * 2, 0, 0.95).scale(...HEAD_SCALE).translate(0, hc, 0);
-  const chin = new THREE.SphereGeometry(HEAD_R + 0.07, 22, 8, 0, Math.PI * 2, 2.05, 1.1).scale(...HEAD_SCALE).translate(0, hc, 0);
+  // the lenses: flat slanted almonds, the inner corner low, each a fan round its middle so it can lie on the cowl
+  const lensRim: [number, number][] = [[-0.15, -0.035], [-0.02, -0.065], [0.12, -0.03], [0.17, 0.06], [0.05, 0.07], [-0.1, 0.02]];
+  const lensPos: number[] = [], lensIdx: number[] = [];
+  for (const side of [1, -1]) {
+    const base = lensPos.length / 3; const at = (x: number, y: number) => { const px = side * (OLD_EYE.x + x), py = hc + OLD_EYE.y + y; lensPos.push(px, py, onHead(px, py, cowlR + 0.02)); };
+    at(0.01, 0.005); for (const [x, y] of lensRim) at(x, y);
+    for (let i = 0; i < lensRim.length; i++) { const a = base + 1 + i, b = base + 1 + ((i + 1) % lensRim.length); if (side > 0) lensIdx.push(base, a, b); else lensIdx.push(base, b, a); }
+  }
+  const lensGeo = new THREE.BufferGeometry(); lensGeo.setAttribute("position", new THREE.Float32BufferAttribute(lensPos, 3)); lensGeo.setIndex(lensIdx); lensGeo.computeVertexNormals();
+  head.add(mesh("cos_cowl_eyes", lensGeo, lens));
+  // full-face helmet: a shell all round, open underneath, with a window from the forehead to the middle of the nose
+  // that the visor fills (same edge vertices as the cowl's pieces)
+  const helmR = HEAD_R + 0.07;
+  const crown = new THREE.SphereGeometry(helmR, 24, 6, 0, Math.PI * 2, 0, 0.9).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const shell = new THREE.SphereGeometry(helmR, 16, 4, Math.PI / 2 + third, Math.PI * 2 - 2 * third, 0.9, 0.72).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const chin = new THREE.SphereGeometry(helmR, 24, 5, 0, Math.PI * 2, 1.62, 0.93).scale(...HEAD_SCALE).translate(0, hc, 0);
   head.add(mesh("cos_helmet", merge(shell, crown, chin), costume));
-  head.add(mesh("cos_helmet_visor", new THREE.SphereGeometry(HEAD_R + 0.075, 18, 6, Math.PI / 2 - 1.0, 2.0, 0.95, 0.5).scale(...HEAD_SCALE), costume2, 0, hc, 0));
-  // pointed hat with a brim
-  const cone = new THREE.ConeGeometry(0.62, 1.7, 14).translate(0, hc + 1.1, -0.05).rotateX(-0.12);
-  const brim = new THREE.CylinderGeometry(1.15, 1.15, 0.06, 20).translate(0, hc + 0.36, -0.05);
+  head.add(mesh("cos_helmet_visor", new THREE.SphereGeometry(helmR + 0.004, 8, 4, Math.PI / 2 - third, 2 * third, 0.9, 0.72).scale(...HEAD_SCALE), costume2, 0, hc, 0));
+  // pointed hat: a wide brim that droops a little (with an underside, the material is one-sided), a crown that clears
+  // the top of the head before it tapers, and a tip that leans back
+  const HAT = AVATAR_HAT, hatY = hc + HAT.y;
+  const hatPts: [number, number][] = [[1.28, -0.07], [1.0, -0.015], [HAT.r, 0], [HAT.r - 0.01, 0.16], [0.6, 0.48], [0.4, 0.95], [0.2, 1.42], [0.07, 1.72], [0, 1.82]];
+  const cone = new THREE.LatheGeometry(hatPts.map(([r, y]) => new THREE.Vector2(r, hatY + y)), 16);
+  const lean = cone.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < lean.count; i++) { const up = Math.max(0, lean.getY(i) - hatY - 0.5) / 1.32; lean.setZ(i, lean.getZ(i) - 0.38 * up * up); }
+  const brim = new THREE.LatheGeometry([[HAT.r, -0.02], [1.0, -0.035], [1.28, -0.09]].map(([r, y]) => new THREE.Vector2(r, hatY + y)), 16);
   head.add(mesh("cos_hat", merge(cone, brim), costume));
-  // antenna headband
-  const band = new THREE.TorusGeometry(HEAD_R + 0.02, 0.05, 6, 20).rotateX(Math.PI / 2).scale(1, 1, 0.96).translate(0, hc + 0.32, 0);
-  const stalks = [-1, 1].flatMap((s) => [new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6).translate(s * 0.35, hc + 0.95, 0), sphere(0.09, 8, 6).translate(s * 0.35, hc + 1.32, 0)]);
+  // antenna headband: a band over the top of the head from ear to ear, with two short stalks and a ball on each
+  const band = new THREE.TorusGeometry(HEAD_R + 0.03, 0.035, 5, 16, Math.PI * 0.72).rotateZ(Math.PI * 0.14).scale(...HEAD_SCALE).translate(0, hc, 0);
+  const stalks = [-1, 1].flatMap((s) => { const a = s * 0.4, at = (r: number): [number, number, number] => [Math.sin(a) * r, hc + Math.cos(a) * r * HEAD_SCALE[1], 0]; return [new THREE.CylinderGeometry(0.02, 0.024, 0.5, 6, 1, true).rotateZ(-a).translate(...at(HEAD_R + 0.27)), sphere(0.08, 8, 6).translate(...at(HEAD_R + 0.56))]; });
   head.add(mesh("cos_antenna", merge(band, ...stalks), costume2));
-  // chest plate hugging the torso front, with a collar ridge
-  const plate = new THREE.CylinderGeometry(R(1.4) + 0.05, R(0.1) + 0.05, 1.35, 14, 1, false, -0.95, 1.9).scale(1, 1, 0.76).translate(0, 0.78, 0);
-  const collar = new THREE.TorusGeometry(0.42, 0.06, 6, 16).rotateX(Math.PI / 2).translate(0, 1.6, 0);
+  // chest plate hugging the torso front: a breastplate with a shallow scooped neckline, cut-away armholes and a lower
+  // edge that dips at the middle; a raised rim runs along the neckline
+  const plateTop = (a: number) => { const d = Math.abs(a); return 1.39 + 0.1 * Math.min(1, d / 0.55) ** 2 - 0.46 * THREE.MathUtils.smoothstep(d, 0.68, 0.95); };
+  const plateAt = (a: number, v: number, out: number) => { const y = THREE.MathUtils.lerp(0.12 + 0.2 * (a / 0.95) ** 2, plateTop(a), v), r = R(y) + out; return new THREE.Vector3(r * Math.sin(a), y, r * Math.cos(a) * 0.76); };
+  const plateCols = 12, plateRows = 4, platePos: number[] = [], plateIdx: number[] = [];
+  for (let j = 0; j <= plateRows; j++) for (let i = 0; i <= plateCols; i++) platePos.push(...plateAt((i / plateCols - 0.5) * 1.9, j / plateRows, 0.05).toArray());
+  for (let j = 0; j < plateRows; j++) for (let i = 0; i < plateCols; i++) { const k = j * (plateCols + 1) + i; plateIdx.push(k, k + 1, k + plateCols + 2, k, k + plateCols + 2, k + plateCols + 1); }
+  const plate = new THREE.BufferGeometry(); plate.setAttribute("position", new THREE.Float32BufferAttribute(platePos, 3)); plate.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array((platePos.length / 3) * 2), 2)); plate.setIndex(plateIdx); plate.computeVertexNormals();
+  const rimPath = new THREE.CatmullRomCurve3(Array.from({ length: 11 }, (_, i) => plateAt((i / 10 - 0.5) * 1.36, 1, 0.07)));
+  const collar = new THREE.TubeGeometry(rimPath, 12, 0.04, 5);
   torso.add(mesh("cos_chest", merge(plate, collar), costume));
   // shoulder pads
   const pads = [-1, 1].map((s) => sphere(0.4, 12, 8).scale(1, 0.7, 1).translate(s * (R(1.35) + 0.04), 1.48, 0));
   torso.add(mesh("cos_pads", merge(...pads), costume));
   // belt with a buckle
-  const beltRing = new THREE.TorusGeometry(R(-0.2) + 0.02, 0.09, 6, 22).rotateX(Math.PI / 2).scale(1, 1, 0.74).translate(0, -0.2, 0);
-  const buckle = new THREE.BoxGeometry(0.34, 0.26, 0.08).translate(0, -0.2, zF(-0.2) + 0.1);
+  // a flat strap with bevelled edges (not a tube), and a plate of a buckle a little taller than it
+  const beltR = R(-0.2), beltRing = new THREE.LatheGeometry([new THREE.Vector2(beltR, -0.3), new THREE.Vector2(beltR + 0.05, -0.28), new THREE.Vector2(beltR + 0.05, -0.12), new THREE.Vector2(beltR, -0.1)], 22).scale(1, 1, 0.74);
+  const buckle = new THREE.BoxGeometry(0.36, 0.3, 0.06).translate(0, -0.2, zF(-0.2) + 0.07);
   torso.add(mesh("cos_belt", merge(beltRing, buckle), costume2));
   // chest emblems (flat decals above the pocket)
-  const emblemY = 1.05, emblemZ = zF(emblemY) + 0.07;
+  const emblemY = 1.1, emblemZ = zF(emblemY) + 0.07;
   const starShape = new THREE.Shape(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 0.15 : 0.34, a = Math.PI / 2 + (i / 10) * Math.PI * 2; if (i === 0) starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r); else starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
   torso.add(mesh("cos_emblem_star", new THREE.ShapeGeometry(starShape).translate(0, emblemY, emblemZ), costume2));
   const bolt = new THREE.Shape(); bolt.moveTo(0.06, 0.36); bolt.lineTo(-0.2, 0.02); bolt.lineTo(-0.02, 0.02); bolt.lineTo(-0.12, -0.36); bolt.lineTo(0.2, 0.06); bolt.lineTo(0.02, 0.06); bolt.lineTo(0.06, 0.36);
   torso.add(mesh("cos_emblem_bolt", new THREE.ShapeGeometry(bolt).translate(0, emblemY, emblemZ), costume2));
   torso.add(mesh("cos_emblem_ring", new THREE.RingGeometry(0.16, 0.3, 24).translate(0, emblemY, emblemZ), costume2));
-  // hood: a deep cowl. A sphere a size up from the head with the face cut out, then tipped forward (rotateX) so the crown
-  // hangs ahead of the brow and the opening faces forward and down: the rim ends up at eyebrow height about a third of a
-  // head in front of the face and the opening is a slot just wider than the face, so the cheeks and ears stay covered. Below it a mantle drapes over the shoulders, open at the
-  // chest like a cloak, so nothing reads as a collar at the neck.
-  const hoodR = HEAD_R + 0.22, hoodTilt = 0.5;
-  const hoodS: [number, number, number] = [HEAD_SCALE[0] * 1.03, HEAD_SCALE[1], HEAD_SCALE[2] * 1.06];
-  const hoodCrownGeo = new THREE.SphereGeometry(hoodR, 26, 12, 0, Math.PI * 2, 0, 0.9).rotateX(hoodTilt).scale(...hoodS).translate(0, hc + 0.08, 0.08);
-  const hoodSidesGeo = new THREE.SphereGeometry(hoodR, 26, 14, Math.PI / 2 + 0.55, Math.PI * 2 - 1.1, 0.88, 1.62).rotateX(hoodTilt).scale(...hoodS).translate(0, hc + 0.08, 0.08);
-  const mantlePts = [new THREE.Vector2(0.98, hc - 0.4), new THREE.Vector2(1.08, hc - 0.7), new THREE.Vector2(1.22, hc - 1.0), new THREE.Vector2(1.35, hc - 1.35), new THREE.Vector2(1.42, hc - 1.65)];
-  const mantle = new THREE.LatheGeometry(mantlePts, 22, 0.6, Math.PI * 2 - 1.2).scale(1, 1, 0.9).translate(0, 0, 0.04);
-  head.add(mesh("cos_hood", merge(hoodCrownGeo, hoodSidesGeo, mantle), costume));
+  // hood: a loose cowl a size up from the head, open in front from the forehead down; its rim stands off the face
+  // and juts out over the brow. Below it a mantle lies on the shoulders, open at the chest like a cloak, so nothing
+  // reads as a collar at the neck. Everything below the head's underside is the mantle (the fit lays it on the body).
+  // The material is one-sided, so the hood has a lining: the same surface a little smaller, facing inward.
+  const hoodR = HEAD_R + 0.1, hoodTop = 1.02, hoodGap = Math.PI / 6;
+  const hoodPiece = (r: number) => [new THREE.SphereGeometry(r, 24, 5, 0, Math.PI * 2, 0, hoodTop), new THREE.SphereGeometry(r, 20, 6, Math.PI / 2 + hoodGap, Math.PI * 2 - 2 * hoodGap, hoodTop, 2.6 - hoodTop)];
+  const hoodOuter = hoodPiece(hoodR), hoodLining = hoodPiece(hoodR - 0.025);
+  for (const g of hoodLining) { const ix = g.index!; for (let i = 0; i < ix.count; i += 3) { const t = ix.getX(i + 1); ix.setX(i + 1, ix.getX(i + 2)); ix.setX(i + 2, t); } }
+  for (const g of [...hoodOuter, ...hoodLining]) {
+    const p = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), theta = Math.acos(THREE.MathUtils.clamp(y / Math.hypot(x, y, z), -1, 1)), phi = Math.abs(Math.atan2(x, z)); // phi: 0 at the front
+      const edge = theta <= hoodTop ? Math.hypot(hoodTop - theta, Math.max(0, phi - hoodGap) * Math.sin(hoodTop)) : (phi - hoodGap) * Math.sin(theta); // how far round the ball from the opening
+      const rim = Math.exp(-((edge / 0.3) ** 2)), peak = Math.max(0, Math.cos(phi)) * (1 - THREE.MathUtils.smoothstep(theta, hoodTop, hoodTop + 0.5));
+      const k = 1 + rim * (0.09 + 0.15 * peak); p.setXYZ(i, x * k, y * k, z * k);
+    }
+    g.scale(...HEAD_SCALE).translate(0, hc, 0);
+  }
+  const mantlePts = ([[1.5, -1.5], [1.44, -1.34], [1.28, -1.18], [1.04, -1.05], [0.78, -0.95], [0.56, -0.86], [0.46, -0.79]] as [number, number][]).map(([r, y]) => new THREE.Vector2(r, hc + y));
+  const mantle = new THREE.LatheGeometry(mantlePts, 20, 0.6, Math.PI * 2 - 1.2).scale(1, 1, 0.8);
+  head.add(mesh("cos_hood", merge(...hoodOuter, ...hoodLining, mantle), costume));
   // robe: a full skirt from the waist to the shins, so the legs read as cloth
-  const robePts = [new THREE.Vector2(0.98, -0.25), new THREE.Vector2(1.02, -0.9), new THREE.Vector2(1.12, -1.7), new THREE.Vector2(1.28, -2.55)];
+  const robePts = [new THREE.Vector2(0.94, -0.12), new THREE.Vector2(0.98, -0.25), new THREE.Vector2(1.02, -0.9), new THREE.Vector2(1.12, -1.7), new THREE.Vector2(1.28, -2.55)];
   torso.add(mesh("cos_robe", new THREE.LatheGeometry(robePts, 20).scale(1, 1, 0.8), cape));
   // scarf: a ring at the neck and two strips hanging down the chest
   const scarfRing = new THREE.TorusGeometry(0.4, 0.13, 7, 18).rotateX(Math.PI / 2).scale(1, 1, 0.82).translate(0, 1.6, 0.02);
@@ -309,15 +371,20 @@ export function buildAvatar(body: BodyType): THREE.Group {
   const bend = (g: THREE.BufferGeometry, lift: number) => { const a = g.attributes.position as THREE.BufferAttribute; for (let i = 0; i < a.count; i++) a.setZ(i, zF(a.getY(i)) + lift); a.needsUpdate = true; g.computeVertexNormals(); return g; };
   const shirtShape = new THREE.Shape(); shirtShape.moveTo(-0.38, 1.68); shirtShape.lineTo(-0.13, 1.68); shirtShape.lineTo(0, 1.5); shirtShape.lineTo(0.13, 1.68); shirtShape.lineTo(0.38, 1.68); shirtShape.lineTo(0, 0.88); shirtShape.lineTo(-0.38, 1.68);
   torso.add(mesh("cos_shirtfront", bend(new THREE.ShapeGeometry(shirtShape, 6), 0.07), costume));
-  const tieShape = new THREE.Shape(); tieShape.moveTo(-0.07, 1.54); tieShape.lineTo(0.07, 1.54); tieShape.lineTo(0.1, 1.4); tieShape.lineTo(0.05, 1.32); tieShape.lineTo(0.1, 0.2); tieShape.lineTo(0, 0.02); tieShape.lineTo(-0.1, 0.2); tieShape.lineTo(-0.05, 1.32); tieShape.lineTo(-0.1, 1.4); tieShape.lineTo(-0.07, 1.54);
+  const tieShape = new THREE.Shape(); tieShape.moveTo(-0.085, 1.56); tieShape.lineTo(0.085, 1.56); tieShape.lineTo(0.05, 1.42); tieShape.lineTo(0.11, 0.24); tieShape.lineTo(0, 0.04); tieShape.lineTo(-0.11, 0.24); tieShape.lineTo(-0.05, 1.42); tieShape.lineTo(-0.085, 1.56); // a knot that narrows downward, then the blade widening to its point
   torso.add(mesh("cos_tie", bend(new THREE.ShapeGeometry(tieShape, 8), 0.085), costume2));
-  const frontZ = (HEAD_R + 0.02) * HEAD_SCALE[2];
-  const lenses = new THREE.BoxGeometry(0.66, 0.15, 0.06).translate(0, hc + 0.12, frontZ - 0.02);
-  const bridge = new THREE.BoxGeometry(0.1, 0.04, 0.04).translate(0, hc + 0.15, frontZ);
-  const temples = [-1, 1].map((s) => new THREE.BoxGeometry(0.03, 0.03, 0.72).translate(s * 0.34, hc + 0.13, frontZ - 0.38));
-  head.add(mesh("cos_shades", merge(lenses, bridge, ...temples), prop));
-  const bud = sphere(0.06, 8, 6).translate(0.74, hc - 0.02, -0.02);
-  const wire = new THREE.CylinderGeometry(0.012, 0.012, 0.42, 6).rotateZ(0.25).rotateX(0.35).translate(0.74, hc - 0.26, -0.12);
+  // dark glasses: two lenses with a bridge between them and an arm from each outer corner back to the ear, hooked
+  // down behind it. Drawn round the eyes; AVATAR_SHADES says where the front and the arms are so the fit can seat them.
+  const SH = AVATAR_SHADES, shY = hc + OLD_EYE.y;
+  const lensShape = (s: number) => { const o = new THREE.Shape(); ([[-0.2, 0.1], [-0.17, 0.14], [0.17, 0.15], [0.215, 0.11], [0.2, -0.02], [0.15, -0.11], [0.02, -0.14], [-0.1, -0.13], [-0.18, -0.06]] as [number, number][]).forEach(([x, y], i) => (i ? o.lineTo(x, y) : o.moveTo(x, y))); const g = new THREE.ExtrudeGeometry(o, { depth: 0.03, bevelEnabled: false, curveSegments: 1 }); if (s < 0) { g.scale(-1, 1, 1); const ix = g.index ?? (g.setIndex([...Array(g.attributes.position.count).keys()]), g.index!); for (let i = 0; i < ix.count; i += 3) { const t = ix.getX(i + 1); ix.setX(i + 1, ix.getX(i + 2)); ix.setX(i + 2, t); } } return g.rotateY(s * 0.14).translate(s * 0.27, shY, SH.z - 0.03); };
+  const bridge = new THREE.BoxGeometry(0.2, 0.04, 0.03).translate(0, shY + 0.07, SH.z - 0.015);
+  const arms = [-1, 1].flatMap((s) => [new THREE.BoxGeometry(0.025, 0.045, SH.len).translate(s * SH.x, shY + SH.y, SH.z - 0.04 - SH.len / 2), new THREE.BoxGeometry(0.025, 0.04, 0.2).translate(0, 0, -0.1).rotateX(-0.85).translate(s * SH.x, shY + SH.y, SH.z - 0.04 - SH.len)]);
+  head.add(mesh("cos_shades", merge(...[lensShape(1), lensShape(-1), bridge, ...arms].map((g) => { const n = g.index ? g.toNonIndexed() : g; n.deleteAttribute("uv"); return n; })), prop));
+  // earpiece: a bud in the ear (AVATAR_EARBUD) and a coiled lead that runs down behind the lobe toward the collar
+  const EB = AVATAR_EARBUD;
+  const bud = sphere(0.055, 8, 6).scale(0.7, 1, 1).translate(...EB);
+  const lead = new THREE.CatmullRomCurve3(([[0, -0.02, -0.02], [0.03, -0.14, -0.1], [-0.03, -0.34, -0.17], [-0.13, -0.66, -0.2]] as [number, number, number][]).map(([x, y, z]) => new THREE.Vector3(EB[0] + x, EB[1] + y, EB[2] + z)));
+  const wire = new THREE.TubeGeometry(lead, 8, 0.016, 5, false);
   head.add(mesh("cos_earpiece", merge(bud, wire), costume2));
   // proton-style pack on the back: a box, a tank on its side and a hose stub
   const packBox = new THREE.BoxGeometry(1.05, 1.35, 0.5).translate(0, 0.62, -0.92);
@@ -327,9 +394,9 @@ export function buildAvatar(body: BodyType): THREE.Group {
   torso.add(mesh("cos_pack", merge(packBox, packTank, packCore, ...packStraps), prop));
   // carried in the right hand, pointing forward and a little down (the arm hangs): a hilt with a glowing blade, a wand, a blaster
   const handR = root.getObjectByName("hand_r")!;
-  const carry = (g: THREE.BufferGeometry) => g.rotateX(0.55).translate(0, -0.22, 0.14);
-  const hilt = new THREE.CylinderGeometry(0.075, 0.07, 0.75, 10).rotateX(Math.PI / 2).translate(0, 0, 0.1);
-  const emitter = new THREE.CylinderGeometry(0.09, 0.075, 0.1, 10).rotateX(Math.PI / 2).translate(0, 0, 0.5);
+  const carry = (g: THREE.BufferGeometry) => g.rotateX(CARRY.tilt).translate(...CARRY.offset);
+  const hilt = new THREE.CylinderGeometry(0.062, 0.058, 0.75, 10).rotateX(Math.PI / 2).translate(0, 0, 0.1);
+  const emitter = new THREE.CylinderGeometry(0.08, 0.062, 0.1, 10).rotateX(Math.PI / 2).translate(0, 0, 0.5);
   handR.add(mesh("cos_saber", carry(merge(hilt, emitter)), prop));
   const blade = new THREE.CapsuleGeometry(0.05, 2.5, 3, 8).rotateX(Math.PI / 2).translate(0, 0, 1.8);
   handR.add(mesh("cos_saber_blade", carry(blade), glow));
@@ -369,6 +436,9 @@ export function applyAvatarLook(root: THREE.Object3D, look: AvatarLook): Record<
     prop: costume.colors.prop ?? "#4b5563", glow: costume.colors.glow ?? "#60a5fa",
   };
 }
+
+/** How a carried prop, modelled along +z from its handle, is set into the procedural figure's hanging hand; the real body undoes this and seats it in its own grip. */
+export const CARRY = { tilt: 0.55, offset: [0, -0.22, 0.14] as [number, number, number] };
 
 /** Which hair node to show for a hair style; the rest are hidden at runtime ("bald" shows none). */
 export const HAIR_NODES = ["hair_short", "hair_long", "hair_buzz", "hair_bun", "hair_curly"] as const;
