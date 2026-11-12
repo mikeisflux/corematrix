@@ -70,6 +70,7 @@ export const DOCS: DocSection[] = [
         "**Shop**: items the exhibitor sells, with prices. Opening one shows the picture, price and a Buy button; buying happens on the exhibitor's own site in a new tab, and the press counts for the booth.",
         "**Portfolio**: the artist's pieces. Every Artists' Alley table, and any booth switched to a print wall, hangs them as 11 × 17 prints on a free-standing black gridwall set in front of the drape and taller than it, from table height up (about 14 ft at a booth, half that in Artists' Alley), with the name strip along the top rail. A booth switched to prints flips through them on the table stands instead. Tap a piece for the full view, Buy a print where there is one, and Commission me to ask for a commission by email or on their site.",
         "**The portfolio book**: a print wall also lays one portfolio book, open and flat (24 × 18 in), on an otherwise bare table. Click the book in the hall, click any print on the wall, or press **Flip through the book** in the panel, and the book opens on screen: two pages per spread, **Next** / **Previous** or the ← → keys to turn, Buy a print under a page that has a print link, and Commission me. Click outside the book or press Esc to close it.",
+        "**18+ pieces**: art an exhibitor marked as adult content is blurred with an 18+ mark. Tap it and confirm you are 18 or older to see it; see An all-ages hall.",
         "**About**, **Signage** (their banner art), the numbers (value, rank, visits this week), and the ownership history.",
         "**Walk to the booth** switches to walk mode and takes you there. **☆ Save** keeps the booth in your saved list (Search → ★ Saved) so you can walk back to it any time; it is kept on your account when you are signed in, in this browser otherwise. **Share** opens the share card and buttons.",
         "**Take over this booth**: any booth can be bought from its owner for 1.25× its value; see Claiming a booth.",
@@ -109,6 +110,7 @@ export const DOCS: DocSection[] = [
         ["Portfolio piece", "11:17 (1100×1700)", "The print wall, the portfolio book, the table stands when a booth is switched to prints, and the gallery; older 4:5 uploads are cropped to fit"], ["Product photo", "1:1 (800×800)", "An item in your shop"],
       ] } },
       { p: "Uploads take PNG, JPG, WebP or a PDF (first page), up to 12 MB, and are cropped to the slot's ratio. Each slot's card says the physical size on the floor and what reads well from the aisle." },
+      { h: "Adult content (18+)", p: "Every upload is checked for nudity. Banners, signs and logos that show it are refused. A portfolio piece, comic cover or shop photo can still go up: tick **This is adult content (18+)** in the box that appears and press **Upload as 18+**. Visitors then see it blurred with an 18+ mark until they confirm they are 18 or older. Your own dashboard thumbnails show the blurred version too. See An all-ages hall." },
       { h: "On the table", p: "An exhibitor booth shows comic covers on its stands by default. No books to show? The **On the table** card in the dashboard (above Books on display) has three other choices. **Print wall** stands a black gridwall across the back of the booth, in front of the drape and taller than it, with your portfolio clipped on as 11 × 17 prints from table height up to about 14 ft, and puts an open portfolio book on the table that visitors click to flip through on screen. The gridwall is the only thing on the back: the roll-up banner, the logo board and the back-wall banner are put away, your wide banner becomes the name strip along the top rail, and a hanging sign stays. (Island booths have no back wall, so they have no print wall.) **Art prints on the stands** puts framed pieces from your portfolio on the stands instead and flips through the set while someone is at your booth. **Off** leaves the table bare, with no stands at all. All of them are free, and a table shows one at a time, never a wall and stands together. Artists' Alley tables start with the print wall (half as tall) and the book; their card offers **Print wall** or **Comic covers**, and switching to covers takes the wall down and stands a 3×6 roll-up banner behind the table instead. Switch any time; your covers and pieces both stay, and the storefront lists them whatever the table shows." },
       { h: "Books on display", p: `Unlock a stand (${money(BOOK_PRICE_CENTS)} each), upload the front cover, and add a buy link under it. Visitors see the covers on your table and in the storefront, and Buy opens your store.` },
       { h: "Portfolio", p: `Up to ${GALLERY_LIMIT} pieces, 11 × 17, for every booth and table. On a print wall they hang in order from the bottom row up, left to right, as many as the wall holds (all 48 at a 10 ft booth, 15 at an Artists' Alley table); the book on the table and the storefront show every piece. A booth switched to prints flips through them on its stands. Add a link under a piece to sell it as a print: it becomes a Buy a print button under that page of the book and in the panel.` },
@@ -202,6 +204,7 @@ export const DOCS: DocSection[] = [
         "**Direct messages** stay between the two of you and work for guests on the floor as well as accounts; an account keeps them across devices.",
         "**Friends**: press ➕ next to a person in People (or on their card on the floor) to send a request; they accept it in their People panel. Friends show a toast when they arrive on the floor and can be added to your team.",
         "**Blocking** (🚫 next to a person in People, or Block at the top of a message thread): their chat and speech bubbles disappear for you, they can no longer message you or send you friend requests, and voice never connects to them. They are not told. Unblock any time from the Blocked list in People. Blocking needs a free account.",
+        "**Keeping it clean**: the hall is for ages 13 and up, so swear words in chat and messages are starred out and messages with slurs or explicit sexual language are not sent; see An all-ages hall.",
         "**Reporting** (⚑): tell the admins about harassment, spam, impersonation or adult content. Pick a reason, add a line if you like, and the last things the person said go with it. You can block them at the same time.",
         "**Teams** (🎟️): an exhibitor's crew. Members can sit at the booth's chairs and are listed as staff; a member the owner marks as **manager** can also edit the booth from their own dashboard.",
         "**Voice chat**: optional push-to-talk with people within a few feet; see Voice chat.",
@@ -276,13 +279,37 @@ export const DOCS: DocSection[] = [
     ],
   },
   {
+    slug: "all-ages", title: "An all-ages hall: language and adult art", icon: "🛡️", audience: "everyone",
+    summary: "ForeverComicCon is open to ages 13 and up. What the language filter does, how uploaded images are checked, and how 18+ art is kept behind an age check.",
+    blocks: [
+      { h: "The language filter", bullets: [
+        "**Hall chat and direct messages**: swear words are replaced with stars before anyone sees them, so the message still goes through. A message with a slur or explicit sexual language is not sent at all, and you are told why.",
+        "**Names and listings**: display names, @handles, titles, booth names, taglines, descriptions, commission notes, shop item names and blurbs, billboard text and team names are refused if they contain that language. Change the wording and save again.",
+        "The filter sees through the usual tricks (spaced-out letters, numbers for letters, stretched words, accents) and leaves innocent words alone (a town, a surname or a word that only happens to contain one).",
+        "If it stars a word it should not have, let the show's team know and the word can be let through.",
+      ] },
+      { h: "Uploaded images", bullets: [
+        "Every image you upload (logo, banners, signs, comic covers, portfolio pieces, shop photos, billboard art) is checked for nudity and sexual content on our own server. Nothing is sent to an outside service.",
+        "**Banners, signs, logos and billboards** are seen by everyone who walks the floor, so an explicit image is refused there. Pick another image.",
+        "**Portfolio pieces, comic covers and shop photos** can be kept as adult content: when one is refused, the dashboard shows a box, **This is adult content (18+)**. Tick it and press **Upload as 18+** and the uncensored piece is saved.",
+        "The check is automatic and can be wrong. If it refuses something harmless, let the show's team know.",
+      ] },
+      { h: "Viewing 18+ pieces", bullets: [
+        "A piece marked 18+ is shown **blurred, with an 18+ mark**, everywhere: on the print wall and the table in the hall, in the storefront, in the portfolio book, on the booth's public page.",
+        "Open it (tap the piece) and a card asks **Are you 18 or older?** Answer **Yes, I am 18 or older** and the piece is shown; answer **No** and you go back.",
+        "Your answer is remembered on that device for a year, so you are asked once. 18+ pieces never appear on share cards.",
+      ] },
+    ],
+  },
+  {
     slug: "rules", title: "Rules and refunds", icon: "📜", audience: "everyone",
     summary: "The short list.",
     blocks: [
       { bullets: [
         "Full refund within 24 hours of a claim if the booth has had no clicks or takeovers.",
         "Plans renew every 30 days and can be cancelled any time; perks run to the end of the period.",
-        "No hate, scams, adult content or impersonation. Booths that break this are removed and the current value refunded as credit.",
+        "No hate, scams or impersonation, and no adult content outside pieces marked 18+ (see An all-ages hall). Booths that break this are removed and the current value refunded as credit.",
+        "The hall is for ages 13 and up: keep chat, names and listings clean. Swearing is starred out; slurs and explicit sexual language are refused.",
         "Only exhibitors can post links in hall chat. Rate limits apply to everyone: chat, messages, uploads, tracking.",
         "Voice chat is push-to-talk, opt-in, peer to peer and never recorded. Mute anyone by turning voice off.",
       ] },
@@ -293,6 +320,7 @@ export const DOCS: DocSection[] = [
     summary: "Where the operator tools are, and where uploaded images are kept.",
     blocks: [
       { p: "/admin (superadmins, and staff with an area permission): booths (details, release, transfer, shield, feature, sponsored giveaways), users, transactions and payouts, codes, plans, billboards, the theater (films, encoding and downsampling), emails (compose, templates, inbox, logs), webhooks, errors, performance captures, the audit log and settings (site URL, payments, email, storage)." },
+      { h: "All-ages filters", p: "Admin → Settings → Security. **All-ages language filter** (TEXT_FILTER) turns the chat and listing filter on or off; **Extra blocked words** and **Words to let through** (comma separated) adjust the built-in list within a minute. **Nudity filter for uploads** (NUDITY_FILTER) turns the image check on or off, and **Nudity filter sensitivity** (NUDITY_THRESHOLD, 0 to 1, default 0.6) sets how sure the check must be: lower catches more and wrongly flags more. The image check runs on this server; if it ever fails to load, uploads go through and the error is logged. Text and images stored before the filters existed are not re-checked, except chat history, which is starred when it is read." },
       { h: "Where uploads live", p: "Booth art (banners, covers, portfolio pieces, product photos) and logos are kept in the database until Cloudflare R2 is switched on under Admin → Settings → Storage: enter the account id, an R2 API token (access key id and secret) with read and write on the bucket, the bucket name and, ideally, the bucket's public URL (an r2.dev address or a connected custom domain, with a CORS rule allowing GET and HEAD from the site so the floor can use the images as textures). Press Test R2, then set R2_ENABLED to true: new uploads go straight to the bucket. Move existing uploads copies everything already in the database across in batches and can be repeated or interrupted safely. Visitors' links never change; the site redirects them to the bucket, or streams the file itself when no public URL is set or the public host is not answering yet (it checks every minute and switches to the direct link once the domain is live). Theater films stay on the server's disk." },
     ],
   },

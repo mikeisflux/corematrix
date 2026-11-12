@@ -40,7 +40,7 @@ async function floorPlanData(claimed: Map<number, string>, lit: number, w: numbe
 /** A stored piece of booth art as a small JPEG data URL the card renderer can draw. */
 async function artData(boothId: number, slot: string, width: number): Promise<string | null> {
   const row = await getArt(boothId, slot);
-  if (!row) return null;
+  if (!row || row.adult) return null; // an 18+ piece never goes on a share card
   try {
     const src = await artBytes(row); if (!src) return null;
     const sharp = (await import("sharp")).default;

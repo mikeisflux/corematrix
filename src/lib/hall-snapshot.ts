@@ -4,7 +4,7 @@
  * into the page so the floor is populated before any request has been made from the browser.
  */
 import { isHouseBooth } from "@/lib/config";
-import { artFlags, artLinks } from "@/lib/art";
+import { artFlags, artLinks, artAdult } from "@/lib/art";
 import { activeBillboards, claimedBooths, recentEvents, siteStats, logoStamp, TOTAL_BOOTHS } from "@/lib/economy";
 import { onlineCount } from "@/lib/realtime";
 import { trendingScores } from "@/lib/analytics";
@@ -13,7 +13,7 @@ import { featuredBooths } from "@/lib/seasons";
 export type HallSnapshot = Awaited<ReturnType<typeof hallSnapshot>>;
 
 export async function hallSnapshot() {
-  const [booths, stats, events, billboards, trend, featured, art, links] = await Promise.all([claimedBooths(), siteStats(), recentEvents(40), activeBillboards(), trendingScores(7), featuredBooths(6), artFlags(), artLinks()]);
+  const [booths, stats, events, billboards, trend, featured, art, links, adult] = await Promise.all([claimedBooths(), siteStats(), recentEvents(40), activeBillboards(), trendingScores(7), featuredBooths(6), artFlags(), artLinks(), artAdult()]);
   return {
       booths: booths.map((p) => ({
         id: p.id,
@@ -33,6 +33,7 @@ export async function hallSnapshot() {
         house: isHouseBooth(p.id),
         art: art.get(p.id),
         artLinks: links.get(p.id),
+        artAdult: adult.get(p.id),
         category: p.category,
         size: p.size,
         kind: p.kind,

@@ -1,4 +1,5 @@
 "use client";
+import { askAdultUpload } from "@/components/AgeGate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChangePassword, VerifyNudge } from "@/components/ui/AuthForms";
@@ -654,8 +655,18 @@ async function uploadArt(boothId: number, slot: string, file: File, want: { widt
   const fd = new FormData(); fd.append("file", img); fd.append("slot", slot);
   const r = await fetch("/api/art/upload", { method: "POST", body: fd });
   const j = await r.json(); if (!r.ok) throw new Error(j.error || "Upload failed");
-  const saved = await api<{ art: Record<string, number> }>(`/api/booth/${boothId}/art`, { method: "POST", body: JSON.stringify({ slot, url: j.url }) });
-  return saved.art;
+  const save = async (adult: boolean) => {
+    const res = await fetch(`/api/booth/${boothId}/art`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot, url: j.url, adult }) });
+    return { res, body: (await res.json().catch(() => ({}))) as { art?: Record<string, number>; error?: string; code?: string; canAdult?: boolean } };
+  };
+  let out = await save(false);
+  // refused for nudity: a portfolio piece, a cover or a shop photo may still go up as 18+, if the owner says so
+  if (!out.res.ok && out.body.code === "nudity" && out.body.canAdult) {
+    if (!(await askAdultUpload("The hall is open to ages 13 and up, so it can't be shown to everyone. You can still upload it as an adult piece."))) throw new Error("Not uploaded: the image looks like adult content.");
+    out = await save(true);
+  }
+  if (!out.res.ok || !out.body.art) throw new Error(out.body.error || "Couldn't save that image");
+  return out.body.art;
 }
 
 /** What stands on an exhibitor's table: comic covers on the paid stands, the portfolio pieces for someone who has art but no books, or nothing. */

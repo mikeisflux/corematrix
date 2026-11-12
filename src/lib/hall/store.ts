@@ -24,6 +24,7 @@ export interface HallBooth {
   bannerHeight: number;
   house?: boolean; // the show's own booth: flagship build
   art?: Record<string, number>;
+  artAdult?: string[]; // slots marked 18+: shown blurred until the viewer confirms their age
   artLinks?: Record<string, string>; // book:N → where to buy that comic // uploaded art: portrait | wide | drape | book:N → version
   bookSlots?: number; // paid display platforms
   tableMode?: string; // "books" | "prints" | "wall" | "none": what stands on (or behind) the table

@@ -91,6 +91,7 @@ export async function register(emailRaw: string, password: string, displayName?:
   const email = emailRaw.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) throw new Error("Enter a valid email");
   if (password.length < MIN_PASSWORD) throw new Error(`Password must be at least ${MIN_PASSWORD} characters`);
+  const unfit = checkText(displayName, "That name"); if (unfit) throw new Error(unfit);
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
   if (existing) throw new Error("That email already has an account. Sign in instead.");
   const user = await findOrCreateUser(email, ref);
@@ -215,6 +216,7 @@ export async function markVerified(userId: string) {
 
 /* ---------- optional password sign-in (scrypt, no extra deps) ---------- */
 import { randomBytes, scrypt, scryptSync, timingSafeEqual } from "node:crypto";
+import { checkText } from "@/lib/text-filter";
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
   return `scrypt$${salt}$${scryptSync(password, salt, 64).toString("hex")}`;

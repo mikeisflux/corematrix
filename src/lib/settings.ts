@@ -66,6 +66,11 @@ export const SETTING_KEYS: SettingDef[] = [
   { key: "REFUND_WINDOW_HOURS", label: "Refund window for claims (hours)", group: "Economy", hint: "24" },
 
   // Security
+  { key: "TEXT_FILTER", label: "All-ages language filter", group: "Security", hint: "true (default) / false. Stars out vulgar words in chat and whispers, refuses messages with slurs or explicit sexual words, and refuses such language in names, booth listings, shop items, billboards and team names." },
+  { key: "TEXT_FILTER_BLOCK", label: "Extra blocked words", group: "Security", hint: "comma separated; added to the built-in list (whole words). Takes effect within a minute." },
+  { key: "TEXT_FILTER_ALLOW", label: "Words to let through", group: "Security", hint: "comma separated; a word the filter catches by mistake (a surname, a title). Takes effect within a minute." },
+  { key: "NUDITY_FILTER", label: "Nudity filter for uploads", group: "Security", hint: "true (default) / false. Checks every uploaded image on this server. Explicit images are refused on banners, signs, logos and billboards; portfolio pieces, comic covers and shop photos can be kept as 18+ and are shown blurred behind an age check." },
+  { key: "NUDITY_THRESHOLD", label: "Nudity filter sensitivity", group: "Security", hint: "0.6 (default). From 0 to 1: lower catches more (and wrongly flags more), higher lets more through." },
   { key: "ADMIN_EMAILS", label: "Admin emails (bootstrap)", group: "Security", hint: "comma separated — these accounts are admins on first sign-in; manage the rest in Users" },
   { key: "ADMIN_ALLOWED_IPS", label: "Admin IP allow-list", group: "Security", hint: "comma separated, blank = any" },
   { key: "CRON_SECRET", label: "Cron secret", group: "Security", secret: true, hint: "/api/cron/* accept ?secret= or a Bearer token" },

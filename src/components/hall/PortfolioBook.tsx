@@ -4,11 +4,12 @@
  * Buy a print link under a page when the artist set one, Commission me when they take commissions. Opened from the
  * book on the table, a print on the wall, or the storefront (see lib/hall/portfolio).
  */
+import { AdultImg } from "@/components/AgeGate";
 import { useEffect, useMemo, useState } from "react";
 import { api, track, useHall } from "@/lib/hall/store";
 import { usePortfolio, turnPortfolio, closePortfolio } from "@/lib/hall/portfolio";
 
-type Detail = { booth?: { commissions?: string | null; commissionNote?: string | null; artLinks?: Record<string, string> } };
+type Detail = { booth?: { commissions?: string | null; commissionNote?: string | null; artLinks?: Record<string, string>; artAdult?: string[] } };
 
 export function PortfolioBook() {
   const pf = usePortfolio();
@@ -29,12 +30,13 @@ export function PortfolioBook() {
   const links = detail?.booth?.artLinks ?? booth.artLinks ?? {};
   const commissions = detail?.booth?.commissions ?? null;
   const url = (k: string) => `/api/art/${id}/${k}?v=${art[k] ?? 0}`;
+  const adult = detail?.booth?.artAdult ?? booth.artAdult ?? [];
   const buy = (k: string) => { const l = links[k]; if (!l) return; track({ kind: "clicks", boothId: id, source: "print" }); window.open(l, "_blank", "noopener"); };
   const askCommission = () => { if (!commissions) return; track({ kind: "clicks", boothId: id, source: "commission" }); window.open(commissions, "_blank", "noopener"); };
   const page$ = (k: string | undefined, side: "left" | "right") => (
     <div className={`flex min-w-0 flex-1 flex-col items-center ${side === "left" ? "items-end" : "items-start"}`}>
       <div className={`relative aspect-[11/17] h-[min(62vh,640px)] overflow-hidden bg-[#f4efe6] shadow-2xl ${side === "left" ? "rounded-l-lg" : "rounded-r-lg"}`}>
-        {k ? <img src={url(k)} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-xs text-slate-500">(blank page)</div>}
+        {k ? <AdultImg src={url(k)} adult={adult.includes(k)} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full w-full place-items-center text-xs text-slate-500">(blank page)</div>}
         <div className={`pointer-events-none absolute inset-y-0 ${side === "left" ? "right-0 bg-gradient-to-l" : "left-0 bg-gradient-to-r"} w-10 from-black/25 to-transparent`} />
       </div>
       {k && links[k] && <button onClick={() => buy(k)} className="btn-primary mt-2 text-xs">🖼️ Buy a print ↗</button>}

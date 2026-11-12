@@ -16,6 +16,7 @@ import { activatePlan } from "@/lib/subscriptions";
 import { sendReceipt, sendSold, sendWelcome } from "@/lib/emails";
 import { sendTemplate } from "@/lib/sendgrid";
 import { notify } from "@/lib/notify";
+import { assertClean } from "@/lib/text-filter";
 
 export type Booth = typeof schema.booths.$inferSelect;
 
@@ -26,8 +27,8 @@ export function logoStamp(p: Pick<Booth, "logoUrl" | "name" | "color">): number 
   let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return h >>> 0;
 }
-export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>) {
-  return { art, artLinks, house: isHouseBooth(p.id), bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, tableMode: p.tableMode, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
+export function liveBooth(p: Booth, art?: Record<string, number>, artLinks?: Record<string, string>, artAdult?: string[]) {
+  return { art, artLinks, artAdult, house: isHouseBooth(p.id), bannerHeight: p.bannerHeight, bookSlots: p.bookSlots, tableMode: p.tableMode, logoVersion: logoStamp(p), freeValueCents: p.freeValueCents, id: p.id, valueCents: p.valueCents, name: p.name, color: p.color, accent: p.accent, style: p.style, cloth: p.cloth, category: p.category, tier: p.tier, hasLogo: !!p.logoUrl, tagline: p.tagline, website: p.website, artstation: p.artstation, deviantart: p.deviantart, instagram: p.instagram, xUrl: p.xUrl, facebook: p.facebook, globalcomix: p.globalcomix, size: p.size, kind: p.kind, label: p.label, hall: p.hall };
 }
 export type Tx = typeof schema.transactions.$inferSelect;
 
@@ -71,9 +72,16 @@ function profileUrl(v: string | undefined, base: string): string | null {
 
 const badLogo = (msg: string): never => { throw new Error(msg); };
 /** Cleared fields come back as null (so an edit really removes them); fields not given come back undefined. */
+/** Logos and billboard pictures are seen by everyone on the floor: an uploaded one that shows nudity is refused. */
+async function assertImageClean(url: string | null | undefined) {
+  const { dataUrlLooksNude, NUDITY_REFUSED } = await import("@/lib/nudity");
+  if (await dataUrlLooksNude(url)) throw new Error(NUDITY_REFUSED);
+}
 export function sanitizeDraft(d: Partial<BoothDraft>): BoothDraft {
   const name = clampStr(d.name, 40);
   if (!name) throw new Error("Give your booth a name");
+  // everything on a listing is read by anyone who walks past: it has to suit a 13-and-up hall
+  assertClean({ "The booth name": name, "The tagline": d.tagline, "The description": d.description, "The commission note": d.commissionNote });
   const website = normalizeUrl(d.website);
   // logos: a static image path on this site, an uploaded raster data URL (what /api/upload returns), or a remote http(s)
   // URL. Not any local path: /logo/<id> redirects there for every visitor, so "/api/px/42?v=..." or "/app/go/42" would turn
@@ -189,6 +197,7 @@ async function heldByOther(boothId: number, buyerId: string): Promise<boolean> {
 export async function startClaim(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number, code?: string | null) {
   await ensureMigrated();
   sanitizeDraft(draft); // a draft settle would refuse (blank name...) is refused now, before anything is charged or used up
+  await assertImageClean(draft.logoUrl);
   if (!boothSpace(boothId)) throw new Error("No such booth");
   const p = await getBooth(boothId);
   if (p?.ownerId) throw new Error("That booth is already claimed. Try a takeover instead.");
@@ -222,6 +231,7 @@ export async function startClaim(boothId: number, buyerId: string, draft: BoothD
 export async function startTakeover(boothId: number, buyerId: string, draft: BoothDraft, creditCents: number) {
   await ensureMigrated();
   sanitizeDraft(draft); // refuse an unusable draft before charging, not after
+  await assertImageClean(draft.logoUrl);
 
   const p = await getBooth(boothId);
   if (!p?.ownerId) throw new Error("That booth is unclaimed. Claim it instead.");
@@ -392,6 +402,8 @@ export async function startBillboard(buyerId: string, d: BillboardDraft) {
     .from(schema.billboards)
     .where(and(eq(schema.billboards.slot, slotKey), sql`${schema.billboards.status} IN ('pending','active')`));
   const startsAt = Math.max(now(), Number(last?.endsAt ?? 0));
+  assertClean({ "The headline": headline, "The billboard text": d.body });
+  await assertImageClean(d.imageUrl);
   const draft = {
     slot: slotKey,
     headline,
@@ -694,6 +706,7 @@ export async function updateBooth(boothId: number, userId: string, draft: Partia
   // the logo is only checked when this edit changes it, so an older stored logo doesn't block unrelated edits
   const d = sanitizeDraft({ ...p, ...draft, logoUrl: "logoUrl" in draft ? draft.logoUrl : undefined, name: draft.name ?? p.name ?? "" } as BoothDraft);
   if (!("logoUrl" in draft)) delete (d as Partial<BoothDraft>).logoUrl;
+  else await assertImageClean(d.logoUrl);
   await db.update(schema.booths).set({ ...d, updatedAt: now() }).where(eq(schema.booths.id, boothId));
   const booth = (await getBooth(boothId))!;
   if (!booth.hidden) publish({ type: "booth", booth: liveBooth(booth) }); // a booth an admin hid stays off the floor

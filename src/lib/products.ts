@@ -6,6 +6,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, ensureMigrated, schema } from "@/lib/db";
 import { newId, normalizeUrl, now } from "@/lib/util";
 import { PRODUCT_LIMIT, productSlotKey } from "@/lib/config";
+import { assertClean } from "@/lib/text-filter";
 
 export interface ProductRow { id: string; title: string; blurb: string | null; priceCents: number; url: string; sort: number; image: number | null; clicks?: number }
 
@@ -37,6 +38,7 @@ export async function upsertProduct(boothId: number, d: { id?: string; title: st
   const title = d.title.trim().slice(0, 80);
   if (!title) throw new Error("Give the item a name");
   const blurb = (d.blurb ?? "").trim().slice(0, 240) || null;
+  assertClean({ "The item's name": title, "The item's description": blurb });
   const priceCents = Math.max(0, Math.min(1_000_000_00, Math.round(d.priceCents)));
   const t = now();
   if (d.id) {

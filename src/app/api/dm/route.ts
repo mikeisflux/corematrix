@@ -7,6 +7,8 @@ import { dmThread, dmThreads, hasThread, markRead, sendDm } from "@/lib/dm";
 import { roster } from "@/lib/presence";
 import { currentUser, clientIp } from "@/lib/auth";
 import { allow } from "@/lib/throttle";
+import { maskText } from "@/lib/text-filter";
+import { loadTextFilter } from "@/lib/text-filter-config";
 export const dynamic = "force-dynamic";
 
 const Body = z.object({ to: z.string().min(3).max(40), body: z.string().trim().min(1).max(300), name: z.string().max(40).optional() });
@@ -36,7 +38,11 @@ export async function POST(req: Request) {
   if (await isBlockedBy({ uid: roster().find((p) => p.id === parsed.data.to)?.uid, pid: parsed.data.to }, { uid: u?.id, pid: me })) return NextResponse.json({ error: "This person isn't accepting messages from you." }, { status: 403 });
   const onFloor = roster().find((p) => p.id === me);
   const name = u?.displayName || onFloor?.n || parsed.data.name || "Visitor";
-  const msg = await sendDm(me, name, parsed.data.to, parsed.data.body);
+  // whispers follow the same all-ages rule as the hall: slurs and explicit sexual words stop it, other vulgar words are starred
+  await loadTextFilter();
+  const filtered = maskText(parsed.data.body);
+  if (filtered.severe) return NextResponse.json({ error: "That message has language that isn't allowed here. ForeverComicCon is open to ages 13 and up." }, { status: 400 });
+  const msg = await sendDm(me, maskText(name).text, parsed.data.to, filtered.text);
   const out = NextResponse.json({ ok: true, message: msg });
   for (const c of res.cookies.getAll()) out.cookies.set(c);
   return out;

@@ -446,6 +446,7 @@ export const boothArt = pgTable(
     data: text("data").notNull(), // base64 (no data: prefix); "" once the bytes live on R2
     url: text("url"), // "r2:<key>" when the bytes are on R2 (see lib/r2.ts)
     link: text("link"), // comic covers: where to buy it
+    adult: boolean("adult").notNull().default(false), // marked 18+ by its owner: served blurred until the viewer confirms their age
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     updatedAt: integer("updated_at").notNull(),

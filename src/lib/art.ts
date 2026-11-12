@@ -32,7 +32,7 @@ export async function normalizeArt(buf: Buffer, slot: string): Promise<{ mime: s
 }
 
 /** Save a slot. With R2 switched on the bytes go to the bucket under a versioned key and the row keeps only the reference; the previous object is removed. */
-export async function setArt(boothId: number, slot: string, art: { mime: string; data: string; width: number; height: number } | null) {
+export async function setArt(boothId: number, slot: string, art: { mime: string; data: string; width: number; height: number } | null, adult = false) {
   await ensureMigrated();
   const [prev] = await db.select({ url: schema.boothArt.url }).from(schema.boothArt).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot))).limit(1);
   const cfg = await r2Ready();
@@ -44,8 +44,8 @@ export async function setArt(boothId: number, slot: string, art: { mime: string;
   const t = now();
   let row: { mime: string; data: string; width: number; height: number; url: string | null } = { ...art, url: null };
   if (cfg) row = { ...row, data: "", url: await r2Put(cfg, artKey(boothId, slot, art.mime, t), Buffer.from(art.data, "base64"), art.mime) };
-  await db.insert(schema.boothArt).values({ boothId, slot, ...row, updatedAt: t })
-    .onConflictDoUpdate({ target: [schema.boothArt.boothId, schema.boothArt.slot], set: { ...row, updatedAt: t } });
+  await db.insert(schema.boothArt).values({ boothId, slot, ...row, adult, updatedAt: t })
+    .onConflictDoUpdate({ target: [schema.boothArt.boothId, schema.boothArt.slot], set: { ...row, adult, updatedAt: t } });
   if (cfg && isRef(prev?.url) && prev.url !== row.url) await r2Delete(cfg, refKey(prev.url));
 }
 
@@ -91,4 +91,18 @@ export async function artLinks(): Promise<Map<number, Record<string, string>>> {
 export async function setArtLink(boothId: number, slot: string, link: string | null) {
   await ensureMigrated();
   await db.update(schema.boothArt).set({ link }).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.slot, slot)));
+}
+
+/** Slots marked 18+ (served blurred until the viewer confirms their age), for one booth or for everyone. */
+export async function artAdultFor(boothId: number): Promise<string[]> {
+  await ensureMigrated();
+  const rows = await db.select({ slot: schema.boothArt.slot }).from(schema.boothArt).where(and(eq(schema.boothArt.boothId, boothId), eq(schema.boothArt.adult, true)));
+  return rows.map((r) => r.slot);
+}
+export async function artAdult(): Promise<Map<number, string[]>> {
+  await ensureMigrated();
+  const rows = await db.select({ boothId: schema.boothArt.boothId, slot: schema.boothArt.slot }).from(schema.boothArt).where(eq(schema.boothArt.adult, true));
+  const m = new Map<number, string[]>();
+  for (const r of rows) m.set(r.boothId, [...(m.get(r.boothId) ?? []), r.slot]);
+  return m;
 }

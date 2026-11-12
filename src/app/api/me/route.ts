@@ -8,6 +8,8 @@ import { dailyCheckIn } from "@/lib/arcade";
 import { staffedBooths } from "@/lib/social-graph";
 import { costumeItem } from "@/lib/hall/items";
 import { ownedItemsCached } from "@/lib/shop";
+import { checkText } from "@/lib/text-filter";
+import { loadTextFilter } from "@/lib/text-filter-config";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +71,10 @@ export async function PATCH(req: Request) {
     set.avatar = JSON.stringify({ ...kept, body: a.body === "b" ? "b" : "a", skin: hex(a.skin, "#ffdfc4"), hair: ["short", "long", "buzz", "bun", "curly", "bald"].includes(String(a.hair)) ? a.hair : "short", hairColor: hex(a.hairColor, "#2b1b12"), shirt: hex(a.shirt, "#e63946"), pants: hex(a.pants, "#1f2a44"), costume: wearable ? costume : "none" });
   }
   if (typeof body.notifyEmail === "boolean") set.notifyEmail = body.notifyEmail;
+  // what everyone on the floor reads next to this person has to suit a 13-and-up hall
+  await loadTextFilter();
+  const unfit = checkText(typeof body.displayName === "string" ? body.displayName : null, "That name") ?? checkText(typeof body.title === "string" ? body.title : null, "That title") ?? checkText(typeof body.handle === "string" ? body.handle : null, "That handle");
+  if (unfit) return NextResponse.json({ error: unfit }, { status: 400 });
   if (typeof body.displayName === "string") set.displayName = body.displayName.trim().slice(0, 40) || u.displayName;
   if (typeof body.title === "string") set.title = body.title.trim().slice(0, 40) || null;
   if (typeof body.handle === "string") {

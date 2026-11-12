@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { looksNude, NUDITY_REFUSED } from "@/lib/nudity";
 
 /**
  * Logo upload. Raster images are fitted (never cropped) and centred on a
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
     const png = await sharp(buf, { failOn: "none", animated: false }).rotate()
       .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png({ compressionLevel: 9 }).toBuffer();
+    if (await looksNude(png)) return NextResponse.json({ error: NUDITY_REFUSED }, { status: 422 });
     return NextResponse.json({ url: `data:image/png;base64,${png.toString("base64")}` });
   } catch (e) {
     return NextResponse.json({ error: `Couldn't read that image: ${(e as Error).message}` }, { status: 400 });

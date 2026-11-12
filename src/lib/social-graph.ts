@@ -10,6 +10,7 @@ import { newId, now } from "@/lib/util";
 import { publishToUser } from "@/lib/realtime";
 import { notify, notifyMany } from "@/lib/notify";
 import { allow } from "@/lib/throttle";
+import { assertClean } from "@/lib/text-filter";
 
 export interface Person { id: string; name: string; handle: string | null }
 // never fall back to the email: these names reach strangers in requests and notifications
@@ -119,6 +120,7 @@ export async function teamsOf(ownerId: string): Promise<TeamView[]> {
 export async function createTeam(ownerId: string, name: string): Promise<string> {
   await ensureMigrated();
   const n = name.trim().slice(0, 40); if (!n) throw new Error("Give the team a name");
+  assertClean({ "The team name": n });
   const [{ c }] = await db.select({ c: sql<number>`count(*)` }).from(schema.teams).where(eq(schema.teams.ownerId, ownerId));
   if (Number(c) >= 20) throw new Error("That's plenty of teams");
   const id = newId();
@@ -137,6 +139,7 @@ async function ownTeam(ownerId: string, teamId: string) {
 export async function renameTeam(ownerId: string, teamId: string, name: string) {
   await ensureMigrated(); await ownTeam(ownerId, teamId);
   const n = name.trim().slice(0, 40); if (!n) throw new Error("Give the team a name");
+  assertClean({ "The team name": n });
   await db.update(schema.teams).set({ name: n }).where(eq(schema.teams.id, teamId));
 }
 

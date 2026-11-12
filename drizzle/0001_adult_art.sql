@@ -1,0 +1,1 @@
+ALTER TABLE "booth_art" ADD COLUMN "adult" boolean DEFAULT false NOT NULL;

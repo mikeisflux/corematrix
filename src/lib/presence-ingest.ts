@@ -13,6 +13,7 @@ import { staffedBooths } from "@/lib/social-graph";
 import { updatePlayer, removePlayer, hasPlayer, playerCount } from "@/lib/presence";
 import { allow } from "@/lib/throttle";
 import type { User } from "@/lib/auth";
+import { isClean } from "@/lib/text-filter";
 
 const HEX = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 export const PresenceBody = z.object({
@@ -77,6 +78,6 @@ export async function ingestPresence(id: string, raw: unknown, ctx: { user: User
   if (b.s === 3 && !(await maySitAt(b.x, b.z, u?.id ?? null, u?.email ?? ""))) b.s = 0;
   // an emote or reaction stamped in the future would stay "fresh" forever: clamp the time to now
   const t = Date.now(); const stamp = <T extends { t: number }>(v: T | null | undefined) => (v ? { ...v, t: Math.min(v.t, t) } : null);
-  updatePlayer({ id, n: (b.n || "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: stamp(b.e), r: stamp(b.r), uid: u?.id ?? null, j: u?.title ?? null, w: b.w === true });
+  updatePlayer({ id, n: (b.n && isClean(b.n) ? b.n : "Visitor").slice(0, 40), a: b.a, x: b.x, z: b.z, h: b.h ?? 0, s: b.s ?? 0, e: stamp(b.e), r: stamp(b.r), uid: u?.id ?? null, j: u?.title ?? null, w: b.w === true });
   return { ok: true, id };
 }

@@ -10,6 +10,8 @@ import { friendsOf } from "@/lib/social-graph";
 import { visitorsOf } from "@/lib/presence";
 import { notify } from "@/lib/notify";
 import { allow } from "@/lib/throttle";
+import { maskText } from "@/lib/text-filter";
+import { loadTextFilter } from "@/lib/text-filter-config";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,9 @@ export async function GET(req: Request) {
     .where(and(eq(schema.messages.room, room), eq(schema.messages.hidden, false), scope))
     .orderBy(desc(schema.messages.createdAt))
     .limit(60);
-  return NextResponse.json({ messages: rows.reverse().map(({ userId, hidden: _h, ...m }) => ({ ...m, authorUid: userId })) });
+  // messages stored before the filter existed (or under looser settings) are starred on the way out too
+  await loadTextFilter();
+  return NextResponse.json({ messages: rows.reverse().map(({ userId, hidden: _h, ...m }) => ({ ...m, body: maskText(m.body).text, authorName: maskText(m.authorName).text, authorUid: userId })) });
 }
 
 const Body = z.object({ room: z.string().max(30), body: z.string().min(1).max(400) });
@@ -49,7 +53,12 @@ export async function POST(req: Request) {
   if (!u) return NextResponse.json({ error: "Sign in to chat" }, { status: 401 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Message too long or empty" }, { status: 400 });
-  const { room, body } = parsed.data;
+  const { room } = parsed.data;
+  // the hall is open to ages 13 and up: slurs and explicit sexual words stop the message, other vulgar words are starred
+  await loadTextFilter();
+  const filtered = maskText(parsed.data.body);
+  if (filtered.severe) return NextResponse.json({ error: "That message has language that isn't allowed here. The hall is open to ages 13 and up." }, { status: 400 });
+  const body = filtered.text;
   // decided before any await, so two messages sent at once can't both slip past the 5 second rule
   if (!allow(`chat:${u.id}`, 1, 5000)) return NextResponse.json({ error: "Slow down a little" }, { status: 429 });
   const [booth] = await db

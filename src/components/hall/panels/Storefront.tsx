@@ -6,6 +6,7 @@
  * Hero art, the exhibitor's links, every comic cover on their table as a
  * gallery with a lightbox, who is at the booth right now, and the actions.
  */
+import { AdultImg, adultSrc, useAdultOk } from "@/components/AgeGate";
 import { openPortfolio } from "@/lib/hall/portfolio";
 import { useEffect, useMemo, useState } from "react";
 import { track, useHall, type HallBooth } from "@/lib/hall/store";
@@ -20,7 +21,7 @@ import { useShop, sponsorsAt, claimSponsor } from "@/lib/hall/shop";
 import { itemById } from "@/lib/hall/items";
 
 export interface StorefrontDetail {
-  booth: { isOwner: boolean; canManage?: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string> };
+  booth: { isOwner: boolean; canManage?: boolean; ownerId?: string | null; description: string | null; claimedAt: number | null; salesCount: number; commissions?: string | null; commissionNote?: string | null; artstation?: string | null; deviantart?: string | null; instagram?: string | null; xUrl?: string | null; facebook?: string | null; globalcomix?: string | null; art?: Record<string, number>; artLinks?: Record<string, string>; artAdult?: string[] };
   totals: { views: number; clicks: number; impressions: number; uniques: number; dwellSeconds?: number; bannerClicks?: number };
   series?: Array<{ day: string; views: number; clicks: number; dwellSeconds?: number; bannerClicks?: number }>;
   week?: { rank: number; of: number; views: number } | null; // owner only: place by visits this week
@@ -32,7 +33,7 @@ export const productImage = (boothId: number, pr: Product) => (pr.image ? `/api/
 /** Buying stays on the exhibitor's own site: the press is counted for the booth and the item, the hall keeps running in this tab. */
 export const buyProduct = (boothId: number, pr: Product) => { window.open(`/app/buy/${boothId}?p=${pr.id}`, "_blank", "noopener"); };
 /** One item, full size: picture, price, the blurb, and Buy. */
-function ProductOverlay({ boothId, booth, item, onClose, onPrev, onNext }: { boothId: number; booth: string; item: Product; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
+function ProductOverlay({ boothId, booth, item, adult, onClose, onPrev, onNext }: { boothId: number; booth: string; item: Product; adult?: boolean; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); if (e.key === "ArrowLeft") onPrev?.(); if (e.key === "ArrowRight") onNext?.(); };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
@@ -41,7 +42,7 @@ function ProductOverlay({ boothId, booth, item, onClose, onPrev, onNext }: { boo
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 fade-up" onClick={onClose}>
       <div className="panel flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl md:flex-row" onClick={(e) => e.stopPropagation()}>
-        <div className="flex aspect-square w-full items-center justify-center bg-white/5 md:w-1/2">{img ? <img src={img} alt={item.title} className="h-full w-full object-cover" /> : <span className="text-5xl">🛍️</span>}</div>
+        <div className="flex aspect-square w-full items-center justify-center bg-white/5 md:w-1/2">{img ? <AdultImg src={img} adult={adult} ask onDecline={onClose} alt={item.title} className="h-full w-full object-cover" /> : <span className="text-5xl">🛍️</span>}</div>
         <div className="flex flex-1 flex-col gap-3 p-5">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{booth} · shop</div>
           <h3 className="text-2xl font-black leading-tight">{item.title}</h3>
@@ -118,7 +119,11 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
   const art = detail?.booth.art ?? booth.art ?? {};
   const buy = detail?.booth.artLinks ?? booth.artLinks ?? {};
   const buyIt = (slot: string) => { const l = buy[slot]; if (!l) return; track({ kind: "clicks", boothId: id, source: "comic" }); window.open(l, "_blank", "noopener"); };
-  const url = (slot: string) => `/api/art/${id}/${slot}?v=${art[slot] ?? 0}`;
+  const adultOk = useAdultOk();
+  const rawUrl = (slot: string) => `/api/art/${id}/${slot}?v=${art[slot] ?? 0}`;
+  const adultSlots = detail?.booth.artAdult ?? booth.artAdult ?? [];
+  const isAdult = (slot: string) => adultSlots.includes(slot);
+  const url = (slot: string) => adultSrc(`/api/art/${id}/${slot}?v=${art[slot] ?? 0}`, isAdult(slot), adultOk); // 18+ pieces stay blurred until the visitor confirms their age
   const covers = useMemo(() => Object.keys(art).filter((k) => k.startsWith("book:")).sort((a, b) => Number(a.slice(5)) - Number(b.slice(5))), [art]);
   const pieces = useMemo(() => Object.keys(art).filter((k) => k.startsWith("gallery:")).sort((a, b) => Number(a.slice(8)) - Number(b.slice(8))), [art]);
   const [piece, setPiece] = useState<number | null>(null);
@@ -222,7 +227,7 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
                 const img = productImage(id, pr);
                 return (
                   <button key={pr.id} onClick={() => setItem(i)} className="group overflow-hidden rounded-xl bg-white/[0.04] text-left transition hover:bg-white/[0.08]">
-                    <div className="flex aspect-square items-center justify-center bg-white/5">{img ? <img src={img} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-[1.03]" /> : <span className="text-3xl">🛍️</span>}</div>
+                    <div className="flex aspect-square items-center justify-center bg-white/5">{img ? <img src={adultSrc(img, isAdult(productSlotKey(pr.id)), adultOk)} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-[1.03]" /> : <span className="text-3xl">🛍️</span>}</div>
                     <div className="p-2"><div className="truncate text-sm font-semibold">{pr.title}</div><div className="mono text-xs text-amber-300">{pr.priceCents ? formatMoney(pr.priceCents) : "See price"}</div></div>
                   </button>
                 );
@@ -267,26 +272,26 @@ export function Storefront({ id, booth, detail, rank, onTakeover }: { id: number
         <p className="text-[11px] text-slate-500">Claimed {booth.claimedAt ? timeAgo(booth.claimedAt) : "recently"}{booth.salesCount > 1 ? ` · changed hands ${booth.salesCount - 1}×` : ""} · <a href={`/app/booth/${id}`} className="underline">public page</a></p>
       </div>
       {piece !== null && pieces[piece] && (
-        <Lightbox src={url(pieces[piece])} caption={`${booth.name} · piece ${piece + 1} of ${pieces.length}`} buy={buy[pieces[piece]] ? () => { track({ kind: "clicks", boothId: id, source: "print" }); window.open(buy[pieces[piece]], "_blank", "noopener"); } : undefined} buyLabel="🖼️ Buy a print ↗" commission={commissions ? askCommission : undefined} onClose={() => setPiece(null)} onPrev={piece > 0 ? () => setPiece(piece - 1) : undefined} onNext={piece < pieces.length - 1 ? () => setPiece(piece + 1) : undefined} />
+        <Lightbox src={rawUrl(pieces[piece])} adult={isAdult(pieces[piece])} caption={`${booth.name} · piece ${piece + 1} of ${pieces.length}`} buy={buy[pieces[piece]] ? () => { track({ kind: "clicks", boothId: id, source: "print" }); window.open(buy[pieces[piece]], "_blank", "noopener"); } : undefined} buyLabel="🖼️ Buy a print ↗" commission={commissions ? askCommission : undefined} onClose={() => setPiece(null)} onPrev={piece > 0 ? () => setPiece(piece - 1) : undefined} onNext={piece < pieces.length - 1 ? () => setPiece(piece + 1) : undefined} />
       )}
       {item !== null && products[item] && (
-        <ProductOverlay boothId={id} booth={booth.name ?? ""} item={products[item]} onClose={() => setItem(null)} onPrev={item > 0 ? () => setItem(item - 1) : undefined} onNext={item < products.length - 1 ? () => setItem(item + 1) : undefined} />
+        <ProductOverlay adult={adultSlots.includes(productSlotKey(products[item].id))} boothId={id} booth={booth.name ?? ""} item={products[item]} onClose={() => setItem(null)} onPrev={item > 0 ? () => setItem(item - 1) : undefined} onNext={item < products.length - 1 ? () => setItem(item + 1) : undefined} />
       )}
       {light !== null && covers[light] && (
-        <Lightbox src={url(covers[light])} caption={`${booth.name} · comic ${light + 1} of ${covers.length}`} buy={buy[covers[light]] ? () => buyIt(covers[light]) : undefined} onClose={() => setLight(null)} onPrev={light > 0 ? () => setLight(light - 1) : undefined} onNext={light < covers.length - 1 ? () => setLight(light + 1) : undefined} />
+        <Lightbox src={rawUrl(covers[light])} adult={isAdult(covers[light])} caption={`${booth.name} · comic ${light + 1} of ${covers.length}`} buy={buy[covers[light]] ? () => buyIt(covers[light]) : undefined} onClose={() => setLight(null)} onPrev={light > 0 ? () => setLight(light - 1) : undefined} onNext={light < covers.length - 1 ? () => setLight(light + 1) : undefined} />
       )}
     </div>
   );
 }
 
-function Lightbox({ src, caption, buy, buyLabel = "🛒 Buy this comic ↗", commission, onClose, onPrev, onNext }: { src: string; caption: string; buy?: () => void; buyLabel?: string; commission?: () => void; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
+function Lightbox({ src, adult, caption, buy, buyLabel = "🛒 Buy this comic ↗", commission, onClose, onPrev, onNext }: { src: string; adult?: boolean; caption: string; buy?: () => void; buyLabel?: string; commission?: () => void; onClose: () => void; onPrev?: () => void; onNext?: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); if (e.key === "ArrowLeft") onPrev?.(); if (e.key === "ArrowRight") onNext?.(); };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [onClose, onPrev, onNext]);
   return (
     <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-black/90 p-4 fade-up" onClick={onClose}>
-      <img src={src} alt="" className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+      <AdultImg src={src} adult={adult} ask onDecline={onClose} alt="" className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
       <div className="mt-3 flex items-center gap-3 text-sm text-slate-200" onClick={(e) => e.stopPropagation()}>
         <button onClick={onPrev} disabled={!onPrev} className="rounded-full bg-white/10 px-3 py-1 disabled:opacity-30">←</button>
         <span>{caption}</span>
