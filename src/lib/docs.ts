@@ -94,6 +94,7 @@ export const DOCS: DocSection[] = [
         `**Display a book**: each comic stand on your table is ${money(BOOK_PRICE_CENTS)}, one-time (4 stands per table).`,
       ] },
       { h: "Plans", table: { head: ["Plan", "Price", "Includes"], rows: Object.values(TIERS).map((t) => [t.name, t.priceCents ? `${money(t.priceCents)} / 30 days` : "free", t.perks.join(" · ")]) } },
+      { h: "Paying", p: "Card payments are taken by Divinity Payments in a secure checkout that opens inside the page (or in its own tab on some phones). It is shown in the same dark colours as the rest of the site and carries the Divinity Payments name, which is also the name on your card statement. We never see or store your card details." },
       { h: "Codes", p: "A booth code (from a promotion or a partner) pays part or all of a claim. Enter it in the checkout. Value a code paid is marked free and is not paid out on a takeover." },
       { h: "Refunds", p: "Full refund within 24 hours of a claim if the booth has had no clicks or takeovers. Plans renew every 30 days and can be cancelled any time; perks run to the end of the period." },
     ],

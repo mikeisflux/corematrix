@@ -45,6 +45,20 @@ export interface CheckoutInput {
   reference: string; amountCents: number; currency?: string; email: string; customerId: string; description: string;
   returnUrl: string; cancelUrl: string; expiresInMinutes?: number; embed?: boolean; origin?: CustomerOrigin | null;
 }
+/**
+ * The hosted checkout is light by default; these put it in the site's own colours (globals.css: --bg, --fg, --accent),
+ * embedded or full page. On the URL rather than a postMessage so there is no light flash and the iOS "Continue
+ * securely" tab keeps them. The processor derives every other colour and ignores values it cannot read.
+ */
+const CHECKOUT_THEME = { bg: "0b1020", text: "eef2ff", accent: "ffcf5c" };
+export function themed(checkoutUrl: string): string {
+  try {
+    const u = new URL(checkoutUrl);
+    for (const [k, v] of Object.entries(CHECKOUT_THEME)) u.searchParams.set(k, v);
+    return u.toString();
+  } catch { return checkoutUrl; }
+}
+
 export interface CheckoutResult { success: boolean; checkoutUrl?: string; sessionId?: string; expiresAt?: string; error?: string }
 export interface SetupInput { reference: string; email: string; customerId: string; description: string; returnUrl: string; cancelUrl: string; embed?: boolean; origin?: CustomerOrigin | null }
 export interface CheckoutSession {
@@ -146,7 +160,7 @@ class DivinityCoinClient {
         ...originFields(input.origin),
       });
       if (!d.checkoutUrl) return { success: false, error: "DivinityCoin did not return a checkout URL." };
-      return { success: true, checkoutUrl: d.checkoutUrl, sessionId: d.sessionId, expiresAt: d.expiresAt };
+      return { success: true, checkoutUrl: themed(d.checkoutUrl), sessionId: d.sessionId, expiresAt: d.expiresAt };
     } catch (err) { return { success: false, error: String(err instanceof Error ? err.message : err) }; }
   }
 
@@ -165,7 +179,7 @@ class DivinityCoinClient {
         ...originFields(input.origin),
       });
       if (!d.checkoutUrl) return { success: false, error: "DivinityCoin did not return a checkout URL." };
-      return { success: true, checkoutUrl: d.checkoutUrl, sessionId: d.sessionId, expiresAt: d.expiresAt };
+      return { success: true, checkoutUrl: themed(d.checkoutUrl), sessionId: d.sessionId, expiresAt: d.expiresAt };
     } catch (err) { return { success: false, error: String(err instanceof Error ? err.message : err) }; }
   }
 
